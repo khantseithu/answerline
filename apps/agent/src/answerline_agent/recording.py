@@ -50,7 +50,11 @@ class CallRecording:
             room_name=self._room_name,
             audio_only=True,
             file_outputs=[
-                api.EncodedFileOutput(file_type=api.EncodedFileType.OGG, filepath=self._key)
+                api.EncodedFileOutput(
+                    file_type=api.EncodedFileType.OGG,
+                    filepath=self._key,
+                    disable_manifest=True,
+                )
             ],
         )
         try:
