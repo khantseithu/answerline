@@ -1,0 +1,23 @@
+{
+  "name": "@answerline/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=../../.env src/index.ts",
+    "start": "tsx src/index.ts",
+    "eval": "tsx --env-file-if-exists=../../.env src/cli.ts eval",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@answerline/llm": "workspace:*",
+    "@answerline/shared": "workspace:*",
+    "bullmq": "^6.4.0",
+    "ioredis": "^6.0.0",
+    "tsx": "^4.23.15"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "typescript": "^5.9.3"
+  }
+}

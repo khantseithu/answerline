@@ -1,0 +1,9 @@
+[project]
+name = "answerline-llm"
+version = "0.0.0"
+requires-python = ">=3.13,<3.15"
+dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

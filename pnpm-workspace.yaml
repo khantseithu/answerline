@@ -1,0 +1,8 @@
+packages:
+  - apps/web
+  - apps/worker
+  - packages/*
+
+allowBuilds:
+  sharp: false
+  unrs-resolver: false
