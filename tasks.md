@@ -40,9 +40,9 @@ Legend: `[x]` done · `[ ]` todo · **Done when** = acceptance criteria for the 
 Roadmap: *Web voice calls with a sample agent*
 
 - [ ] Agent
-  - [ ] Agent dispatch by agent ID (room metadata or dispatch metadata → load config from DB, fall back to YAML)
-  - [ ] Turn detection model (LiveKit `inference.TurnDetector` or self-hosted alternative; verify it runs without LiveKit Cloud)
-  - [ ] Interruption handling and false-interruption tuning
+  - [x] Agent dispatch by agent ID (room metadata or dispatch metadata → load config from DB, fall back to YAML)
+  - [x] Turn detection model (LiveKit `inference.TurnDetector` or self-hosted alternative; verify it runs without LiveKit Cloud)
+  - [x] Interruption handling and false-interruption tuning
   - [ ] Noise cancellation (optional, check licensing for self-hosted)
   - [ ] Emit `call.started` / `call.ended` to Redis (BullMQ-compatible enqueue from Python, or a thin HTTP endpoint on web)
   - [ ] Persist transcript turns with timestamps
@@ -253,7 +253,7 @@ Roadmap: *Multilingual agents*
 - ORM and migrations: Drizzle vs Prisma (Drizzle recommended for SQL-first + pgvector)
 - Auth: Better Auth vs Auth.js
 - How the Python agent writes events: enqueue BullMQ jobs directly from Python vs POST to an internal web endpoint
-- Turn detection for fully self-hosted setups (LiveKit's local plugin is deprecated in 1.8)
+- Turn detection for fully self-hosted setups (LiveKit's local plugin is deprecated in 1.8; the agent defaults to the bundled `inference.TurnDetector(version="v1-mini")` with VAD interruption, pending decision, see #130)
 - Agent config source of truth: YAML in repo vs database (with YAML import/export)
 - Recording storage default: local volume vs MinIO in compose
 - Model alias names in README (`claude-sonnet`, `gpt-mini`) vs full model IDs
