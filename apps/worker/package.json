@@ -7,6 +7,7 @@
     "dev": "tsx watch --env-file-if-exists=../../.env src/index.ts",
     "eval": "tsx --env-file-if-exists=../../.env src/cli.ts eval",
     "start": "tsx src/index.ts",
+    "test": "node --test --import tsx 'src/**/*.test.ts'",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -14,7 +15,8 @@
     "@answerline/shared": "workspace:*",
     "bullmq": "^6.4.0",
     "ioredis": "^6.0.0",
-    "tsx": "^4.23.15"
+    "tsx": "^4.23.15",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^24",

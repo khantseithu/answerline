@@ -1,7 +1,8 @@
 import { Redis } from "ioredis";
+import { env } from "./env.ts";
 
 export function createRedis() {
-  return new Redis(process.env.REDIS_URL ?? "redis://localhost:6379", {
+  return new Redis(env.REDIS_URL, {
     maxRetriesPerRequest: null,
   });
 }
