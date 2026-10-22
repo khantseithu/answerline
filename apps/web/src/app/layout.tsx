@@ -5,24 +5,24 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
 const geistSans = Geist({
-  variable: "--font-geist-sans",
   subsets: ["latin"],
+  variable: "--font-geist-sans",
 });
 
 const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
   subsets: ["latin"],
+  variable: "--font-geist-mono",
 });
 
 export const metadata: Metadata = {
-  title: "Answerline",
   description: "Self-hosted AI voice receptionist",
+  title: "Answerline",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col">
+    <html className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`} lang="en">
+      <body className="flex min-h-full flex-col">
         <TooltipProvider>{children}</TooltipProvider>
         <Toaster />
       </body>

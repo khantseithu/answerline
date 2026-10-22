@@ -4,20 +4,27 @@ import { createRedis } from "./redis.ts";
 
 const connection = createRedis();
 
-const handlers: Record<string, (job: Job) => Promise<void>> = {
-  [QUEUES.ingestion]: async (job) => {
+const handlers: Record<string, (job: Job) => void> = {
+  [QUEUES.ingestion]: (job) => {
     console.log(`[ingestion] ${job.name} ${job.id}`);
   },
-  [QUEUES.postCall]: async (job) => {
+  [QUEUES.postCall]: (job) => {
     console.log(`[post-call] ${job.name} ${job.id}`);
   },
-  [QUEUES.evals]: async (job) => {
+  [QUEUES.evals]: (job) => {
     console.log(`[evals] ${job.name} ${job.id}`);
   },
 };
 
 const workers = Object.entries(handlers).map(
-  ([queue, handler]) => new Worker(queue, handler, { connection }),
+  ([queue, handler]) =>
+    new Worker(
+      queue,
+      async (job) => {
+        await handler(job);
+      },
+      { connection }
+    )
 );
 
 console.log(`worker listening on queues: ${Object.keys(handlers).join(", ")}`);

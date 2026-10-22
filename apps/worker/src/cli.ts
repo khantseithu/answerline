@@ -14,6 +14,8 @@ const agent = parseAgentConfig(await readFile(agentFile, "utf8"));
 const suite = parseEvalSuite(await readFile(suiteFile, "utf8"));
 
 console.log(`${agent.name}: ${suite.length} eval cases from ${suiteFile}`);
-for (const c of suite) console.log(`- ${c.name}`);
+for (const c of suite) {
+  console.log(`- ${c.name}`);
+}
 console.error("eval runner not implemented yet");
 process.exit(1);

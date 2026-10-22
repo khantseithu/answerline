@@ -1,29 +1,29 @@
 import { z } from "zod";
 
 export const callStartedEvent = z.object({
-  type: z.literal("call.started"),
-  call_id: z.string(),
   agent_id: z.string(),
+  call_id: z.string(),
   channel: z.enum(["web", "sip"]),
   from: z.string().optional(),
   started_at: z.iso.datetime(),
+  type: z.literal("call.started"),
 });
 
 export const callEndedEvent = z.object({
-  type: z.literal("call.ended"),
-  call_id: z.string(),
   agent_id: z.string(),
-  ended_at: z.iso.datetime(),
+  call_id: z.string(),
   duration_ms: z.number().int().nonnegative(),
+  ended_at: z.iso.datetime(),
+  type: z.literal("call.ended"),
 });
 
 export const bookingCreatedEvent = z.object({
-  type: z.literal("booking.created"),
-  call_id: z.string(),
   agent_id: z.string(),
-  starts_at: z.iso.datetime(),
+  call_id: z.string(),
   name: z.string(),
   phone: z.string().optional(),
+  starts_at: z.iso.datetime(),
+  type: z.literal("booking.created"),
 });
 
 export const answerlineEvent = z.discriminatedUnion("type", [
@@ -35,7 +35,7 @@ export const answerlineEvent = z.discriminatedUnion("type", [
 export type AnswerlineEvent = z.infer<typeof answerlineEvent>;
 
 export const QUEUES = {
+  evals: "evals",
   ingestion: "ingestion",
   postCall: "post-call",
-  evals: "evals",
 } as const;

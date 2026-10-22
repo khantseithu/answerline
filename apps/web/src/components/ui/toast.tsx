@@ -10,7 +10,7 @@ import {
   TriangleAlertIcon,
   XIcon,
 } from "lucide-react";
-import * as React from "react";
+import type * as React from "react";
 import { Button } from "@/components/ui/button";
 
 const toast = ToastPrimitive.createToastManager();
@@ -26,11 +26,11 @@ function ToastPortal({ ...props }: ToastPrimitive.Portal.Props) {
 function ToastViewport({ className, ...props }: ToastPrimitive.Viewport.Props) {
   return (
     <ToastPrimitive.Viewport
-      data-slot="toast-viewport"
       className={cn(
         "pointer-events-none fixed inset-x-4 bottom-4 z-50 mx-auto w-auto max-w-sm outline-none sm:right-4 sm:left-auto sm:mx-0 sm:w-full",
-        className,
+        className
       )}
+      data-slot="toast-viewport"
       {...props}
     />
   );
@@ -39,9 +39,8 @@ function ToastViewport({ className, ...props }: ToastPrimitive.Viewport.Props) {
 function Toast({ className, ...props }: ToastPrimitive.Root.Props) {
   return (
     <ToastPrimitive.Root
-      data-slot="toast"
       className={cn(
-        "group/toast pointer-events-auto absolute right-0 bottom-0 z-[calc(1000-var(--toast-index))] w-full origin-bottom rounded-2xl border bg-popover text-popover-foreground shadow-lg will-change-transform outline-none select-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
+        "group/toast pointer-events-auto absolute right-0 bottom-0 z-[calc(1000-var(--toast-index))] w-full origin-bottom select-none rounded-2xl border bg-popover text-popover-foreground shadow-lg outline-none will-change-transform focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
         "[--gap:0.75rem] [--height:var(--toast-frontmost-height,var(--toast-height))] [--offset-y:calc(var(--toast-offset-y)*-1+calc(var(--toast-index)*var(--gap)*-1)+var(--toast-swipe-movement-y))] [--peek:0.75rem] [--scale:calc(max(0,1-(var(--toast-index)*0.1)))] [--shrink:calc(1-var(--scale))]",
         "h-(--height) [transform:translateX(var(--toast-swipe-movement-x))_translateY(calc(var(--toast-swipe-movement-y)-(var(--toast-index)*var(--peek))-(var(--shrink)*var(--height))))_scale(var(--scale))] [transition:transform_500ms_cubic-bezier(0.22,1,0.36,1),opacity_500ms,height_150ms]",
         "after:absolute after:top-full after:left-0 after:h-[calc(var(--gap)+1px)] after:w-full after:content-['']",
@@ -56,8 +55,9 @@ function Toast({ className, ...props }: ToastPrimitive.Root.Props) {
         "data-expanded:data-ending-style:data-[swipe-direction=left]:[transform:translateX(calc(var(--toast-swipe-movement-x)-150%))_translateY(var(--offset-y))]",
         "data-expanded:data-ending-style:data-[swipe-direction=right]:[transform:translateX(calc(var(--toast-swipe-movement-x)+150%))_translateY(var(--offset-y))]",
         "data-expanded:data-ending-style:data-[swipe-direction=up]:[transform:translateY(calc(var(--toast-swipe-movement-y)-150%))]",
-        className,
+        className
       )}
+      data-slot="toast"
       {...props}
     />
   );
@@ -66,11 +66,11 @@ function Toast({ className, ...props }: ToastPrimitive.Root.Props) {
 function ToastContent({ className, ...props }: ToastPrimitive.Content.Props) {
   return (
     <ToastPrimitive.Content
-      data-slot="toast-content"
       className={cn(
         "flex h-full items-center gap-3 overflow-hidden p-4 transition-opacity duration-250 ease-[cubic-bezier(0.22,1,0.36,1)] data-behind:opacity-0 data-expanded:opacity-100",
-        className,
+        className
       )}
+      data-slot="toast-content"
       {...props}
     />
   );
@@ -79,8 +79,8 @@ function ToastContent({ className, ...props }: ToastPrimitive.Content.Props) {
 function ToastTitle({ className, ...props }: ToastPrimitive.Title.Props) {
   return (
     <ToastPrimitive.Title
+      className={cn("font-medium text-sm", className)}
       data-slot="toast-title"
-      className={cn("text-sm font-medium", className)}
       {...props}
     />
   );
@@ -89,8 +89,8 @@ function ToastTitle({ className, ...props }: ToastPrimitive.Title.Props) {
 function ToastDescription({ className, ...props }: ToastPrimitive.Description.Props) {
   return (
     <ToastPrimitive.Description
+      className={cn("text-muted-foreground text-sm", className)}
       data-slot="toast-description"
-      className={cn("text-sm text-muted-foreground", className)}
       {...props}
     />
   );
@@ -98,14 +98,14 @@ function ToastDescription({ className, ...props }: ToastPrimitive.Description.Pr
 
 function ToastAction({
   className,
-  render = <Button variant="outline" size="sm" />,
+  render = <Button size="sm" variant="outline" />,
   ...props
 }: ToastPrimitive.Action.Props) {
   return (
     <ToastPrimitive.Action
+      className={cn("shrink-0", className)}
       data-slot="toast-action"
       render={render}
-      className={cn("shrink-0", className)}
       {...props}
     />
   );
@@ -114,18 +114,18 @@ function ToastAction({
 function ToastClose({
   className,
   children,
-  render = <Button variant="ghost" size="icon-sm" />,
+  render = <Button size="icon-sm" variant="ghost" />,
   ...props
 }: ToastPrimitive.Close.Props) {
   return (
     <ToastPrimitive.Close
-      data-slot="toast-close"
       aria-label="Close toast"
-      render={render}
       className={cn(
         "relative shrink-0 text-muted-foreground after:absolute after:-inset-2 after:content-[''] hover:text-foreground",
-        className,
+        className
       )}
+      data-slot="toast-close"
+      render={render}
       {...props}
     >
       {children ?? <XIcon aria-hidden="true" />}
@@ -149,11 +149,11 @@ function ToastIcon({ type }: { type: string | undefined }) {
   }
 
   if (type === "error") {
-    icon = <OctagonXIcon className="text-destructive" aria-hidden="true" />;
+    icon = <OctagonXIcon aria-hidden="true" className="text-destructive" />;
   }
 
   if (type === "loading") {
-    icon = <Loader2Icon className="animate-spin" aria-hidden="true" />;
+    icon = <Loader2Icon aria-hidden="true" className="animate-spin" />;
   }
 
   if (!icon) {
@@ -162,8 +162,8 @@ function ToastIcon({ type }: { type: string | undefined }) {
 
   return (
     <span
+      className="shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none"
       data-slot="toast-icon"
-      className="shrink-0 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4"
     >
       {icon}
     </span>

@@ -10,7 +10,7 @@ test("knowledge chunks support vector and full-text search", { skip }, async () 
   const db = createDb();
   const slug = `test-${crypto.randomUUID()}`;
   try {
-    const [tenant] = await db.insert(tenants).values({ slug, name: slug }).returning();
+    const [tenant] = await db.insert(tenants).values({ name: slug, slug }).returning();
     assert.ok(tenant);
     const [source] = await db
       .insert(knowledgeSources)
@@ -22,18 +22,18 @@ test("knowledge chunks support vector and full-text search", { skip }, async () 
     const far = Array.from({ length: EMBEDDING_DIMENSIONS }, (_, i) => (i === 1 ? 1 : 0));
     await db.insert(knowledgeChunks).values([
       {
-        tenantId: tenant.id,
-        sourceId: source.id,
-        seq: 0,
         content: "We open at nine",
         embedding: near,
+        seq: 0,
+        sourceId: source.id,
+        tenantId: tenant.id,
       },
       {
-        tenantId: tenant.id,
-        sourceId: source.id,
-        seq: 1,
         content: "Cleanings cost $90",
         embedding: far,
+        seq: 1,
+        sourceId: source.id,
+        tenantId: tenant.id,
       },
     ]);
 
@@ -49,7 +49,7 @@ test("knowledge chunks support vector and full-text search", { skip }, async () 
       .select({ content: knowledgeChunks.content })
       .from(knowledgeChunks)
       .where(
-        sql`${knowledgeChunks.tenantId} = ${tenant.id} and ${knowledgeChunks.search} @@ plainto_tsquery('simple', 'cleanings')`,
+        sql`${knowledgeChunks.tenantId} = ${tenant.id} and ${knowledgeChunks.search} @@ plainto_tsquery('simple', 'cleanings')`
       );
     assert.deepEqual(matches, [{ content: "Cleanings cost $90" }]);
   } finally {

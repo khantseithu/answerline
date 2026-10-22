@@ -33,7 +33,7 @@ pnpm dev                      # web :3000 + worker
 pnpm agent:dev                # Python agent
 pnpm lint && pnpm typecheck && pnpm test
 pnpm py:lint && pnpm py:test
-pnpm format                   # Biome autofix
+pnpm format                   # Ultracite autofix
 ```
 
 Run the relevant checks before calling work done.
@@ -51,7 +51,7 @@ General
 TypeScript
 - pnpm only. Internal packages are consumed as source (`exports` → `src/index.ts`); import with `.ts` extensions.
 - Strict TS, `noUncheckedIndexedAccess`. No `any`; prefer `unknown` + parsing.
-- Biome for lint and format (double quotes, semicolons, 100 cols). Don't hand-format.
+- [Ultracite](https://www.ultracite.ai/) (Biome preset) for lint and format; a lefthook pre-commit hook and a Claude Code hook run it automatically. Don't hand-format. Vendored shadcn files are excluded from lint.
 - Tests: `node:test` + `tsx`, colocated as `*.test.ts`.
 
 Web
