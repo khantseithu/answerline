@@ -65,6 +65,17 @@ Python
 - Async throughout the call path. Nothing blocking in the agent's event loop.
 - Provider construction goes through `answerline_agent.providers`; don't instantiate plugins elsewhere.
 
+## Parallel work (worktrees)
+
+Parallel tasks run in [treehouse](https://github.com/kunchenguid/treehouse) worktrees, never in the main checkout. The main checkout stays on `main` for review and merging.
+
+- One task = one worktree = one branch = one PR. No stacked PRs.
+- Each pool slot `N` is isolated on the shared compose stack: web `:300N`, database `answerline_wtN`, redis prefix `bull-wtN`, LiveKit agent `answerline-wtN`. `scripts/worktree-setup.sh` writes these into the slot's `.env` (copied from the main checkout via `.worktreeinclude`), installs deps, and migrates/seeds the slot database.
+- Humans and CLI agents: `treehouse get -b <type>/<desc>` (or `pnpm wt`), work, push, open the PR, then `exit` to return the slot.
+- Automation: `path=$(treehouse get --lease --lease-holder <name>)`, create the branch in `$path`, then `treehouse return <path>` when the PR is open.
+- Claude Code worktree isolation (`isolation: "worktree"`, `--worktree`) leases slots through the `WorktreeCreate`/`WorktreeRemove` hooks in `.claude/settings.json`. Slots start on a detached `HEAD` at `origin/main`: create your branch first. Subagent slots are not returned automatically; run `pnpm wt:gc` to return leased Claude slots with no uncommitted or unpushed work.
+- Split parallel work by area. Shared contracts (`packages/shared`) and schema changes land first in their own PR. If two PRs add migrations, the later one regenerates its migration after rebasing.
+
 ## Git
 
 - `main` is always green and deployable. Never commit directly to it; never force-push it.
