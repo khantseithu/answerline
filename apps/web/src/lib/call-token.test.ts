@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { TokenVerifier } from "livekit-server-sdk";
-import { AGENT_NAME, AGENT_SLUG_PATTERN, createCallToken } from "./call-token";
+import { AGENT_SLUG_PATTERN, createCallToken } from "./call-token";
 
 const ROOM_NAME = /^call-[0-9a-f-]{36}$/;
 
 test("token joins a fresh room and dispatches the agent with its slug", async () => {
   const details = await createCallToken({
+    agentName: "answerline-wt2",
     agentSlug: "bright-smile-dental",
     apiKey: "devkey",
     apiSecret: "secret-secret-secret-secret-secret",
@@ -21,7 +22,7 @@ test("token joins a fresh room and dispatches the agent with its slug", async ()
   assert.equal(claims.video?.roomJoin, true);
   assert.deepEqual(
     claims.roomConfig?.agents?.map((a) => ({ agentName: a.agentName, metadata: a.metadata })),
-    [{ agentName: AGENT_NAME, metadata: JSON.stringify({ agent: "bright-smile-dental" }) }]
+    [{ agentName: "answerline-wt2", metadata: JSON.stringify({ agent: "bright-smile-dental" }) }]
   );
 });
 

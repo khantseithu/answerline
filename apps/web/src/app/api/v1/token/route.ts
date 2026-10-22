@@ -15,6 +15,7 @@ export async function POST(request: Request) {
   }
 
   const details = await createCallToken({
+    agentName: env.AGENT_NAME,
     agentSlug,
     apiKey: env.LIVEKIT_API_KEY,
     apiSecret: env.LIVEKIT_API_SECRET,

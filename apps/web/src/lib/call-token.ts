@@ -1,6 +1,5 @@
 import { AccessToken, RoomAgentDispatch, RoomConfiguration } from "livekit-server-sdk";
 
-export const AGENT_NAME = "answerline";
 export const DEFAULT_AGENT_SLUG = "bright-smile-dental";
 export const AGENT_SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/;
 
@@ -12,6 +11,7 @@ export interface CallConnectionDetails {
 }
 
 export async function createCallToken(options: {
+  agentName: string;
   agentSlug: string;
   apiKey: string;
   apiSecret: string;
@@ -36,7 +36,7 @@ export async function createCallToken(options: {
   token.roomConfig = new RoomConfiguration({
     agents: [
       new RoomAgentDispatch({
-        agentName: AGENT_NAME,
+        agentName: options.agentName,
         metadata: JSON.stringify({ agent: options.agentSlug }),
       }),
     ],
