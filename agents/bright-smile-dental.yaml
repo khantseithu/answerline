@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../packages/shared/schema/agent-config.schema.json
 name: Bright Smile Dental
 greeting: "Thanks for calling Bright Smile Dental, how can I help you today?"
 language: en

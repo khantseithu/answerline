@@ -14,7 +14,8 @@
       "!apps/agent",
       "!packages/llm/python",
       "!**/*.md",
-      "!**/migrations"
+      "!**/migrations",
+      "!packages/shared/schema"
     ]
   },
   "formatter": {

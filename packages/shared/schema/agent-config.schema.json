@@ -1,0 +1,263 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "greeting": {
+      "type": "string",
+      "minLength": 1
+    },
+    "hours": {
+      "type": "object",
+      "properties": {
+        "after_hours": {
+          "default": "voicemail",
+          "type": "string",
+          "enum": [
+            "voicemail",
+            "transfer",
+            "answer"
+          ]
+        },
+        "timezone": {
+          "type": "string"
+        },
+        "weekdays": {
+          "type": "string",
+          "pattern": "^\\d{2}:\\d{2}-\\d{2}:\\d{2}$"
+        },
+        "weekends": {
+          "type": "string",
+          "pattern": "^\\d{2}:\\d{2}-\\d{2}:\\d{2}$"
+        }
+      },
+      "required": [
+        "timezone",
+        "weekdays"
+      ]
+    },
+    "instructions": {
+      "type": "string",
+      "minLength": 1
+    },
+    "knowledge": {
+      "type": "object",
+      "properties": {
+        "sources": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "url"
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  }
+                },
+                "required": [
+                  "type",
+                  "url"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "file"
+                  }
+                },
+                "required": [
+                  "path",
+                  "type"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "answer": {
+                    "type": "string"
+                  },
+                  "question": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "qa"
+                  }
+                },
+                "required": [
+                  "answer",
+                  "question",
+                  "type"
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    "language": {
+      "default": "en",
+      "type": "string"
+    },
+    "models": {
+      "type": "object",
+      "properties": {
+        "llm": {
+          "type": "object",
+          "properties": {
+            "fallback": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z0-9-]+\\/[\\w.:-]+$"
+              }
+            },
+            "primary": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]+\\/[\\w.:-]+$"
+            }
+          },
+          "required": [
+            "primary"
+          ]
+        },
+        "stt": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+\\/[\\w.:-]+$"
+        },
+        "tts": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+\\/[\\w.:-]+$"
+        }
+      },
+      "required": [
+        "llm",
+        "stt",
+        "tts"
+      ]
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "tools": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "builtin": {
+                "type": "string",
+                "enum": [
+                  "book_appointment",
+                  "transfer_call",
+                  "business_hours",
+                  "capture_lead"
+                ]
+              }
+            },
+            "required": [
+              "builtin"
+            ],
+            "additionalProperties": {}
+          },
+          {
+            "type": "object",
+            "properties": {
+              "http": {
+                "type": "object",
+                "properties": {
+                  "description": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "headers": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  },
+                  "method": {
+                    "type": "string",
+                    "enum": [
+                      "GET",
+                      "POST",
+                      "PUT",
+                      "PATCH",
+                      "DELETE"
+                    ]
+                  },
+                  "name": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$"
+                  },
+                  "url": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "description",
+                  "method",
+                  "name",
+                  "url"
+                ]
+              }
+            },
+            "required": [
+              "http"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "mcp": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  }
+                },
+                "required": [
+                  "name",
+                  "url"
+                ]
+              }
+            },
+            "required": [
+              "mcp"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "required": [
+    "greeting",
+    "instructions",
+    "models",
+    "name"
+  ]
+}
