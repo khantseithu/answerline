@@ -28,8 +28,17 @@ jobs:
           --health-cmd "pg_isready -U answerline"
           --health-interval 5s
           --health-retries 10
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-retries 10
     env:
       DATABASE_URL: postgres://answerline:answerline@localhost:5432/answerline
+      REDIS_URL: redis://localhost:6379
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
