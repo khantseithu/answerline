@@ -18,7 +18,7 @@ def prewarm(proc: JobProcess) -> None:
 server.setup_fnc = prewarm
 
 
-@server.rtc_session(agent_name="answerline")
+@server.rtc_session(agent_name=settings.agent_name)
 async def entrypoint(ctx: JobContext) -> None:
     ctx.log_context_fields = {"room": ctx.room.name}
     resolved = await resolve_agent(ctx.job.metadata, settings)

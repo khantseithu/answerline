@@ -9,6 +9,7 @@ DEFAULT_AGENTS_DIR = Path(__file__).resolve().parents[4] / "agents"
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(extra="ignore")
 
+    agent_name: str = "answerline"
     agents_dir: Path = DEFAULT_AGENTS_DIR
     default_agent: str = "bright-smile-dental"
     database_url: str | None = None

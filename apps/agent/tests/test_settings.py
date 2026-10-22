@@ -3,6 +3,13 @@ from pathlib import Path
 from answerline_agent.settings import DEFAULT_AGENTS_DIR, Settings
 
 
+def test_agent_name_defaults_and_overrides(monkeypatch):
+    monkeypatch.delenv("AGENT_NAME", raising=False)
+    assert Settings().agent_name == "answerline"
+    monkeypatch.setenv("AGENT_NAME", "answerline-feature-x")
+    assert Settings().agent_name == "answerline-feature-x"
+
+
 def test_settings_read_environment(monkeypatch):
     monkeypatch.setenv("AGENTS_DIR", "/srv/agents")
     monkeypatch.setenv("DEFAULT_AGENT", "other")
