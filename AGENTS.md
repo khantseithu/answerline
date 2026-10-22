@@ -56,6 +56,7 @@ TypeScript
 
 Web
 - Use shadcn components from `@/components/ui` before writing new primitives. Add new ones with `pnpm dlx shadcn@latest add <name>` in `apps/web`, then `pnpm format`.
+- Voice/call UI comes from LiveKit's Agents UI shadcn registry (`pnpm dlx shadcn@latest add @agents-ui/<name>` in `apps/web`, answer **no** to overwriting existing `ui/*` files). It lives in `components/agents-ui`, is excluded from lint, and has small patches for our Base UI components.
 - Server Components by default; `"use client"` only where needed.
 - API routes under `src/app/api/v1/`, validated with shared Zod schemas.
 
