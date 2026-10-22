@@ -11,6 +11,8 @@
     {
       "includes": [
         "src/components/ui/**",
+        "src/components/agents-ui/**",
+        "src/hooks/agents-ui/**",
         "src/hooks/**",
         "src/lib/utils.ts",
         "src/lib/highlighter.tsx"
