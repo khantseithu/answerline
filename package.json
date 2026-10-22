@@ -18,7 +18,10 @@
     "py:lint": "uv run ruff check . && uv run ruff format --check .",
     "py:test": "uv run pytest",
     "test": "turbo run test",
-    "typecheck": "turbo run typecheck"
+    "typecheck": "turbo run typecheck",
+    "wt": "treehouse get",
+    "wt:gc": "scripts/worktree-gc.sh",
+    "wt:status": "treehouse status"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
