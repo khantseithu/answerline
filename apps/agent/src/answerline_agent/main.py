@@ -1,4 +1,5 @@
 from livekit.agents import Agent, AgentServer, AgentSession, JobContext, JobProcess, cli
+from livekit.local_inference import init_eot
 from livekit.plugins import silero
 
 from .prompts import compose_instructions
@@ -13,6 +14,8 @@ server = AgentServer()
 
 def prewarm(proc: JobProcess) -> None:
     proc.userdata["vad"] = silero.VAD.load()
+    if settings.turn_detection == "local":
+        init_eot()
 
 
 server.setup_fnc = prewarm
