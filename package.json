@@ -13,7 +13,11 @@
     "agent:dev": "uv run --env-file .env answerline-agent dev",
     "eval": "pnpm --filter @answerline/worker eval",
     "py:test": "uv run pytest",
-    "py:lint": "uv run ruff check . && uv run ruff format --check ."
+    "py:lint": "uv run ruff check . && uv run ruff format --check .",
+    "db:generate": "pnpm --filter @answerline/db generate",
+    "db:migrate": "pnpm --filter @answerline/db migrate",
+    "db:seed": "pnpm --filter @answerline/db seed",
+    "db:studio": "pnpm --filter @answerline/db studio"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.2",
