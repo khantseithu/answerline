@@ -1,0 +1,11 @@
+name: Bad
+greeting: Hello
+instructions: Be brief.
+models:
+  stt: deepgram/nova-3
+  llm:
+    primary: anthropic/claude-sonnet-4-6
+  tts: cartesia/sonic-3
+recording:
+  enabled: true
+  notice: ""

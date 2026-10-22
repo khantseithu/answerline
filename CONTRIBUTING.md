@@ -8,7 +8,7 @@ Requirements: Node 24, pnpm 11, Python 3.13 with [uv](https://docs.astral.sh/uv/
 pnpm install
 uv sync
 cp .env.example .env
-pnpm infra:up      # Postgres (pgvector), Redis, LiveKit dev server
+pnpm infra:up      # Postgres (pgvector), Redis, LiveKit dev server, MinIO, Egress (see docs/recording.md)
 pnpm db:migrate
 pnpm db:seed       # default tenant + agents/*.yaml
 pnpm dev           # web on :3000 and worker

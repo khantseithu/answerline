@@ -129,6 +129,20 @@ test("call.ended records status, duration, and usage", { skip }, () =>
   })
 );
 
+test("call.ended stores the recording location and keeps it when absent", { skip }, () =>
+  withTenant(async ({ base, ended, started }, db) => {
+    const recordingUrl = `s3://recordings/default/${base.room_name}.ogg`;
+    await persistCallEvent(db, started);
+    assert.equal((await getCall(db, base.room_name)).recordingUrl, null);
+
+    await persistCallEvent(db, { ...ended, recording_url: recordingUrl });
+    assert.equal((await getCall(db, base.room_name)).recordingUrl, recordingUrl);
+
+    await persistCallEvent(db, ended);
+    assert.equal((await getCall(db, base.room_name)).recordingUrl, recordingUrl);
+  })
+);
+
 test("a turn before call.started is filled in by the later start", { skip }, () =>
   withTenant(async ({ base, started, turn }, db) => {
     await persistCallEvent(db, turn(0, "agent"));
