@@ -4,5 +4,8 @@ packages:
   - packages/*
 
 allowBuilds:
+  esbuild: true
+  lefthook: false
+  msgpackr-extract: false
   sharp: false
   unrs-resolver: false
