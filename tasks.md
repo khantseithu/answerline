@@ -248,12 +248,15 @@ Roadmap: *Multilingual agents*
 
 ---
 
+## Decisions
+
+- ORM and migrations: Drizzle with postgres.js (#127)
+- Agent events: the Python agent enqueues BullMQ jobs directly; the worker consumes them (#129)
+- Agent config source of truth: the database; `agents/*.yaml` is the seed/import format and fallback (#131)
+- Recording storage default: MinIO in compose via the S3 API (#132)
+
 ## Open decisions
 
-- ORM and migrations: Drizzle vs Prisma (Drizzle recommended for SQL-first + pgvector)
-- Auth: Better Auth vs Auth.js
-- How the Python agent writes events: enqueue BullMQ jobs directly from Python vs POST to an internal web endpoint
-- Turn detection for fully self-hosted setups (LiveKit's local plugin is deprecated in 1.8; the agent defaults to the bundled `inference.TurnDetector(version="v1-mini")` with VAD interruption, pending decision, see #130)
-- Agent config source of truth: YAML in repo vs database (with YAML import/export)
-- Recording storage default: local volume vs MinIO in compose
-- Model alias names in README (`claude-sonnet`, `gpt-mini`) vs full model IDs
+- Auth: Better Auth vs Auth.js (#128)
+- Turn detection for fully self-hosted setups: the agent defaults to the bundled `inference.TurnDetector(version="v1-mini")` with VAD interruption; Cloud `v1` and adaptive interruption are opt-in. Confirm on real calls (#130)
+- Model alias names in README (`claude-sonnet`, `gpt-mini`) vs full model IDs (#133)
