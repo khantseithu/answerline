@@ -1,5 +1,6 @@
 import { QUEUES } from "@answerline/shared";
 import { type Job, Worker } from "bullmq";
+import { env } from "./env.ts";
 import { createRedis } from "./redis.ts";
 
 const connection = createRedis();
@@ -23,7 +24,7 @@ const workers = Object.entries(handlers).map(
       async (job) => {
         await handler(job);
       },
-      { connection }
+      { connection, prefix: env.REDIS_PREFIX }
     )
 );
 
