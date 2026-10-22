@@ -45,7 +45,7 @@ General
 - Match surrounding code. No code comments unless something is truly non-obvious.
 - Validate at boundaries (YAML, HTTP, queue payloads, env) with Zod / Pydantic; trust types inside.
 - Contracts live in `packages/shared`. When the agent config schema changes, run `pnpm --filter @answerline/shared generate:schema`, update the Pydantic mirror in `apps/agent/src/answerline_agent/config.py`, and add fixtures under `packages/shared/fixtures/agent-config/`. Parity tests in both languages fail on drift.
-- Agent → worker call events go on the `call-events` BullMQ queue as `callEventJob` (`packages/shared/src/call-events.ts`, JSON Schema in `packages/shared/schema/call-event.schema.json`, fixtures in `packages/shared/fixtures/call-event/`). Job name = event `type`, job id = `callEventJobId` (`<room>:<type>[:<seq>]`) so retries are idempotent. The Python producer validates against the same JSON Schema and fixtures.
+- Agent → worker call events go on the `call-events` BullMQ queue as `callEventJob` (`packages/shared/src/call-events.ts`, JSON Schema in `packages/shared/schema/call-event.schema.json`, fixtures in `packages/shared/fixtures/call-event/`). Job name = event `type`, job id = `callEventJobId` (`<room>_<type>[_<seq>]`; BullMQ rejects most ids containing `:`) so retries are idempotent. The Python producer validates against the same JSON Schema and fixtures.
 - Never commit secrets. New env vars go in `.env.example`.
 - Bug fixes get a regression test when practical.
 
@@ -75,6 +75,7 @@ Parallel tasks run in [treehouse](https://github.com/kunchenguid/treehouse) work
 - Humans and CLI agents: `treehouse get -b <type>/<desc>` (or `pnpm wt`), work, push, open the PR, then `exit` to return the slot.
 - Automation: `path=$(treehouse get --lease --lease-holder <name>)`, create the branch in `$path`, then `treehouse return <path>` when the PR is open.
 - Claude Code worktree isolation (`isolation: "worktree"`, `--worktree`) leases slots through the `WorktreeCreate`/`WorktreeRemove` hooks in `.claude/settings.json`. Slots start on a detached `HEAD` at `origin/main`: create your branch first. Subagent slots are not returned automatically; run `pnpm wt:gc` to return leased Claude slots with no uncommitted or unpushed work.
+- Return a slot (`treehouse return <path>` or `pnpm wt:gc`) before merging its PR: `gh pr merge --delete-branch` deletes the local branch and removes the worktree it is checked out in.
 - Split parallel work by area. Shared contracts (`packages/shared`) and schema changes land first in their own PR. If two PRs add migrations, the later one regenerates its migration after rebasing.
 
 ## Git

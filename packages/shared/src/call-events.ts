@@ -55,6 +55,6 @@ export type CallEventJob = z.infer<typeof callEventJob>;
 
 export function callEventJobId(event: CallEventJob): string {
   return event.type === "call.turn"
-    ? `${event.room_name}:${event.type}:${event.seq}`
-    : `${event.room_name}:${event.type}`;
+    ? `${event.room_name}_${event.type}_${event.seq}`
+    : `${event.room_name}_${event.type}`;
 }
