@@ -46,7 +46,7 @@ Roadmap: *Web voice calls with a sample agent*
   - [ ] Noise cancellation (optional, check licensing for self-hosted)
   - [ ] Emit `call.started` / `call.ended` to Redis (BullMQ-compatible enqueue from Python, or a thin HTTP endpoint on web)
   - [ ] Persist transcript turns with timestamps
-  - [ ] Graceful shutdown and max call duration
+  - [x] Graceful shutdown and max call duration
 - [ ] Web
   - [ ] `POST /api/v1/token` issuing LiveKit access tokens for a room + agent dispatch
   - [ ] **Talk to agent** button: connect, mic permission, live transcript, hang up (`@livekit/components-react`)

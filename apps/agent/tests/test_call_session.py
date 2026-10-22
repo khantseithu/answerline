@@ -144,3 +144,14 @@ def test_publisher_errors_never_escape():
     session.handlers["close"](CloseEvent(reason=CloseReason.JOB_SHUTDOWN))
     asyncio.run(events.on_shutdown("done"))
     assert publisher.closed
+
+
+def test_flush_publishes_ended_once_and_keeps_publisher_open():
+    events, session, publisher = _events()
+    events.started(None)
+    session.handlers["close"](CloseEvent(reason=CloseReason.USER_INITIATED))
+    asyncio.run(events.flush())
+    asyncio.run(events.flush())
+    assert [e.type for e in publisher.events] == ["call.started", "call.ended"]
+    assert publisher.flushed
+    assert not publisher.closed
