@@ -7,6 +7,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
+    "generate:schema": "tsx src/generate-json-schema.ts",
     "test": "node --test --import tsx 'src/**/*.test.ts'",
     "typecheck": "tsc --noEmit"
   },

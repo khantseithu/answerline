@@ -1,0 +1,14 @@
+name: Bad
+greeting: Hello
+instructions: Be brief.
+models:
+  stt: deepgram/nova-3
+  llm:
+    primary: anthropic/claude-sonnet-4-6
+  tts: cartesia/sonic-3
+tools:
+  - http:
+      name: Check-Insurance
+      description: x
+      method: GET
+      url: https://x.test

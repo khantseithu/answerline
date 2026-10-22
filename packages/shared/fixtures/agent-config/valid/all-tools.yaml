@@ -1,0 +1,30 @@
+name: Tools
+greeting: Hello
+instructions: Be brief.
+models:
+  stt: deepgram/nova-3
+  llm:
+    primary: openai/gpt-4.1-mini
+  tts: cartesia/sonic-3
+knowledge:
+  sources:
+    - type: qa
+      question: Do you take walk-ins?
+      answer: Yes, until 4pm.
+tools:
+  - builtin: capture_lead
+  - http:
+      name: lookup_order
+      description: Look up an order
+      method: POST
+      url: https://api.example.com/orders
+      headers:
+        X-Api-Key: secret
+  - mcp:
+      name: crm
+      url: https://mcp.example.com/sse
+hours:
+  timezone: Europe/London
+  weekdays: "08:00-17:00"
+  weekends: "10:00-14:00"
+  after_hours: answer

@@ -1,0 +1,38 @@
+name: Bright Smile Dental
+greeting: "Thanks for calling Bright Smile Dental, how can I help you today?"
+language: en
+
+instructions: |
+  You are the receptionist for Bright Smile Dental.
+  Be warm and brief. Never give medical advice.
+  If the caller has an emergency, transfer them to the on-call line.
+
+models:
+  stt: deepgram/nova-3
+  llm:
+    primary: anthropic/claude-sonnet-4-6
+    fallback: [openai/gpt-4.1-mini, google/gemini-2.5-flash]
+  tts: cartesia/sonic-3
+
+knowledge:
+  sources:
+    - type: url
+      url: https://example.com/services
+    - type: file
+      path: ./knowledge/faq.pdf
+
+tools:
+  - builtin: book_appointment
+    provider: cal_com
+  - builtin: transfer_call
+    to: "+15555550100"
+  - http:
+      name: check_insurance
+      description: Check whether the clinic accepts an insurance plan
+      method: GET
+      url: https://api.example.com/insurance?plan={plan}
+
+hours:
+  timezone: America/New_York
+  weekdays: "09:00-18:00"
+  after_hours: voicemail
