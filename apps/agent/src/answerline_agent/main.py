@@ -1,17 +1,17 @@
-import os
-
 from livekit.agents import Agent, AgentServer, AgentSession, JobContext, cli
 from livekit.plugins import silero
 
 from .config import load_agent_config
 from .providers import build_llm_chain, build_stt, build_tts
+from .settings import Settings
 
+settings = Settings()
 server = AgentServer()
 
 
 @server.rtc_session(agent_name="answerline")
 async def entrypoint(ctx: JobContext) -> None:
-    config = load_agent_config(os.environ.get("AGENT_CONFIG", "agents/bright-smile-dental.yaml"))
+    config = load_agent_config(settings.agent_config)
     session = AgentSession(
         stt=build_stt(config.models.stt),
         llm=build_llm_chain(config.models),

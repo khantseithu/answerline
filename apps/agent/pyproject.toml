@@ -6,6 +6,7 @@ dependencies = [
   "answerline-llm",
   "livekit-agents[anthropic,cartesia,deepgram,google,openai,silero]~=1.8",
   "pydantic>=2.14.1",
+  "pydantic-settings>=2.16.1",
   "pyyaml>=6.0.3",
 ]
 
