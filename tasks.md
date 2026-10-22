@@ -51,7 +51,7 @@ Roadmap: *Web voice calls with a sample agent*
   - [ ] `POST /api/v1/token` issuing LiveKit access tokens for a room + agent dispatch
   - [ ] **Talk to agent** button: connect, mic permission, live transcript, hang up (`@livekit/components-react`)
   - [ ] Agent state indicator (listening / thinking / speaking) and audio visualizer
-- [ ] Recording: LiveKit Egress to local disk or S3-compatible storage, link recording to call
+- [x] Recording: LiveKit Egress to local disk or S3-compatible storage, link recording to call
 - [ ] Docs: `docs/architecture.md` first pass
 
 **Done when:** from `localhost:3000`, click **Talk to agent**, hold a natural conversation with Bright Smile Dental, and see the transcript saved in Postgres.
@@ -253,7 +253,7 @@ Roadmap: *Multilingual agents*
 - ORM and migrations: Drizzle with postgres.js (#127)
 - Agent events: the Python agent enqueues BullMQ jobs directly; the worker consumes them (#129)
 - Agent config source of truth: the database; `agents/*.yaml` is the seed/import format and fallback (#131)
-- Recording storage default: MinIO in compose via the S3 API (#132)
+- Recording storage default: MinIO in compose via the S3 API (#132); recording is opt-in per agent
 
 ## Open decisions
 
