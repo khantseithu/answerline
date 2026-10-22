@@ -2,6 +2,7 @@ from livekit.agents import Agent, AgentServer, AgentSession, JobContext, JobProc
 from livekit.local_inference import init_eot
 from livekit.plugins import silero
 
+from .call_limits import SHUTDOWN_PROCESS_TIMEOUT, CallLifecycle, drain_timeout
 from .call_session import CallSessionEvents, wait_for_caller
 from .prompts import compose_instructions
 from .providers import build_llm_chain, build_stt, build_tts
@@ -11,7 +12,10 @@ from .settings import Settings
 from .turns import build_turn_handling
 
 settings = Settings()
-server = AgentServer()
+server = AgentServer(
+    drain_timeout=drain_timeout(settings),
+    shutdown_process_timeout=SHUTDOWN_PROCESS_TIMEOUT,
+)
 
 
 def prewarm(proc: JobProcess) -> None:
@@ -34,6 +38,7 @@ async def entrypoint(ctx: JobContext) -> None:
         tts=build_tts(config.models.tts),
         vad=ctx.proc.userdata["vad"],
         turn_handling=build_turn_handling(settings),
+        user_away_timeout=settings.idle_timeout_seconds or None,
     )
     events = CallSessionEvents(
         session=session,
@@ -46,8 +51,12 @@ async def entrypoint(ctx: JobContext) -> None:
         room=ctx.room,
         agent=Agent(instructions=compose_instructions(config.instructions)),
     )
-    events.started(await wait_for_caller(ctx))
+    lifecycle = CallLifecycle(session=session, events=events, job=ctx, settings=settings)
+    caller = await wait_for_caller(ctx)
+    events.started(caller)
     ctx.add_shutdown_callback(events.on_shutdown)
+    lifecycle.watch_caller(ctx.room, caller)
+    lifecycle.start()
     await session.say(config.greeting)
 
 

@@ -104,13 +104,17 @@ class CallSessionEvents:
 
     async def on_shutdown(self, reason: str) -> None:
         try:
-            try:
-                await asyncio.wait_for(self._closed.wait(), CLOSE_WAIT)
-            except TimeoutError:
-                logger.warning("session did not close before shutdown")
+            await asyncio.wait_for(self._closed.wait(), CLOSE_WAIT)
+        except TimeoutError:
+            logger.warning("session did not close before shutdown")
+        try:
+            await self.flush()
+        finally:
+            await self._publisher.close()
+
+    async def flush(self) -> None:
+        try:
             self._publish_ended()
             await self._publisher.flush()
         except Exception:
             logger.warning("failed to flush call events", exc_info=True)
-        finally:
-            await self._publisher.close()
