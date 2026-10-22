@@ -1,0 +1,185 @@
+import { readFile } from "node:fs/promises";
+import { agents, calls, callTurns, type Database, tenants } from "@answerline/db";
+import { type CallEventJob, callEventJob, parseAgentConfig } from "@answerline/shared";
+import type { Job } from "bullmq";
+import { and, eq } from "drizzle-orm";
+
+const defaultAgentsDir = new URL("../../../agents/", import.meta.url);
+
+export interface PersistOptions {
+  agentsDir?: URL;
+}
+
+interface Ref {
+  agentId: string;
+  tenantId: string;
+}
+
+async function resolveTenantId(db: Database, slug: string) {
+  await db.insert(tenants).values({ name: slug, slug }).onConflictDoNothing();
+  const [tenant] = await db.select({ id: tenants.id }).from(tenants).where(eq(tenants.slug, slug));
+  if (!tenant) {
+    throw new Error(`tenant "${slug}" could not be resolved`);
+  }
+  return tenant.id;
+}
+
+async function readAgentYaml(slug: string, agentsDir: URL) {
+  try {
+    return await readFile(new URL(`${slug}.yaml`, agentsDir), "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      throw new Error(
+        `agent "${slug}" not found in the database and agents/${slug}.yaml does not exist`,
+        { cause: error }
+      );
+    }
+    throw error;
+  }
+}
+
+async function resolveAgentId(db: Database, tenantId: string, slug: string, agentsDir: URL) {
+  const find = async () => {
+    const [agent] = await db
+      .select({ id: agents.id })
+      .from(agents)
+      .where(and(eq(agents.tenantId, tenantId), eq(agents.slug, slug)));
+    return agent?.id;
+  };
+
+  const existing = await find();
+  if (existing) {
+    return existing;
+  }
+
+  const config = parseAgentConfig(await readAgentYaml(slug, agentsDir));
+  await db
+    .insert(agents)
+    .values({ config, name: config.name, slug, tenantId })
+    .onConflictDoNothing();
+  const created = await find();
+  if (!created) {
+    throw new Error(`agent "${slug}" could not be resolved`);
+  }
+  return created;
+}
+
+async function resolveRef(db: Database, event: CallEventJob, options: PersistOptions) {
+  const tenantId = await resolveTenantId(db, event.tenant);
+  const agentId = await resolveAgentId(
+    db,
+    tenantId,
+    event.agent,
+    options.agentsDir ?? defaultAgentsDir
+  );
+  return { agentId, tenantId } satisfies Ref;
+}
+
+async function ensureCallId(db: Database, event: CallEventJob, ref: Ref, startedAt: Date) {
+  const [row] = await db
+    .insert(calls)
+    .values({ ...ref, channel: "web", roomName: event.room_name, startedAt })
+    .onConflictDoUpdate({ set: { roomName: event.room_name }, target: calls.roomName })
+    .returning({ id: calls.id });
+  if (!row) {
+    throw new Error(`call "${event.room_name}" could not be resolved`);
+  }
+  return row.id;
+}
+
+async function handleStarted(
+  db: Database,
+  event: Extract<CallEventJob, { type: "call.started" }>,
+  ref: Ref
+) {
+  const fields = {
+    channel: event.channel,
+    direction: event.direction,
+    fromNumber: event.from_number,
+    startedAt: new Date(event.started_at),
+    toNumber: event.to_number,
+  };
+  await db
+    .insert(calls)
+    .values({ ...ref, ...fields, roomName: event.room_name })
+    .onConflictDoUpdate({ set: { ...ref, ...fields }, target: calls.roomName });
+}
+
+async function handleTurn(
+  db: Database,
+  event: Extract<CallEventJob, { type: "call.turn" }>,
+  ref: Ref
+) {
+  const startedAt = new Date(event.started_at);
+  const callId = await ensureCallId(db, event, ref, startedAt);
+  await db
+    .insert(callTurns)
+    .values({
+      callId,
+      endedAt: event.ended_at ? new Date(event.ended_at) : null,
+      interrupted: event.interrupted,
+      latency: event.latency
+        ? {
+            llmTtftMs: event.latency.llm_ttft_ms,
+            sttMs: event.latency.stt_ms,
+            ttsTtfbMs: event.latency.tts_ttfb_ms,
+          }
+        : null,
+      role: event.role,
+      seq: event.seq,
+      startedAt,
+      text: event.text,
+    })
+    .onConflictDoNothing({ target: [callTurns.callId, callTurns.seq] });
+}
+
+async function handleEnded(
+  db: Database,
+  event: Extract<CallEventJob, { type: "call.ended" }>,
+  ref: Ref
+) {
+  const endedAt = new Date(event.ended_at);
+  const fields = {
+    durationMs: event.duration_ms,
+    endedAt,
+    status: event.status,
+    usage: event.usage,
+  };
+  await db
+    .insert(calls)
+    .values({
+      ...ref,
+      ...fields,
+      channel: "web",
+      roomName: event.room_name,
+      startedAt: new Date(endedAt.getTime() - event.duration_ms),
+    })
+    .onConflictDoUpdate({ set: fields, target: calls.roomName });
+}
+
+export async function persistCallEvent(
+  db: Database,
+  event: CallEventJob,
+  options: PersistOptions = {}
+) {
+  const ref = await resolveRef(db, event, options);
+  switch (event.type) {
+    case "call.started":
+      await handleStarted(db, event, ref);
+      break;
+    case "call.turn":
+      await handleTurn(db, event, ref);
+      break;
+    case "call.ended":
+      await handleEnded(db, event, ref);
+      break;
+    default:
+      break;
+  }
+}
+
+export function createCallEventProcessor(db: Database, options: PersistOptions = {}) {
+  return async (job: Job) => {
+    await persistCallEvent(db, callEventJob.parse(job.data), options);
+  };
+}

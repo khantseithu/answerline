@@ -11,9 +11,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@answerline/db": "workspace:*",
     "@answerline/llm": "workspace:*",
     "@answerline/shared": "workspace:*",
     "bullmq": "^6.4.0",
+    "drizzle-orm": "^0.45.4",
     "ioredis": "^6.0.0",
     "tsx": "^4.23.15",
     "zod": "^4.6.7"
