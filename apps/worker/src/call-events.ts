@@ -142,6 +142,7 @@ async function handleEnded(
   const fields = {
     durationMs: event.duration_ms,
     endedAt,
+    recordingUrl: event.recording_url,
     status: event.status,
     usage: event.usage,
   };
