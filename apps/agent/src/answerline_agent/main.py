@@ -7,6 +7,7 @@ from .call_session import CallSessionEvents, wait_for_caller
 from .prompts import compose_instructions
 from .providers import build_llm_chain, build_stt, build_tts
 from .publisher import CallEventPublisher
+from .recording import build_call_recording, start_with_notice
 from .resolve import resolve_agent
 from .settings import Settings
 from .turns import build_turn_handling
@@ -40,12 +41,14 @@ async def entrypoint(ctx: JobContext) -> None:
         turn_handling=build_turn_handling(settings),
         user_away_timeout=settings.idle_timeout_seconds or None,
     )
+    recording = build_call_recording(ctx, config, settings.tenant)
     events = CallSessionEvents(
         session=session,
         publisher=CallEventPublisher(settings.redis_url, settings.redis_prefix),
         room_name=ctx.room.name,
         tenant=settings.tenant,
         agent=resolved.slug,
+        recording_url=(lambda: recording.url) if recording else None,
     )
     await session.start(
         room=ctx.room,
@@ -57,6 +60,9 @@ async def entrypoint(ctx: JobContext) -> None:
     ctx.add_shutdown_callback(events.on_shutdown)
     lifecycle.watch_caller(ctx.room, caller)
     lifecycle.start()
+    if recording:
+        ctx.add_shutdown_callback(lambda _reason: recording.stop())
+        await start_with_notice(recording, session, config.recording.notice)
     await session.say(config.greeting)
 
 

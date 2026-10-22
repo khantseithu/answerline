@@ -34,7 +34,7 @@ class FakePublisher:
         self.closed = True
 
 
-def _events(session=None, publisher=None):
+def _events(session=None, publisher=None, recording_url=None):
     session = session or FakeSession()
     publisher = publisher or FakePublisher()
     events = CallSessionEvents(
@@ -43,6 +43,7 @@ def _events(session=None, publisher=None):
         room_name="call-1",
         tenant="default",
         agent="bright-smile-dental",
+        recording_url=recording_url,
     )
     return events, session, publisher
 
@@ -100,6 +101,21 @@ def test_close_publishes_completed_with_usage_without_waiting_for_shutdown():
     assert ended.status == "completed"
     assert ended.usage["stt_seconds"] == 4
     assert not publisher.flushed
+
+
+def test_close_reports_recording_url_when_available():
+    events, session, publisher = _events(recording_url=lambda: "s3://recordings/default/call-1.ogg")
+    events.started(None)
+    session.handlers["close"](CloseEvent(reason=CloseReason.PARTICIPANT_DISCONNECTED))
+    assert publisher.events[-1].recording_url == "s3://recordings/default/call-1.ogg"
+
+
+def test_close_without_recording_has_no_recording_url():
+    for provider in (None, lambda: None):
+        events, session, publisher = _events(recording_url=provider)
+        events.started(None)
+        session.handlers["close"](CloseEvent(reason=CloseReason.PARTICIPANT_DISCONNECTED))
+        assert publisher.events[-1].recording_url is None
 
 
 def test_shutdown_flushes_and_does_not_duplicate_ended():

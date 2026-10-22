@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import time
+from collections.abc import Callable
 from typing import Protocol
 
 from livekit import rtc
@@ -40,10 +41,12 @@ class CallSessionEvents:
         room_name: str,
         tenant: str,
         agent: str,
+        recording_url: Callable[[], str | None] | None = None,
     ) -> None:
         self._session = session
         self._publisher = publisher
         self._recorder = CallRecorder(room_name=room_name, tenant=tenant, agent=agent)
+        self._recording_url = recording_url
         self._closed = asyncio.Event()
         self._failed = False
         self._started = False
@@ -97,7 +100,12 @@ class CallSessionEvents:
                 logger.warning("failed to read session usage", exc_info=True)
                 usage = None
             self._publisher.publish(
-                self._recorder.end(ended_at=time.time(), failed=self._failed, usage=usage)
+                self._recorder.end(
+                    ended_at=time.time(),
+                    failed=self._failed,
+                    usage=usage,
+                    recording_url=self._recording_url() if self._recording_url else None,
+                )
             )
         except Exception:
             logger.warning("failed to build call.ended event", exc_info=True)
