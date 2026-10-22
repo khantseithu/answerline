@@ -86,8 +86,8 @@ function CallHeader({ agentName }: { agentName: string }) {
   return (
     <header className="absolute inset-x-0 top-0 z-60 flex h-16 items-center justify-between gap-4 px-4 md:px-8">
       <div className="flex min-w-0 items-center gap-2.5">
-        <LogoMark className="text-live" />
-        <span className="truncate font-medium">{agentName}</span>
+        <LogoMark className="hidden text-live sm:block" />
+        <span className="truncate font-medium text-sm sm:text-base">{agentName}</span>
       </div>
       <div
         aria-live="polite"
