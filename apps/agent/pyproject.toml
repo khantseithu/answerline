@@ -5,6 +5,7 @@ requires-python = ">=3.13,<3.15"
 dependencies = [
   "answerline-llm",
   "asyncpg>=0.32.0",
+  "bullmq>=3.4.3",
   "livekit-agents[anthropic,cartesia,deepgram,google,openai,silero]~=1.8",
   "pydantic>=2.14.1",
   "pydantic-settings>=2.16.1",
