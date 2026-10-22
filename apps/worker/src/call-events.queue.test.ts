@@ -12,8 +12,6 @@ const skip =
   process.env.DATABASE_URL && process.env.REDIS_URL ? false : "DATABASE_URL or REDIS_URL not set";
 const fixtures = new URL("../../../packages/shared/fixtures/call-event/valid/", import.meta.url);
 
-const queueJobId = (event: CallEventJob) => callEventJobId(event).replaceAll(":", "_");
-
 async function loadFixture(name: string, room: string, tenant: string) {
   const raw = JSON.parse(await readFile(new URL(name, fixtures), "utf8"));
   return callEventJob.parse({ ...raw, room_name: room, tenant });
@@ -55,7 +53,7 @@ test("processes call events end to end through bullmq", { skip, timeout: 30_000 
       [...events, first].map((event) => ({
         data: event,
         name: event.type,
-        opts: { jobId: queueJobId(event) },
+        opts: { jobId: callEventJobId(event) },
       }))
     );
     await done;
