@@ -27,12 +27,64 @@ services:
 
   livekit:
     image: livekit/livekit-server:latest
-    command: --dev --bind 0.0.0.0
+    command: --dev --bind 0.0.0.0 --redis-host redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
     ports:
       - "7880:7880"
       - "7881:7881"
       - "7882:7882/udp"
 
+  minio:
+    image: cgr.dev/chainguard/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-answerline}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-answerline-secret}
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio-data:/data
+
+  minio-init:
+    image: cgr.dev/chainguard/minio-client:latest
+    command: mb --ignore-existing local/${S3_BUCKET:-recordings}
+    environment:
+      MC_HOST_local: http://${S3_ACCESS_KEY:-answerline}:${S3_SECRET_KEY:-answerline-secret}@minio:9000
+    depends_on:
+      - minio
+    restart: on-failure
+
+  egress:
+    image: livekit/egress:latest
+    environment:
+      EGRESS_CONFIG_BODY: |
+        log_level: info
+        api_key: ${LIVEKIT_API_KEY:-devkey}
+        api_secret: ${LIVEKIT_API_SECRET:-secret}
+        ws_url: ws://livekit:7880
+        insecure: true
+        redis:
+          address: redis:6379
+        storage:
+          s3:
+            access_key: ${S3_ACCESS_KEY:-answerline}
+            secret: ${S3_SECRET_KEY:-answerline-secret}
+            region: ${S3_REGION:-us-east-1}
+            endpoint: http://minio:9000
+            bucket: ${S3_BUCKET:-recordings}
+            force_path_style: true
+    depends_on:
+      livekit:
+        condition: service_started
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
+
 volumes:
   postgres-data:
   redis-data:
+  minio-data:
