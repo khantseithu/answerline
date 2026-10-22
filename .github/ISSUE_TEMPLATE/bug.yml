@@ -1,0 +1,34 @@
+name: Bug report
+description: Something is broken
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you saw vs. what you expected.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. docker compose up -d
+        2. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [agent, web, worker, telephony, knowledge, evals, deploy, other]
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      render: shell
