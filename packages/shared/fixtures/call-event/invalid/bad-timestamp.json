@@ -1,0 +1,9 @@
+{
+  "type": "call.ended",
+  "room_name": "call-0b9c1c3e-2f4a-4e8e-9d3a-5f1f2b7c9a10",
+  "tenant": "default",
+  "agent": "bright-smile-dental",
+  "ended_at": "yesterday",
+  "duration_ms": 1,
+  "status": "completed"
+}

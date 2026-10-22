@@ -35,6 +35,7 @@ export const answerlineEvent = z.discriminatedUnion("type", [
 export type AnswerlineEvent = z.infer<typeof answerlineEvent>;
 
 export const QUEUES = {
+  callEvents: "call-events",
   evals: "evals",
   ingestion: "ingestion",
   postCall: "post-call",

@@ -45,6 +45,7 @@ General
 - Match surrounding code. No code comments unless something is truly non-obvious.
 - Validate at boundaries (YAML, HTTP, queue payloads, env) with Zod / Pydantic; trust types inside.
 - Contracts live in `packages/shared`. When the agent config schema changes, run `pnpm --filter @answerline/shared generate:schema`, update the Pydantic mirror in `apps/agent/src/answerline_agent/config.py`, and add fixtures under `packages/shared/fixtures/agent-config/`. Parity tests in both languages fail on drift.
+- Agent → worker call events go on the `call-events` BullMQ queue as `callEventJob` (`packages/shared/src/call-events.ts`, JSON Schema in `packages/shared/schema/call-event.schema.json`, fixtures in `packages/shared/fixtures/call-event/`). Job name = event `type`, job id = `callEventJobId` (`<room>:<type>[:<seq>]`) so retries are idempotent. The Python producer validates against the same JSON Schema and fixtures.
 - Never commit secrets. New env vars go in `.env.example`.
 - Bug fixes get a regression test when practical.
 

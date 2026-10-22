@@ -1,0 +1,8 @@
+{
+  "type": "call.started",
+  "room_name": "call-x",
+  "tenant": "Default Tenant",
+  "agent": "bright-smile-dental",
+  "channel": "web",
+  "started_at": "2026-10-22T14:00:00.000Z"
+}
