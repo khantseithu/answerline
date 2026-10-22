@@ -29,6 +29,14 @@ const mcpTool = z.object({
   mcp: z.object({ name: z.string().min(1), url: z.url() }),
 });
 
+export const DEFAULT_RECORDING_NOTICE =
+  "This call may be recorded for quality and training purposes.";
+
+const recording = z.object({
+  enabled: z.boolean().default(false),
+  notice: z.string().min(1).default(DEFAULT_RECORDING_NOTICE),
+});
+
 export const agentConfigSchema = z.object({
   greeting: z.string().min(1),
   hours: z
@@ -54,6 +62,7 @@ export const agentConfigSchema = z.object({
     tts: modelRef,
   }),
   name: z.string().min(1),
+  recording: recording.prefault({}),
   tools: z.array(z.union([builtinTool, httpTool, mcpTool])).default([]),
 });
 

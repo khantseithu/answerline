@@ -76,6 +76,14 @@ class Hours(BaseModel):
     after_hours: Literal["voicemail", "transfer", "answer"] = "voicemail"
 
 
+DEFAULT_RECORDING_NOTICE = "This call may be recorded for quality and training purposes."
+
+
+class Recording(BaseModel):
+    enabled: bool = False
+    notice: NonEmpty = DEFAULT_RECORDING_NOTICE
+
+
 class AgentConfig(BaseModel):
     name: NonEmpty
     greeting: NonEmpty
@@ -85,6 +93,7 @@ class AgentConfig(BaseModel):
     knowledge: Knowledge | None = None
     tools: list[BuiltinTool | HttpTool | McpTool] = Field(default_factory=list)
     hours: Hours | None = None
+    recording: Recording = Field(default_factory=Recording)
 
 
 def load_agent_config(path: str | Path) -> AgentConfig:

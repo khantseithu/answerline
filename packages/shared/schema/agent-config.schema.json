@@ -152,6 +152,21 @@
       "type": "string",
       "minLength": 1
     },
+    "recording": {
+      "default": {},
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "default": false,
+          "type": "boolean"
+        },
+        "notice": {
+          "default": "This call may be recorded for quality and training purposes.",
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
     "tools": {
       "default": [],
       "type": "array",

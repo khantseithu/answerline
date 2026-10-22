@@ -63,6 +63,7 @@ class CallEnded(CallRef):
     ended_at: Timestamp
     duration_ms: Annotated[int, Field(ge=0)]
     usage: dict[str, float] | None = None
+    recording_url: NonEmpty | None = None
 
 
 CallEventModel = CallStarted | CallTurn | CallEnded
@@ -182,6 +183,7 @@ class CallRecorder:
         ended_at: float,
         failed: bool,
         usage: dict[str, float] | None = None,
+        recording_url: str | None = None,
     ) -> CallEnded:
         started = self.started_at if self.started_at is not None else ended_at
         return CallEnded(
@@ -190,4 +192,5 @@ class CallRecorder:
             ended_at=iso_timestamp(ended_at),
             duration_ms=max(round((ended_at - started) * 1000), 0),
             usage=usage,
+            recording_url=recording_url,
         )

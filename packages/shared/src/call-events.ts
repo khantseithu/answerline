@@ -40,6 +40,7 @@ export const callEndedJob = z.object({
   ...callRef,
   duration_ms: z.number().int().nonnegative(),
   ended_at: z.iso.datetime({ offset: true }),
+  recording_url: z.string().min(1).optional(),
   status: z.enum(["completed", "failed"]),
   type: z.literal("call.ended"),
   usage: z.record(z.string(), z.number()).optional(),
