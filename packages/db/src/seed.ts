@@ -9,22 +9,28 @@ const db = createDb();
 
 const [tenant] = await db
   .insert(tenants)
-  .values({ slug: "default", name: "Default" })
-  .onConflictDoUpdate({ target: tenants.slug, set: { name: "Default" } })
+  .values({ name: "Default", slug: "default" })
+  .onConflictDoUpdate({ set: { name: "Default" }, target: tenants.slug })
   .returning();
-if (!tenant) throw new Error("failed to upsert default tenant");
-
-for (const file of (await readdir(agentsDir)).filter((f) => f.endsWith(".yaml"))) {
-  const config = parseAgentConfig(await readFile(new URL(file, agentsDir), "utf8"));
-  const slug = basename(file, ".yaml");
-  await db
-    .insert(agents)
-    .values({ tenantId: tenant.id, slug, name: config.name, config })
-    .onConflictDoUpdate({
-      target: [agents.tenantId, agents.slug],
-      set: { name: config.name, config },
-    });
-  console.log(`seeded agent ${slug}`);
+if (!tenant) {
+  throw new Error("failed to upsert default tenant");
 }
+
+const files = (await readdir(agentsDir)).filter((f) => f.endsWith(".yaml"));
+
+await Promise.all(
+  files.map(async (file) => {
+    const config = parseAgentConfig(await readFile(new URL(file, agentsDir), "utf8"));
+    const slug = basename(file, ".yaml");
+    await db
+      .insert(agents)
+      .values({ config, name: config.name, slug, tenantId: tenant.id })
+      .onConflictDoUpdate({
+        set: { config, name: config.name },
+        target: [agents.tenantId, agents.slug],
+      });
+    console.log(`seeded agent ${slug}`);
+  })
+);
 
 await db.$client.end();

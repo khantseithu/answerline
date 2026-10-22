@@ -55,189 +55,189 @@ export const evalRunStatus = pgEnum("eval_run_status", [
 ]);
 
 export const tenants = pgTable("tenants", {
-  id: id(),
-  slug: text().notNull().unique(),
-  name: text().notNull(),
   createdAt: createdAt(),
+  id: id(),
+  name: text().notNull(),
+  slug: text().notNull().unique(),
   updatedAt: updatedAt(),
 });
 
 export const agents = pgTable(
   "agents",
   {
-    id: id(),
-    tenantId: tenantId(),
-    slug: text().notNull(),
-    name: text().notNull(),
     config: jsonb().$type<AgentConfig>().notNull(),
     createdAt: createdAt(),
+    id: id(),
+    name: text().notNull(),
+    slug: text().notNull(),
+    tenantId: tenantId(),
     updatedAt: updatedAt(),
   },
-  (t) => [uniqueIndex().on(t.tenantId, t.slug)],
+  (t) => [uniqueIndex().on(t.tenantId, t.slug)]
 );
 
 export const calls = pgTable(
   "calls",
   {
-    id: id(),
-    tenantId: tenantId(),
     agentId: uuid()
       .notNull()
       .references(() => agents.id, { onDelete: "cascade" }),
-    roomName: text().notNull().unique(),
     channel: callChannel().notNull(),
-    direction: callDirection().notNull().default("inbound"),
-    status: callStatus().notNull().default("in_progress"),
-    fromNumber: text(),
-    toNumber: text(),
-    startedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
-    endedAt: timestamp({ withTimezone: true }),
-    durationMs: integer(),
-    recordingUrl: text(),
-    summary: text(),
-    outcome: text(),
     costUsd: numeric({ precision: 12, scale: 6 }),
-    usage: jsonb().$type<Record<string, number>>(),
     createdAt: createdAt(),
+    direction: callDirection().notNull().default("inbound"),
+    durationMs: integer(),
+    endedAt: timestamp({ withTimezone: true }),
+    fromNumber: text(),
+    id: id(),
+    outcome: text(),
+    recordingUrl: text(),
+    roomName: text().notNull().unique(),
+    startedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    status: callStatus().notNull().default("in_progress"),
+    summary: text(),
+    tenantId: tenantId(),
+    toNumber: text(),
+    usage: jsonb().$type<Record<string, number>>(),
   },
-  (t) => [index().on(t.tenantId, t.startedAt), index().on(t.agentId, t.startedAt)],
+  (t) => [index().on(t.tenantId, t.startedAt), index().on(t.agentId, t.startedAt)]
 );
 
 export const callTurns = pgTable(
   "call_turns",
   {
-    id: id(),
     callId: uuid()
       .notNull()
       .references(() => calls.id, { onDelete: "cascade" }),
-    seq: integer().notNull(),
-    role: turnRole().notNull(),
-    text: text().notNull(),
-    startedAt: timestamp({ withTimezone: true }).notNull(),
     endedAt: timestamp({ withTimezone: true }),
-    latency: jsonb().$type<{ sttMs?: number; llmTtftMs?: number; ttsTtfbMs?: number }>(),
+    id: id(),
     interrupted: boolean().notNull().default(false),
+    latency: jsonb().$type<{ sttMs?: number; llmTtftMs?: number; ttsTtfbMs?: number }>(),
+    role: turnRole().notNull(),
+    seq: integer().notNull(),
+    startedAt: timestamp({ withTimezone: true }).notNull(),
+    text: text().notNull(),
   },
-  (t) => [uniqueIndex().on(t.callId, t.seq)],
+  (t) => [uniqueIndex().on(t.callId, t.seq)]
 );
 
 export const toolCalls = pgTable(
   "tool_calls",
   {
-    id: id(),
+    args: jsonb().notNull(),
     callId: uuid()
       .notNull()
       .references(() => calls.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+    error: text(),
+    id: id(),
+    latencyMs: integer(),
     name: text().notNull(),
-    args: jsonb().notNull(),
     result: jsonb(),
     status: toolCallStatus().notNull(),
-    error: text(),
-    latencyMs: integer(),
-    createdAt: createdAt(),
   },
-  (t) => [index().on(t.callId)],
+  (t) => [index().on(t.callId)]
 );
 
 export const knowledgeSources = pgTable(
   "knowledge_sources",
   {
-    id: id(),
-    tenantId: tenantId(),
     agentId: uuid().references(() => agents.id, { onDelete: "cascade" }),
-    type: knowledgeSourceType().notNull(),
-    uri: text(),
-    title: text(),
     contentHash: text(),
-    status: ingestionStatus().notNull().default("pending"),
-    error: text(),
-    ingestedAt: timestamp({ withTimezone: true }),
     createdAt: createdAt(),
+    error: text(),
+    id: id(),
+    ingestedAt: timestamp({ withTimezone: true }),
+    status: ingestionStatus().notNull().default("pending"),
+    tenantId: tenantId(),
+    title: text(),
+    type: knowledgeSourceType().notNull(),
     updatedAt: updatedAt(),
+    uri: text(),
   },
-  (t) => [index().on(t.tenantId), index().on(t.agentId)],
+  (t) => [index().on(t.tenantId), index().on(t.agentId)]
 );
 
 export const knowledgeChunks = pgTable(
   "knowledge_chunks",
   {
+    content: text().notNull(),
+    createdAt: createdAt(),
+    embedding: vector({ dimensions: EMBEDDING_DIMENSIONS }),
     id: id(),
-    tenantId: tenantId(),
+    metadata: jsonb().$type<Record<string, unknown>>(),
+    search: tsvector().generatedAlwaysAs(sql`to_tsvector('simple', content)`),
+    seq: integer().notNull(),
     sourceId: uuid()
       .notNull()
       .references(() => knowledgeSources.id, { onDelete: "cascade" }),
-    seq: integer().notNull(),
-    content: text().notNull(),
-    metadata: jsonb().$type<Record<string, unknown>>(),
-    embedding: vector({ dimensions: EMBEDDING_DIMENSIONS }),
-    search: tsvector().generatedAlwaysAs(sql`to_tsvector('simple', content)`),
-    createdAt: createdAt(),
+    tenantId: tenantId(),
   },
   (t) => [
     index().on(t.sourceId),
     index("knowledge_chunks_embedding_idx").using("hnsw", t.embedding.op("vector_cosine_ops")),
     index("knowledge_chunks_search_idx").using("gin", t.search),
-  ],
+  ]
 );
 
 export const bookings = pgTable(
   "bookings",
   {
-    id: id(),
-    tenantId: tenantId(),
     agentId: uuid()
       .notNull()
       .references(() => agents.id, { onDelete: "cascade" }),
     callId: uuid().references(() => calls.id, { onDelete: "set null" }),
-    provider: text().notNull(),
-    externalId: text(),
-    status: bookingStatus().notNull().default("confirmed"),
-    startsAt: timestamp({ withTimezone: true }).notNull(),
-    endsAt: timestamp({ withTimezone: true }),
-    name: text().notNull(),
-    phone: text(),
-    email: text(),
-    notes: text(),
     createdAt: createdAt(),
+    email: text(),
+    endsAt: timestamp({ withTimezone: true }),
+    externalId: text(),
+    id: id(),
+    name: text().notNull(),
+    notes: text(),
+    phone: text(),
+    provider: text().notNull(),
+    startsAt: timestamp({ withTimezone: true }).notNull(),
+    status: bookingStatus().notNull().default("confirmed"),
+    tenantId: tenantId(),
   },
-  (t) => [index().on(t.tenantId, t.startsAt)],
+  (t) => [index().on(t.tenantId, t.startsAt)]
 );
 
 export const evalRuns = pgTable(
   "eval_runs",
   {
-    id: id(),
-    tenantId: tenantId(),
     agentId: uuid()
       .notNull()
       .references(() => agents.id, { onDelete: "cascade" }),
-    suite: text().notNull(),
-    status: evalRunStatus().notNull().default("queued"),
-    modelOverride: text(),
-    passed: integer(),
-    total: integer(),
     avgLatencyMs: integer(),
     costUsd: numeric({ precision: 12, scale: 6 }),
-    startedAt: timestamp({ withTimezone: true }),
-    finishedAt: timestamp({ withTimezone: true }),
     createdAt: createdAt(),
+    finishedAt: timestamp({ withTimezone: true }),
+    id: id(),
+    modelOverride: text(),
+    passed: integer(),
+    startedAt: timestamp({ withTimezone: true }),
+    status: evalRunStatus().notNull().default("queued"),
+    suite: text().notNull(),
+    tenantId: tenantId(),
+    total: integer(),
   },
-  (t) => [index().on(t.agentId, t.createdAt)],
+  (t) => [index().on(t.agentId, t.createdAt)]
 );
 
 export const evalResults = pgTable(
   "eval_results",
   {
+    caseName: text().notNull(),
+    costUsd: numeric({ precision: 12, scale: 6 }),
+    failures: jsonb().$type<string[]>().notNull().default([]),
     id: id(),
+    latencyMs: integer(),
+    passed: boolean().notNull(),
     runId: uuid()
       .notNull()
       .references(() => evalRuns.id, { onDelete: "cascade" }),
-    caseName: text().notNull(),
-    passed: boolean().notNull(),
-    failures: jsonb().$type<string[]>().notNull().default([]),
     transcript: jsonb().$type<{ role: "caller" | "agent"; text: string }[]>().notNull(),
-    latencyMs: integer(),
-    costUsd: numeric({ precision: 12, scale: 6 }),
   },
-  (t) => [index().on(t.runId)],
+  (t) => [index().on(t.runId)]
 );

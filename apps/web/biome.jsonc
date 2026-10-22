@@ -1,0 +1,21 @@
+{
+  "$schema": "../../node_modules/@biomejs/biome/configuration_schema.json",
+  "extends": [
+    "ultracite/biome/core",
+    "../../biome.json",
+    "ultracite/biome/react",
+    "ultracite/biome/next"
+  ],
+  "root": false,
+  "overrides": [
+    {
+      "includes": [
+        "src/components/ui/**",
+        "src/hooks/**",
+        "src/lib/utils.ts",
+        "src/lib/highlighter.tsx"
+      ],
+      "linter": { "enabled": false }
+    }
+  ]
+}

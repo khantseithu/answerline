@@ -1,4 +1,4 @@
-import * as React from "react";
+import type * as React from "react";
 import { createHighlighterCore, type GrammarState, type HighlighterCore } from "shiki/core";
 import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
 
@@ -35,9 +35,9 @@ let highlighter: Promise<HighlighterCore> | undefined;
 
 function getHighlighter() {
   highlighter ??= createHighlighterCore({
-    themes: [import("shiki/themes/github-light.mjs"), import("shiki/themes/github-dark.mjs")],
-    langs: [],
     engine: createJavaScriptRegexEngine({ forgiving: true }),
+    langs: [],
+    themes: [import("shiki/themes/github-light.mjs"), import("shiki/themes/github-dark.mjs")],
   });
 
   return highlighter;
@@ -78,10 +78,10 @@ export async function loadHighlighter(language: string) {
     highlight(code: string, state?: GrammarState) {
       const tokenize = (text: string) =>
         shiki.codeToTokens(text, {
-          lang,
-          themes: { light: "github-light", dark: "github-dark" },
           defaultColor: false,
           grammarState: state,
+          lang,
+          themes: { dark: "github-dark", light: "github-light" },
         }).tokens;
 
       // ANSI has no grammar state, so each line is tokenized on its own and
@@ -93,13 +93,13 @@ export async function loadHighlighter(language: string) {
         lines: tokens.map((line) =>
           line.map((token, index) => (
             <span
+              className="text-(--shiki-light) dark:text-(--shiki-dark)"
               key={index}
               style={token.htmlStyle as React.CSSProperties}
-              className="text-(--shiki-light) dark:text-(--shiki-dark)"
             >
               {token.content}
             </span>
-          )),
+          ))
         ),
         state: shiki.getLastGrammarState(tokens),
       };

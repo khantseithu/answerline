@@ -17,7 +17,7 @@ export function useHighlightedCode(value: string, language: string) {
     loadHighlighter(language)
       .then((next) => {
         if (!cancelled) {
-          setLoaded({ language, highlighter: next });
+          setLoaded({ highlighter: next, language });
         }
       })
       .catch(() => {});
@@ -34,12 +34,12 @@ export function useHighlightedCode(value: string, language: string) {
     text: string;
     lines: React.ReactNode[];
     state?: Parameters<NonNullable<typeof highlighter>["highlight"]>[1];
-  }>({ highlighter: null, text: "", lines: [] });
+  }>({ highlighter: null, lines: [], text: "" });
 
   let next = done;
 
   if (next.highlighter !== highlighter || !code.startsWith(next.text)) {
-    next = { highlighter, text: "", lines: [] };
+    next = { highlighter, lines: [], text: "" };
   }
 
   const end = code.lastIndexOf("\n") + 1;
@@ -49,9 +49,9 @@ export function useHighlightedCode(value: string, language: string) {
 
     next = {
       highlighter,
-      text: code.slice(0, end),
       lines: [...next.lines, ...result.lines],
       state: result.state,
+      text: code.slice(0, end),
     };
   }
 

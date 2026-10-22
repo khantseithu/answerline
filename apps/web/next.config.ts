@@ -1,14 +1,14 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@answerline/shared"],
   cacheComponents: true,
   partialPrefetching: true,
+  transpilePackages: ["@answerline/shared"],
   turbopack: {
     rules: {
       "*.css": {
-        loaders: ["@tailwindcss/turbopack"],
         as: "*.css",
+        loaders: ["@tailwindcss/turbopack"],
       },
     },
   },
