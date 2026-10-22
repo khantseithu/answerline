@@ -1,6 +1,7 @@
 from livekit.agents import Agent, AgentServer, AgentSession, JobContext, JobProcess, cli
 from livekit.plugins import silero
 
+from .prompts import compose_instructions
 from .providers import build_llm_chain, build_stt, build_tts
 from .resolve import resolve_agent
 from .settings import Settings
@@ -27,7 +28,10 @@ async def entrypoint(ctx: JobContext) -> None:
         tts=build_tts(config.models.tts),
         vad=ctx.proc.userdata["vad"],
     )
-    await session.start(room=ctx.room, agent=Agent(instructions=config.instructions))
+    await session.start(
+        room=ctx.room,
+        agent=Agent(instructions=compose_instructions(config.instructions)),
+    )
     await session.say(config.greeting)
 
 
