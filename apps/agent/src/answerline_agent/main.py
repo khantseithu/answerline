@@ -5,6 +5,7 @@ from .prompts import compose_instructions
 from .providers import build_llm_chain, build_stt, build_tts
 from .resolve import resolve_agent
 from .settings import Settings
+from .turns import build_turn_handling
 
 settings = Settings()
 server = AgentServer()
@@ -27,6 +28,7 @@ async def entrypoint(ctx: JobContext) -> None:
         llm=build_llm_chain(config.models),
         tts=build_tts(config.models.tts),
         vad=ctx.proc.userdata["vad"],
+        turn_handling=build_turn_handling(settings),
     )
     await session.start(
         room=ctx.room,
