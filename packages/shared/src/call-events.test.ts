@@ -45,8 +45,8 @@ test("job ids are stable per room, type, and turn", () => {
     started_at: "2026-10-22T14:00:00.000Z",
     type: "call.started",
   });
-  assert.equal(callEventJobId(turn), "call-1:call.turn:3");
-  assert.equal(callEventJobId(started), "call-1:call.started");
+  assert.equal(callEventJobId(turn), "call-1_call.turn_3");
+  assert.equal(callEventJobId(started), "call-1_call.started");
 });
 
 test("committed call event JSON Schema matches zod schema", async () => {
