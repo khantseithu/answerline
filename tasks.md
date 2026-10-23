@@ -95,7 +95,7 @@ Roadmap: *Built-in tools: booking, transfer, business hours*
   - [x] Opt-in lookup: timezone-aware weekday/weekend schedules, overnight hours, and configured after-hours policy (#46)
   - [ ] Holiday overrides and automatic after-hours routing (#49)
 - [ ] `book_appointment` (#50)
-  - [ ] Provider interface: availability lookup, create, cancel
+  - [x] Provider interface: availability lookup, create, cancel (#51)
   - [ ] Native provider: slots from `hours`, bookings stored in Postgres without double-booking (#205)
   - [ ] Confirm details back to caller before booking
   - [ ] Emit `booking.created`
@@ -270,6 +270,7 @@ Roadmap: *Multilingual agents*
 - Auth: Better Auth (#128)
 - Knowledge relevance floor: `hybrid_search` returns absolute signals (cosine similarity, matched query terms) and the tool applies an optional `KNOWLEDGE_MIN_SIMILARITY`, off by default because similarity scales differ per embedding model; a keyword match counts as strong only when it covers at least `KNOWLEDGE_MIN_KEYWORD_TERMS` (default 2) distinct query terms (#180)
 - Booking: a minimal native provider ships first instead of Cal.com, which few target businesses use. Slots come from the agent's `hours` at a fixed length, bookings live in Postgres with an exclusion constraint against overlaps, and the agent writes bookings directly so it only confirms what was stored (an exception to #129). Cal.com and Google Calendar are optional adapters (#50, #205)
+- Booking providers: a Python `BookingProvider` protocol (availability, create, cancel) behind a registry keyed by the `book_appointment` `provider` name; the tool takes its timezone from `hours`, and callers can cancel only bookings made earlier in the same call. Cross-call cancellation is deferred (#51)
 
 ## Open decisions
 

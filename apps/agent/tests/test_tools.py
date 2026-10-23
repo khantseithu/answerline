@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+from answerline_agent import booking
 from answerline_agent.config import BuiltinTool, Hours, HttpTool, McpTool, load_agent_config
 from answerline_agent.tools import build_configured_tools
 from livekit.agents import Agent
@@ -26,7 +27,7 @@ def test_only_configured_supported_tools_are_registered_once(caplog):
     tools = build_configured_tools(agent)
     assert [tool.id for tool in tools] == ["business_hours"]
     assert Agent(instructions="Be brief.", tools=tools).tools == tools
-    assert "book_appointment is not implemented" in caplog.text
+    assert "book_appointment provider 'cal_com' is not implemented" in caplog.text
     assert "transfer_call is not implemented" in caplog.text
     assert "HttpTool is not implemented" in caplog.text
 
@@ -46,7 +47,7 @@ def test_unimplemented_config_does_not_register_dead_tools(caplog):
         McpTool(mcp={"name": "crm", "url": "https://x.test"}),
     ]
     assert build_configured_tools(agent) == []
-    assert "book_appointment is not implemented" in caplog.text
+    assert "book_appointment provider None is not implemented" in caplog.text
     assert "McpTool is not implemented" in caplog.text
 
 
@@ -122,4 +123,35 @@ def test_capture_lead_requires_per_call_context():
     agent = config()
     agent.tools = [BuiltinTool(builtin="capture_lead")]
     with pytest.raises(ValueError, match="requires a per-call lead context"):
+        build_configured_tools(agent)
+
+
+def test_book_appointment_uses_registered_provider_once(monkeypatch):
+    specs = []
+
+    def factory(spec):
+        specs.append(spec)
+        return object()
+
+    monkeypatch.setitem(booking.BOOKING_PROVIDERS, "cal_com", factory)
+    agent = config()
+    agent.tools = [
+        BuiltinTool(builtin="book_appointment", provider="cal_com"),
+        BuiltinTool(builtin="book_appointment", provider="cal_com"),
+    ]
+    tools = build_configured_tools(agent)
+    assert [tool.id for tool in tools] == [
+        "check_availability",
+        "book_appointment",
+        "cancel_appointment",
+    ]
+    assert [spec.model_extra for spec in specs] == [{"provider": "cal_com"}]
+
+
+def test_book_appointment_requires_hours(monkeypatch):
+    monkeypatch.setitem(booking.BOOKING_PROVIDERS, "cal_com", lambda spec: object())
+    agent = config()
+    agent.tools = [BuiltinTool(builtin="book_appointment", provider="cal_com")]
+    agent.hours = None
+    with pytest.raises(ValueError, match="book_appointment requires an hours configuration"):
         build_configured_tools(agent)
