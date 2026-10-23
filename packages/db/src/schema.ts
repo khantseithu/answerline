@@ -1,4 +1,4 @@
-import type { AgentConfig } from "@answerline/shared";
+import type { AgentConfig, QuestionAnswerPairs } from "@answerline/shared";
 import { sql } from "drizzle-orm";
 import {
   boolean,
@@ -143,6 +143,7 @@ export const knowledgeSources = pgTable(
   "knowledge_sources",
   {
     agentId: uuid().references(() => agents.id, { onDelete: "cascade" }),
+    content: jsonb().$type<string | QuestionAnswerPairs>(),
     contentHash: text(),
     createdAt: createdAt(),
     error: text(),

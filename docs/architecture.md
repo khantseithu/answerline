@@ -176,11 +176,19 @@ Node.js with BullMQ, run with `tsx`. [`src/index.ts`](../apps/worker/src/index.t
 | Queue | Handler |
 |---|---|
 | `call-events` | [`call-events.ts`](../apps/worker/src/call-events.ts): persists calls and transcripts |
-| `ingestion` | Logs the job. **Planned** ([#31](https://github.com/khantseithu/answerline/issues/31)) |
+| `ingestion` | [`ingestion.ts`](../apps/worker/src/ingestion.ts): loads, chunks, embeds through an injected function, and replaces changed sources |
 | `post-call` | Logs the job. **Planned** ([#78](https://github.com/khantseithu/answerline/issues/78)) |
 | `evals` | Logs the job. **Planned** ([#88](https://github.com/khantseithu/answerline/issues/88)) |
 
-Nothing enqueues to `ingestion`, `post-call`, or `evals` yet.
+`enqueueIngestion` (exported as `@answerline/worker/ingestion`) queues a tenant-scoped source with three attempts and exponential backoff. Nothing enqueues to `post-call` or `evals` yet.
+
+**Knowledge ingestion.** Jobs contain `{ tenantId, sourceId }`, validated by the shared `ingestionJob` schema. The worker reads `knowledge_sources`: `url` sources use an HTTP(S) `uri`; `file` sources use an absolute path or `file://` URI to a PDF, `.txt`, `.md`, or `.markdown` file; `text` sources store a string in `content`; `qa` sources store an array of `{ question, answer }` pairs in `content`. Files must be available on the worker filesystem (20 MiB limit); upload/storage UI remains planned. PDF extraction preserves page numbers and does not perform OCR. URL extraction uses Mozilla Readability without executing scripts, rejects non-public IPs before connecting, pins the resolved address, checks redirects, and bounds response size (10 MiB) and HTTP time (15 s).
+
+Chunks are at most 1600 characters with 240-character overlap, preferring word boundaries. Metadata carries the source ID, title, type, URI, normalized character offsets, and PDF page or Q&A index where applicable. A SHA-256 hash of extracted documents and citation metadata skips embedding and replacement when nothing changed. Source-level advisory and row locks serialize concurrent ingestion and edits. Changed content is embedded in batches of 64; validated finite, nonzero 1536-dimensional vectors and new chunks replace old chunks atomically. Postgres generates the `search` tsvector from chunk content; the worker never writes it. Failed loads, embedding, or replacement keep the last successful chunks, hash, and ingestion timestamp.
+
+`status` (`pending`, `processing`, `ready`, `failed`), `error`, `updated_at`, and `ingested_at` on `knowledge_sources` are readable by the future dashboard. `processing` is committed before expensive work; errors are persisted and rethrown for BullMQ retry. Successful retries clear the error. `updated_at` records status changes; `ingested_at` records the last successful check.
+
+**Embedding integration seam.** `createIngestionProcessor(db, embed)` requires an `EmbedKnowledge` function (`string[] → Promise<number[][]>`). Production provider adapters are being built separately in [#34](https://github.com/khantseithu/answerline/issues/34). Until integrated, `index.ts` supplies an explicit unconfigured embedder: ingestion fails with an actionable persisted error instead of inventing vectors. The default will be OpenAI; Gemini and Ollama outputs must also fit the existing 1536-dimensional column. Tests use a fake embedder and require no model API keys.
 
 `call-events` processing parses each job with the shared `callEventJob` schema, then:
 
@@ -203,6 +211,7 @@ Zod schemas that every TypeScript package imports as source, and the source of t
 | [`agent-config.ts`](../packages/shared/src/agent-config.ts) | Agent YAML / `agents.config` JSON: name, greeting, language, instructions, models, knowledge, tools, hours, recording |
 | [`call-events.ts`](../packages/shared/src/call-events.ts) | `callEventJob` (agent to worker) and `callEventJobId` |
 | [`eval-suite.ts`](../packages/shared/src/eval-suite.ts) | Eval suite YAML |
+| [`ingestion.ts`](../packages/shared/src/ingestion.ts) | Tenant-scoped ingestion jobs and validated Q&A pairs |
 | [`events.ts`](../packages/shared/src/events.ts) | `QUEUES` names, and webhook payloads (`call.started`, `call.ended`, `booking.created`). The webhook schemas are not used yet; webhooks are **Planned** ([#115](https://github.com/khantseithu/answerline/issues/115)). |
 
 Generated JSON Schemas live in [`schema/`](../packages/shared/schema) and fixtures in [`fixtures/`](../packages/shared/fixtures). See [Contracts and parity](#contracts-and-parity).
@@ -280,8 +289,8 @@ erDiagram
 | `calls` | `room_name` (unique), channel, direction, numbers, status (`in_progress`, `completed`, `failed`), timestamps, `duration_ms`, `usage` jsonb, `recording_url`; `summary`, `outcome`, `cost_usd` reserved for post-call | worker |
 | `call_turns` | `(call_id, seq)` unique, role, text, timestamps, `interrupted`, `latency` jsonb | worker |
 | `tool_calls` | name, args, result, status, latency | nothing yet ([#47](https://github.com/khantseithu/answerline/issues/47)) |
-| `knowledge_sources` | type, uri, status, `content_hash` | nothing yet ([#31](https://github.com/khantseithu/answerline/issues/31)) |
-| `knowledge_chunks` | `embedding vector(1536)` with an HNSW cosine index, `search` tsvector generated from `content` with a GIN index | nothing yet ([#35](https://github.com/khantseithu/answerline/issues/35)) |
+| `knowledge_sources` | type, uri, inline `content` jsonb (text or Q&A), status, error, `content_hash`, `updated_at`, `ingested_at` | worker ingestion (source creation by callers) |
+| `knowledge_chunks` | source, seq, content, citation metadata; `embedding vector(1536)` with an HNSW cosine index, `search` tsvector generated from `content` with a GIN index | worker ingestion |
 | `bookings` | provider, `external_id`, `starts_at`, status | nothing yet ([#50](https://github.com/khantseithu/answerline/issues/50)) |
 | `eval_runs`, `eval_results` | pass counts, latency, cost, transcript | nothing yet ([#86](https://github.com/khantseithu/answerline/issues/86)) |
 
@@ -356,7 +365,7 @@ The agent name keeps dispatch separate: a slot's web app issues tokens for `answ
 | Voice loop | STT, LLM fallback, TTS, local turn detection, interruption tuning, call limits | Noise cancellation, multilingual model choice (M11) |
 | Call log | Calls and turns with latency and usage in Postgres | Calls UI, call detail, post-call summary and cost (M5) |
 | Recording | Opt-in egress to S3-compatible storage, URL on the call | Playback in the dashboard, replacement for MinIO ([#153](https://github.com/khantseithu/answerline/issues/153)) |
-| Knowledge base | Tables, indexes, OpenAI/Gemini/Ollama embedding providers (TS + Python) | Ingestion, hybrid search, `search_knowledge` tool (M2) |
+| Knowledge base | Loaders, chunking, hash-based ingestion, atomic chunk/vector replacement, persisted status/errors, enqueue helper | Production embedding provider wiring (#34), hybrid search, `search_knowledge` tool, dashboard (M2) |
 | Tools | Config schema | Tool framework, booking, transfer, hours, HTTP, MCP (M3) |
 | Evals | Suite schema, CLI stub, tables | Runner, assertions, dashboard (M6) |
 | Dashboard | App shell, design system, empty pages | Auth ([#128](https://github.com/khantseithu/answerline/issues/128)), data-backed pages (M5) |
