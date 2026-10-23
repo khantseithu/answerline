@@ -103,6 +103,7 @@ Roadmap: *Built-in tools: booking, transfer, business hours*
 - [ ] Voicemail: record message, transcribe, attach to call
 - [ ] HTTP tools from config: templated URL/body, headers from secrets, JSON schema for params, response truncation
 - [ ] MCP servers: connect via `mcp_servers` on `AgentSession`, per-agent allowlist
+- [ ] Composio customer-support tools (deferred): optional integration for helpdesk tickets, customer context, and escalations via [Composio](https://composio.dev/product/composio-for-customer-support); implement after the core tool framework ([#186](https://github.com/khantseithu/answerline/issues/186))
 - [ ] Secrets: per-tenant encrypted secret store referenced from config (`{{secrets.CAL_API_KEY}}`)
 
 **Done when:** a caller can book a real Cal.com slot, ask if the clinic is open, and get transferred or sent to voicemail after hours.
