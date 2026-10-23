@@ -11,7 +11,15 @@ const knowledgeSource = z.discriminatedUnion("type", [
 
 const builtinTool = z
   .object({
-    builtin: z.enum(["book_appointment", "transfer_call", "business_hours", "capture_lead"]),
+    builtin: z.enum(["transfer_call", "business_hours", "capture_lead"]),
+  })
+  .catchall(z.unknown());
+
+const bookAppointmentTool = z
+  .object({
+    builtin: z.literal("book_appointment"),
+    provider: z.enum(["answerline", "cal_com"]).default("answerline"),
+    slot_minutes: z.int().min(5).max(480).default(30),
   })
   .catchall(z.unknown());
 
@@ -63,7 +71,7 @@ export const agentConfigSchema = z.object({
   }),
   name: z.string().min(1),
   recording: recording.prefault({}),
-  tools: z.array(z.union([builtinTool, httpTool, mcpTool])).default([]),
+  tools: z.array(z.union([builtinTool, bookAppointmentTool, httpTool, mcpTool])).default([]),
 });
 
 export type AgentConfig = z.infer<typeof agentConfigSchema>;

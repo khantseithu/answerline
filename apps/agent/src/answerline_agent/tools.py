@@ -5,7 +5,7 @@ from livekit.agents import llm
 from .booking import BOOKING_PROVIDERS, build_booking_tools
 from .business_hours import build_business_hours_tool
 from .capture_lead import LeadCaptureContext, build_capture_lead_tool
-from .config import AgentConfig, BuiltinTool
+from .config import AgentConfig, BookAppointmentTool, BuiltinTool
 from .settings import Settings
 
 logger = logging.getLogger("answerline.agent")
@@ -31,16 +31,15 @@ def build_configured_tools(
             if lead_context is None:
                 raise ValueError("capture_lead requires a per-call lead context")
             tools.append(build_capture_lead_tool(lead_context, settings))
-        elif isinstance(spec, BuiltinTool) and spec.builtin == "book_appointment":
+        elif isinstance(spec, BookAppointmentTool):
             if any(tool.id == spec.builtin for tool in tools):
                 continue
-            provider = (spec.model_extra or {}).get("provider")
-            factory = BOOKING_PROVIDERS.get(provider) if isinstance(provider, str) else None
+            factory = BOOKING_PROVIDERS.get(spec.provider)
             if factory is None:
                 logger.warning(
                     "Configured tool book_appointment provider %r is not implemented "
                     "and will not be available",
-                    provider,
+                    spec.provider,
                 )
                 continue
             if config.hours is None:

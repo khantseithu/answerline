@@ -45,7 +45,15 @@ class Knowledge(BaseModel):
 class BuiltinTool(BaseModel):
     model_config = ConfigDict(extra="allow")
 
-    builtin: Literal["book_appointment", "transfer_call", "business_hours", "capture_lead"]
+    builtin: Literal["transfer_call", "business_hours", "capture_lead"]
+
+
+class BookAppointmentTool(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    builtin: Literal["book_appointment"]
+    provider: Literal["answerline", "cal_com"] = "answerline"
+    slot_minutes: Annotated[int, Field(ge=5, le=480)] = 30
 
 
 class HttpToolSpec(BaseModel):
@@ -91,7 +99,9 @@ class AgentConfig(BaseModel):
     instructions: NonEmpty
     models: Models
     knowledge: Knowledge | None = None
-    tools: list[BuiltinTool | HttpTool | McpTool] = Field(default_factory=list)
+    tools: list[BuiltinTool | BookAppointmentTool | HttpTool | McpTool] = Field(
+        default_factory=list
+    )
     hours: Hours | None = None
     recording: Recording = Field(default_factory=Recording)
 

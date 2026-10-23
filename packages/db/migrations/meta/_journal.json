@@ -36,6 +36,13 @@
       "when": 1792760735980,
       "tag": "0004_lazy_ozymandias",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792766390941,
+      "tag": "0005_bookings_no_overlap",
+      "breakpoints": true
     }
   ]
 }

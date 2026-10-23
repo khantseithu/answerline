@@ -13,6 +13,9 @@ knowledge:
       answer: Yes, until 4pm.
 tools:
   - builtin: capture_lead
+  - builtin: book_appointment
+    provider: answerline
+    slot_minutes: 45
   - http:
       name: lookup_order
       description: Look up an order
