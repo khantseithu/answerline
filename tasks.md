@@ -94,12 +94,13 @@ Roadmap: *Built-in tools: booking, transfer, business hours*
 - [ ] `business_hours`: timezone-aware open/closed, holidays, `after_hours` behavior (voicemail / transfer / answer)
   - [x] Opt-in lookup: timezone-aware weekday/weekend schedules, overnight hours, and configured after-hours policy (#46)
   - [ ] Holiday overrides and automatic after-hours routing (#49)
-- [ ] `book_appointment`
+- [ ] `book_appointment` (#50)
   - [ ] Provider interface: availability lookup, create, cancel
-  - [ ] Cal.com provider
-  - [ ] Google Calendar provider (optional)
+  - [ ] Native provider: slots from `hours`, bookings stored in Postgres without double-booking (#205)
   - [ ] Confirm details back to caller before booking
   - [ ] Emit `booking.created`
+  - [ ] Cal.com adapter (optional, #53)
+  - [ ] Google Calendar adapter (optional, #54)
 - [x] `capture_lead`: name, phone, reason → `leads` table + event (#57)
   - [x] Lead storage and validated `lead.created` queue contract (#197)
   - [x] Capture tool and worker persistence (#57)
@@ -110,7 +111,7 @@ Roadmap: *Built-in tools: booking, transfer, business hours*
 - [ ] Composio customer-support tools (deferred): optional integration for helpdesk tickets, customer context, and escalations via [Composio](https://composio.dev/product/composio-for-customer-support); implement after the core tool framework ([#186](https://github.com/khantseithu/answerline/issues/186))
 - [ ] Secrets: per-tenant encrypted secret store referenced from config (`{{secrets.CAL_API_KEY}}`)
 
-**Done when:** a caller can book a real Cal.com slot, ask if the clinic is open, and get transferred or sent to voicemail after hours.
+**Done when:** a caller can book an open slot that Answerline stores without double-booking, ask if the clinic is open, and get transferred or sent to voicemail after hours.
 
 ---
 
@@ -268,6 +269,7 @@ Roadmap: *Multilingual agents*
 - M2 embeddings: OpenAI by default; Gemini and Ollama use 1536-dimensional vectors to fit `knowledge_chunks.embedding vector(1536)` (#34)
 - Auth: Better Auth (#128)
 - Knowledge relevance floor: `hybrid_search` returns absolute signals (cosine similarity, matched query terms) and the tool applies an optional `KNOWLEDGE_MIN_SIMILARITY`, off by default because similarity scales differ per embedding model; a keyword match counts as strong only when it covers at least `KNOWLEDGE_MIN_KEYWORD_TERMS` (default 2) distinct query terms (#180)
+- Booking: a minimal native provider ships first instead of Cal.com, which few target businesses use. Slots come from the agent's `hours` at a fixed length, bookings live in Postgres with an exclusion constraint against overlaps, and the agent writes bookings directly so it only confirms what was stored (an exception to #129). Cal.com and Google Calendar are optional adapters (#50, #205)
 
 ## Open decisions
 
