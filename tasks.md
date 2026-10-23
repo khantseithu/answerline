@@ -75,7 +75,7 @@ Roadmap: *Knowledge base ingestion and hybrid search*
   - [ ] Agent tool `search_knowledge` with a strict latency budget (target p95 < 300 ms)
   - [ ] Cite source in transcript/tool call log
 - [x] Dashboard: knowledge page (add URL, upload file, add Q&A, status, re-sync, delete)
-- [ ] Tests: retrieval quality fixtures for the dental FAQ
+- [x] Tests: retrieval quality fixtures for the dental FAQ
 
 **Done when:** upload the sample FAQ PDF, ask the agent about opening hours/services, and get correct answers grounded in the KB.
 
