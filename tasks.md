@@ -263,6 +263,8 @@ Roadmap: *Multilingual agents*
 
 ## Decisions
 
+- Default agent primary LLM: `google/gemini-3.8-flash` through the Google provider; retain the existing fallback chain (#216)
+
 - Brand: adopt the Signal “a” identity selected from the logo concepts; keep outlined mark, wordmark, light/dark variants, and app icons in `brand/` (#192)
 - ORM and migrations: Drizzle with postgres.js (#127)
 - Agent events: the Python agent enqueues BullMQ jobs directly; the worker consumes them (#129)
