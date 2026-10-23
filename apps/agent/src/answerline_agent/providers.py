@@ -1,8 +1,12 @@
+import logging
+
 from answerline_llm import parse_model_ref
 from livekit.agents import llm, stt, tts
 from livekit.plugins import anthropic, cartesia, deepgram, google, openai
 
 from .config import Models
+
+logger = logging.getLogger("answerline.agent")
 
 
 def build_stt(ref: str) -> stt.STT:
@@ -36,7 +40,12 @@ def build_llm(ref: str) -> llm.LLM:
 
 
 def build_llm_chain(models: Models) -> llm.LLM:
-    refs = [models.llm.primary, *models.llm.fallback]
-    if len(refs) == 1:
-        return build_llm(refs[0])
-    return llm.FallbackAdapter([build_llm(r) for r in refs])
+    chain = [build_llm(models.llm.primary)]
+    for ref in models.llm.fallback:
+        try:
+            chain.append(build_llm(ref))
+        except Exception as error:
+            logger.warning("skipping fallback LLM %s: %s", ref, error)
+    if len(chain) == 1:
+        return chain[0]
+    return llm.FallbackAdapter(chain)
