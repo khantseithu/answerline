@@ -70,7 +70,7 @@ Roadmap: *Knowledge base ingestion and hybrid search*
   - [x] Re-ingest on change (content hash), delete stale chunks
   - [x] Job status and errors visible to the dashboard
 - [ ] Retrieval
-  - [ ] Hybrid search: pgvector cosine + Postgres full-text, merged with reciprocal rank fusion
+  - [x] Hybrid search: pgvector cosine + Postgres full-text, merged with reciprocal rank fusion
   - [ ] Optional reranker (Cohere, Jina, or local cross-encoder)
   - [ ] Agent tool `search_knowledge` with a strict latency budget (target p95 < 300 ms)
   - [ ] Cite source in transcript/tool call log
