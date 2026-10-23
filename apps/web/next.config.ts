@@ -3,7 +3,6 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
-  serverExternalPackages: ["jsdom", "pdf-parse", "@mozilla/readability"],
   async redirects() {
     return [
       {
@@ -18,6 +17,7 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  serverExternalPackages: ["jsdom", "pdf-parse", "@mozilla/readability"],
   transpilePackages: ["@answerline/shared", "@answerline/db", "@answerline/worker"],
   turbopack: {
     rules: {
