@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { chunkKnowledge, knowledgeContentHash } from "./knowledge-chunks.ts";
 
+const MODEL = "openai/text-embedding-3-small";
+
 const CHUNK_SIZES = /Chunk sizes/;
 
 test("chunks with exact overlap, bounded lengths and source metadata", () => {
@@ -53,13 +55,16 @@ test("validates chunk options and hashes content plus citation metadata", () => 
     assert.throws(() => chunkKnowledge([], options), CHUNK_SIZES);
   }
   const document = { metadata: { title: "Hours" }, text: "At nine" };
-  assert.equal(knowledgeContentHash([document]), knowledgeContentHash([document]));
-  assert.notEqual(
-    knowledgeContentHash([document]),
-    knowledgeContentHash([{ ...document, text: "At ten" }])
-  );
-  assert.notEqual(
-    knowledgeContentHash([document]),
-    knowledgeContentHash([{ ...document, metadata: { title: "Opening hours" } }])
-  );
+  const hash = knowledgeContentHash([document], MODEL);
+  assert.equal(hash, knowledgeContentHash([document], MODEL));
+  assert.equal(hash, knowledgeContentHash([document], MODEL, { maxChars: 1600 }));
+  for (const changed of [
+    knowledgeContentHash([{ ...document, text: "At ten" }], MODEL),
+    knowledgeContentHash([{ ...document, metadata: { title: "Opening hours" } }], MODEL),
+    knowledgeContentHash([document], "google/gemini-embedding-001"),
+    knowledgeContentHash([document], MODEL, { maxChars: 800 }),
+    knowledgeContentHash([document], MODEL, { overlapChars: 120 }),
+  ]) {
+    assert.notEqual(hash, changed);
+  }
 });

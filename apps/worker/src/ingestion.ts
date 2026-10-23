@@ -12,7 +12,10 @@ import { z } from "zod";
 import { chunkKnowledge, knowledgeContentHash } from "./knowledge-chunks.ts";
 import { type LoaderOptions, loadKnowledgeSource } from "./knowledge-loaders.ts";
 
-export type EmbedKnowledge = (texts: string[]) => Promise<number[][]>;
+export interface EmbedKnowledge {
+  modelRef: string;
+  (texts: string[]): Promise<number[][]>;
+}
 
 const vectorSchema = z
   .array(z.number().finite())
@@ -58,7 +61,7 @@ export async function ingestKnowledgeSource(
     }
     try {
       const documents = await loadKnowledgeSource(source, options);
-      const contentHash = knowledgeContentHash(documents);
+      const contentHash = knowledgeContentHash(documents, embed.modelRef);
       if (source.contentHash === contentHash) {
         await tx
           .update(knowledgeSources)
@@ -159,9 +162,11 @@ export function createKnowledgeEmbedder(
 ): EmbedKnowledge {
   try {
     const provider = createEmbeddingProvider({ ...embeddingConfigFromEnv(source), fetch });
-    return (texts) => provider.embed(texts);
+    return Object.assign((texts: string[]) => provider.embed(texts), {
+      modelRef: provider.modelRef,
+    });
   } catch (error) {
     const message = `Knowledge embedding provider is not configured: ${failureMessage(error)}`;
-    return () => Promise.reject(new Error(message));
+    return Object.assign(() => Promise.reject(new Error(message)), { modelRef: "unconfigured" });
   }
 }
