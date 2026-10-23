@@ -3,7 +3,8 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
-  transpilePackages: ["@answerline/shared"],
+  serverExternalPackages: ["jsdom", "pdf-parse", "@mozilla/readability"],
+  transpilePackages: ["@answerline/shared", "@answerline/db", "@answerline/worker"],
   turbopack: {
     rules: {
       "*.css": {

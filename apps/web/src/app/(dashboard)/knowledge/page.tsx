@@ -1,9 +1,28 @@
-import { BookOpenIcon } from "lucide-react";
 import type { Metadata } from "next";
-import { EmptyPanel } from "@/components/shell/empty-panel";
+import { connection } from "next/server";
+import { Suspense } from "react";
+import { KnowledgeManager } from "@/components/knowledge/knowledge-manager";
 import { PageContainer, PageHeader } from "@/components/shell/page-header";
+import { Skeleton } from "@/components/ui/skeleton";
+import { getKnowledgeDeps } from "@/lib/knowledge/context";
+import { listKnowledgeSources } from "@/lib/knowledge/service";
 
 export const metadata: Metadata = { title: "Knowledge" };
+
+async function KnowledgeContent() {
+  await connection();
+  const sources = await listKnowledgeSources(await getKnowledgeDeps());
+  return <KnowledgeManager initialSources={sources} />;
+}
+
+function KnowledgeFallback() {
+  return (
+    <div className="flex flex-col gap-8">
+      <Skeleton className="h-80 w-full rounded-xl" />
+      <Skeleton className="h-48 w-full rounded-xl" />
+    </div>
+  );
+}
 
 export default function KnowledgePage() {
   return (
@@ -12,12 +31,9 @@ export default function KnowledgePage() {
         description="What your receptionist knows about your business: services, prices, policies, and FAQs."
         title="Knowledge"
       />
-      <EmptyPanel
-        description="Add PDFs, web pages, and question-and-answer pairs. During a call, the agent searches them to answer in your words."
-        icon={BookOpenIcon}
-        issue={43}
-        title="Teach your receptionist"
-      />
+      <Suspense fallback={<KnowledgeFallback />}>
+        <KnowledgeContent />
+      </Suspense>
     </PageContainer>
   );
 }
