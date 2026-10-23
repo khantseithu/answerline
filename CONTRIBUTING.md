@@ -26,7 +26,7 @@ post_create = ["[ ! -x ./scripts/worktree-setup.sh ] || ./scripts/worktree-setup
 pre_destroy = ["[ ! -x ./scripts/worktree-teardown.sh ] || ./scripts/worktree-teardown.sh"]
 ```
 
-Keep a `.env` in the main checkout (it is copied into each slot). Then `pnpm infra:up` once and `treehouse get -b feat/my-change` per task. See "Parallel work" in `AGENTS.md`.
+Keep a plaintext `.env` in the main checkout (it is copied into each slot). Dotenvx loads each slot's root file after Turbo starts its tasks, preserving the slot's port, database, Redis prefix, and agent name. Do not encrypt the local file: setup and Docker Compose read it directly. See [environment configuration](docs/environment.md). Then `pnpm infra:up` once and `treehouse get -b feat/my-change` per task. See "Parallel work" in `AGENTS.md`.
 
 ## Checks
 

@@ -3,9 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "build": "next build",
-    "dev": "sh -c 'set -a; [ -f ../../.env ] && . ../../.env; set +a; exec next dev'",
-    "start": "next start",
+    "build": "dotenvx run -f ../../.env -- next build",
+    "dev": "dotenvx run -f ../../.env -- next dev",
+    "start": "dotenvx run -f ../../.env -- next start",
     "test": "node --test --import tsx 'src/**/*.test.ts'",
     "typecheck": "next typegen && tsc --noEmit"
   },

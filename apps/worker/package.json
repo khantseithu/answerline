@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch --env-file-if-exists=../../.env src/index.ts",
-    "eval": "tsx --env-file-if-exists=../../.env src/cli.ts eval",
-    "start": "tsx src/index.ts",
+    "dev": "dotenvx run -f ../../.env -- tsx watch src/index.ts",
+    "eval": "dotenvx run -f ../../.env -- tsx src/cli.ts eval",
+    "start": "dotenvx run -f ../../.env -- tsx src/index.ts",
     "test": "node --test --import tsx 'src/**/*.test.ts'",
     "typecheck": "tsc --noEmit"
   },
