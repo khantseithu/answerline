@@ -62,7 +62,7 @@ Roadmap: *Web voice calls with a sample agent*
 
 Roadmap: *Knowledge base ingestion and hybrid search*
 
-- [ ] Ingestion (worker, `ingestion` queue; embedder wiring pending #167)
+- [ ] Ingestion (worker, `ingestion` queue; model-aware content hash pending #170)
   - [x] Loaders: PDF, URL (fetch + readability), Q&A pairs, plain text/Markdown
   - [x] Chunking with overlap and source metadata
   - [x] Embeddings via pluggable provider (OpenAI, Gemini, Ollama) (#34)

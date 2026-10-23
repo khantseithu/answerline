@@ -3,7 +3,7 @@ import { QUEUES } from "@answerline/shared";
 import { type Job, Worker } from "bullmq";
 import { createCallEventProcessor } from "./call-events.ts";
 import { env } from "./env.ts";
-import { createIngestionProcessor, unconfiguredKnowledgeEmbedder } from "./ingestion.ts";
+import { createIngestionProcessor, createKnowledgeEmbedder } from "./ingestion.ts";
 import { createRedis } from "./redis.ts";
 
 if (!env.DATABASE_URL) {
@@ -15,7 +15,7 @@ const connection = createRedis();
 
 const handlers: Record<string, (job: Job) => Promise<void> | void> = {
   [QUEUES.callEvents]: createCallEventProcessor(db),
-  [QUEUES.ingestion]: createIngestionProcessor(db, unconfiguredKnowledgeEmbedder),
+  [QUEUES.ingestion]: createIngestionProcessor(db, createKnowledgeEmbedder(process.env)),
   [QUEUES.postCall]: (job) => {
     console.log(`[post-call] ${job.name} ${job.id}`);
   },

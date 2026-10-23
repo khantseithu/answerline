@@ -4,6 +4,7 @@ import {
   knowledgeChunks,
   knowledgeSources,
 } from "@answerline/db";
+import { createEmbeddingProvider, embeddingConfigFromEnv } from "@answerline/llm";
 import { type IngestionJob, ingestionJob, QUEUES } from "@answerline/shared";
 import type { Job, Queue } from "bullmq";
 import { and, eq, sql } from "drizzle-orm";
@@ -152,8 +153,15 @@ export async function enqueueIngestion(
   }
 }
 
-export const unconfiguredKnowledgeEmbedder: EmbedKnowledge = () => {
-  throw new Error(
-    "Knowledge embedding provider is not configured; inject a 1536-dimensional EmbedKnowledge function"
-  );
-};
+export function createKnowledgeEmbedder(
+  source: NodeJS.ProcessEnv,
+  fetch?: typeof globalThis.fetch
+): EmbedKnowledge {
+  try {
+    const provider = createEmbeddingProvider({ ...embeddingConfigFromEnv(source), fetch });
+    return (texts) => provider.embed(texts);
+  } catch (error) {
+    const message = `Knowledge embedding provider is not configured: ${failureMessage(error)}`;
+    return () => Promise.reject(new Error(message));
+  }
+}

@@ -188,7 +188,7 @@ Chunks are at most 1600 characters with 240-character overlap, preferring word b
 
 `status` (`pending`, `processing`, `ready`, `failed`), `error`, `updated_at`, and `ingested_at` on `knowledge_sources` are readable by the future dashboard. `processing` is committed before expensive work; errors are persisted and rethrown for BullMQ retry. Successful retries clear the error. `updated_at` records status changes; `ingested_at` records the last successful check.
 
-**Embedding integration seam.** `createIngestionProcessor(db, embed)` requires an `EmbedKnowledge` function (`string[] → Promise<number[][]>`). Production provider adapters are being built separately in [#34](https://github.com/khantseithu/answerline/issues/34). Until integrated, `index.ts` supplies an explicit unconfigured embedder: ingestion fails with an actionable persisted error instead of inventing vectors. The default will be OpenAI; Gemini and Ollama outputs must also fit the existing 1536-dimensional column. Tests use a fake embedder and require no model API keys.
+**Embedding integration seam.** `createIngestionProcessor(db, embed)` takes an `EmbedKnowledge` function (`string[] → Promise<number[][]>`). `index.ts` builds it with `createKnowledgeEmbedder(process.env)`, which wraps the `@answerline/llm` provider selected by `EMBEDDING_MODEL` (OpenAI by default; Gemini and Ollama are reduced to 1536 dimensions). If the provider cannot be built, for example because its API key is missing, the worker still starts and each ingestion job fails with that reason persisted on the source. Tests use a fake embedder and require no model API keys.
 
 `call-events` processing parses each job with the shared `callEventJob` schema, then:
 
