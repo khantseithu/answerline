@@ -52,7 +52,7 @@ Answerline gives you the same building blocks as open source:
 
 **Models**
 - Pluggable providers for each stage: speech-to-text, LLM, and text-to-speech (today: Deepgram STT and Cartesia TTS; more providers *(planned)*)
-- LLM routing with automatic fallback across Anthropic, OpenAI, Google Gemini, DeepSeek, and local models via Ollama
+- LLM routing with automatic fallback across Anthropic, OpenAI, Google Gemini, DeepSeek, OpenRouter, and local models via Ollama
 
 **Operations**
 - Every call and transcript logged to Postgres; dashboard with call list, transcripts, recordings, tool calls, latency, and cost per call *(planned)*

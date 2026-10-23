@@ -6,6 +6,9 @@ from answerline_llm import AllProvidersFailedError, ModelRef, parse_model_ref, w
 
 def test_parse_model_ref():
     assert parse_model_ref("ollama/llama3.1:8b") == ModelRef("ollama", "llama3.1:8b")
+    assert parse_model_ref("openrouter/anthropic/claude-sonnet-4.5") == ModelRef(
+        "openrouter", "anthropic/claude-sonnet-4.5"
+    )
     with pytest.raises(ValueError):
         parse_model_ref("acme/foo")
 

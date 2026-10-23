@@ -4,7 +4,7 @@ from typing import Annotated, Literal
 import yaml
 from pydantic import AnyUrl, BaseModel, ConfigDict, Field, StringConstraints
 
-ModelRef = Annotated[str, StringConstraints(pattern=r"^[a-z0-9-]+/[\w.:-]+$")]
+ModelRef = Annotated[str, StringConstraints(pattern=r"^[a-z0-9-]+/(?:[\w.:-]+/)?[\w.:-]+$")]
 NonEmpty = Annotated[str, StringConstraints(min_length=1)]
 TimeRange = Annotated[str, StringConstraints(pattern=r"^\d{2}:\d{2}-\d{2}:\d{2}$")]
 

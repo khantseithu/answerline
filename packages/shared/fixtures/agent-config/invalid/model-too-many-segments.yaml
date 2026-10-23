@@ -1,0 +1,8 @@
+name: Bad
+greeting: Hello
+instructions: Be brief.
+models:
+  stt: deepgram/nova-3
+  llm:
+    primary: openrouter/anthropic/claude/sonnet
+  tts: cartesia/sonic-3

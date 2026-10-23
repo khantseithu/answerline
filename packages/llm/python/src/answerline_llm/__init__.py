@@ -26,7 +26,7 @@ __all__ = [
     "with_fallback",
 ]
 
-PROVIDERS = ("anthropic", "openai", "google", "deepseek", "ollama")
+PROVIDERS = ("anthropic", "openai", "google", "deepseek", "ollama", "openrouter")
 
 
 @dataclass(frozen=True)

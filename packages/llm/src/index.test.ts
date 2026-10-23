@@ -7,6 +7,10 @@ test("parses provider/model refs", () => {
     model: "llama3.1:8b",
     provider: "ollama",
   });
+  assert.deepEqual(parseModelRef("openrouter/anthropic/claude-sonnet-4.5"), {
+    model: "anthropic/claude-sonnet-4.5",
+    provider: "openrouter",
+  });
   assert.throws(() => parseModelRef("acme/foo"));
 });
 

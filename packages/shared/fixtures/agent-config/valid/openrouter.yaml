@@ -1,0 +1,11 @@
+name: OpenRouter
+greeting: Hello
+instructions: Be brief.
+models:
+  stt: deepgram/nova-3
+  llm:
+    primary: openrouter/anthropic/claude-sonnet-4.5
+    fallback:
+      - openrouter/meta-llama/llama-3.3-70b-instruct:free
+      - anthropic/claude-sonnet-4-6
+  tts: cartesia/sonic-3

@@ -121,12 +121,12 @@
               "type": "array",
               "items": {
                 "type": "string",
-                "pattern": "^[a-z0-9-]+\\/[\\w.:-]+$"
+                "pattern": "^[a-z0-9-]+\\/(?:[\\w.:-]+\\/)?[\\w.:-]+$"
               }
             },
             "primary": {
               "type": "string",
-              "pattern": "^[a-z0-9-]+\\/[\\w.:-]+$"
+              "pattern": "^[a-z0-9-]+\\/(?:[\\w.:-]+\\/)?[\\w.:-]+$"
             }
           },
           "required": [
@@ -135,11 +135,11 @@
         },
         "stt": {
           "type": "string",
-          "pattern": "^[a-z0-9-]+\\/[\\w.:-]+$"
+          "pattern": "^[a-z0-9-]+\\/(?:[\\w.:-]+\\/)?[\\w.:-]+$"
         },
         "tts": {
           "type": "string",
-          "pattern": "^[a-z0-9-]+\\/[\\w.:-]+$"
+          "pattern": "^[a-z0-9-]+\\/(?:[\\w.:-]+\\/)?[\\w.:-]+$"
         }
       },
       "required": [
