@@ -2,7 +2,7 @@ import logging
 
 from livekit.agents import llm
 
-from .booking import BOOKING_PROVIDERS, build_booking_tools
+from .booking import BookingProvider, build_booking_tools
 from .business_hours import build_business_hours_tool
 from .capture_lead import LeadCaptureContext, build_capture_lead_tool
 from .config import AgentConfig, BookAppointmentTool, BuiltinTool
@@ -16,6 +16,7 @@ def build_configured_tools(
     settings: Settings | None = None,
     *,
     lead_context: LeadCaptureContext | None = None,
+    booking: BookingProvider | None = None,
 ) -> list[llm.FunctionTool]:
     tools: list[llm.FunctionTool] = []
     for spec in config.tools:
@@ -34,17 +35,15 @@ def build_configured_tools(
         elif isinstance(spec, BookAppointmentTool):
             if any(tool.id == spec.builtin for tool in tools):
                 continue
-            factory = BOOKING_PROVIDERS.get(spec.provider)
-            if factory is None:
+            if config.hours is None:
+                raise ValueError("book_appointment requires an hours configuration")
+            if booking is None:
                 logger.warning(
-                    "Configured tool book_appointment provider %r is not implemented "
-                    "and will not be available",
+                    "Configured tool book_appointment provider %r is not available",
                     spec.provider,
                 )
                 continue
-            if config.hours is None:
-                raise ValueError("book_appointment requires an hours configuration")
-            tools.extend(build_booking_tools(factory(spec), config.hours.timezone, settings))
+            tools.extend(build_booking_tools(booking, config.hours.timezone, settings))
         else:
             name = spec.builtin if isinstance(spec, BuiltinTool) else type(spec).__name__
             logger.warning("Configured tool %s is not implemented and will not be available", name)

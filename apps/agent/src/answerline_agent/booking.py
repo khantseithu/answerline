@@ -1,4 +1,3 @@
-from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from typing import Annotated, Protocol
@@ -8,7 +7,6 @@ from livekit.agents import RunContext, ToolError, llm
 from pydantic import Field
 
 from .call_events import LEAD_WHITESPACE
-from .config import BuiltinTool
 from .settings import Settings
 from .tool_policy import execute_tool
 
@@ -46,11 +44,6 @@ class BookingProvider(Protocol):
     async def create(self, start: datetime, attendee: Attendee) -> Booking: ...
 
     async def cancel(self, booking_id: str) -> None: ...
-
-
-type BookingProviderFactory = Callable[[BuiltinTool], BookingProvider]
-
-BOOKING_PROVIDERS: dict[str, BookingProviderFactory] = {}
 
 
 def build_booking_tools(

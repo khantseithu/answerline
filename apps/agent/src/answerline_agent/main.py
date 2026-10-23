@@ -6,6 +6,7 @@ from .call_limits import SHUTDOWN_PROCESS_TIMEOUT, CallLifecycle, drain_timeout
 from .call_session import CallSessionEvents, wait_for_caller
 from .capture_lead import LeadCaptureContext
 from .knowledge_tool import open_knowledge_tools
+from .native_booking import open_booking_provider
 from .prompts import compose_instructions
 from .providers import build_llm_chain, build_stt, build_tts
 from .publisher import CallEventPublisher
@@ -38,6 +39,9 @@ async def entrypoint(ctx: JobContext) -> None:
     resolved = await resolve_agent(ctx.job.metadata, settings)
     config = resolved.config
     publisher = CallEventPublisher(settings.redis_url, settings.redis_prefix)
+    booking = await open_booking_provider(config, settings, resolved.slug, ctx.room.name)
+    if booking:
+        ctx.add_shutdown_callback(lambda _reason: booking.close())
     tools = build_configured_tools(
         config,
         settings,
@@ -47,6 +51,7 @@ async def entrypoint(ctx: JobContext) -> None:
             agent=resolved.slug,
             room_name=ctx.room.name,
         ),
+        booking=booking,
     )
     session = AgentSession(
         stt=build_stt(config.models.stt),

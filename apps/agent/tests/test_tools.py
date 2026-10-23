@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import pytest
-from answerline_agent import booking
 from answerline_agent.config import (
     BookAppointmentTool,
     BuiltinTool,
@@ -34,7 +33,7 @@ def test_only_configured_supported_tools_are_registered_once(caplog):
     tools = build_configured_tools(agent)
     assert [tool.id for tool in tools] == ["business_hours"]
     assert Agent(instructions="Be brief.", tools=tools).tools == tools
-    assert "book_appointment provider 'cal_com' is not implemented" in caplog.text
+    assert "book_appointment provider 'answerline' is not available" in caplog.text
     assert "transfer_call is not implemented" in caplog.text
     assert "HttpTool is not implemented" in caplog.text
 
@@ -54,7 +53,7 @@ def test_unimplemented_config_does_not_register_dead_tools(caplog):
         McpTool(mcp={"name": "crm", "url": "https://x.test"}),
     ]
     assert build_configured_tools(agent) == []
-    assert "book_appointment provider 'answerline' is not implemented" in caplog.text
+    assert "book_appointment provider 'answerline' is not available" in caplog.text
     assert "McpTool is not implemented" in caplog.text
 
 
@@ -101,6 +100,7 @@ def test_entrypoint_registers_configured_tools_alongside_knowledge(monkeypatch, 
         AsyncMock(return_value=SimpleNamespace(config=agent_config, slug="a")),
     )
     monkeypatch.setattr(main, "open_knowledge_tools", AsyncMock(return_value=knowledge))
+    monkeypatch.setattr(main, "open_booking_provider", AsyncMock(return_value=None))
     session = SimpleNamespace(start=AsyncMock(side_effect=RuntimeError("registration captured")))
     monkeypatch.setattr(main, "AgentSession", lambda **kwargs: session)
     for name in ("build_stt", "build_llm_chain", "build_tts", "build_turn_handling"):
@@ -133,32 +133,23 @@ def test_capture_lead_requires_per_call_context():
         build_configured_tools(agent)
 
 
-def test_book_appointment_uses_registered_provider_once(monkeypatch):
-    specs = []
-
-    def factory(spec):
-        specs.append(spec)
-        return object()
-
-    monkeypatch.setitem(booking.BOOKING_PROVIDERS, "cal_com", factory)
+def test_book_appointment_uses_opened_provider_once():
     agent = config()
     agent.tools = [
-        BookAppointmentTool(builtin="book_appointment", provider="cal_com"),
-        BookAppointmentTool(builtin="book_appointment", provider="cal_com"),
+        BookAppointmentTool(builtin="book_appointment"),
+        BookAppointmentTool(builtin="book_appointment"),
     ]
-    tools = build_configured_tools(agent)
+    tools = build_configured_tools(agent, booking=object())
     assert [tool.id for tool in tools] == [
         "check_availability",
         "book_appointment",
         "cancel_appointment",
     ]
-    assert [spec.provider for spec in specs] == ["cal_com"]
 
 
-def test_book_appointment_requires_hours(monkeypatch):
-    monkeypatch.setitem(booking.BOOKING_PROVIDERS, "cal_com", lambda spec: object())
+def test_book_appointment_requires_hours():
     agent = config()
-    agent.tools = [BookAppointmentTool(builtin="book_appointment", provider="cal_com")]
+    agent.tools = [BookAppointmentTool(builtin="book_appointment")]
     agent.hours = None
     with pytest.raises(ValueError, match="book_appointment requires an hours configuration"):
-        build_configured_tools(agent)
+        build_configured_tools(agent, booking=object())
