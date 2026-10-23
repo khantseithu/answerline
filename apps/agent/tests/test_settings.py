@@ -69,3 +69,19 @@ def test_knowledge_search_defaults_and_overrides(monkeypatch):
     monkeypatch.setenv("KNOWLEDGE_SEARCH_TIMEOUT_SECONDS", "0")
     with pytest.raises(ValidationError):
         Settings()
+
+
+def test_knowledge_relevance_floor_is_off_by_default(monkeypatch):
+    monkeypatch.delenv("KNOWLEDGE_MIN_SIMILARITY", raising=False)
+    monkeypatch.delenv("KNOWLEDGE_MIN_KEYWORD_TERMS", raising=False)
+    settings = Settings()
+    assert settings.knowledge_min_similarity is None
+    assert settings.knowledge_min_keyword_terms == 2
+    monkeypatch.setenv("KNOWLEDGE_MIN_SIMILARITY", "0.35")
+    monkeypatch.setenv("KNOWLEDGE_MIN_KEYWORD_TERMS", "3")
+    settings = Settings()
+    assert settings.knowledge_min_similarity == 0.35
+    assert settings.knowledge_min_keyword_terms == 3
+    monkeypatch.setenv("KNOWLEDGE_MIN_SIMILARITY", "1.5")
+    with pytest.raises(ValidationError):
+        Settings()

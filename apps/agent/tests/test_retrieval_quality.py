@@ -17,6 +17,7 @@ from answerline_agent.knowledge import hybrid_search, vector_literal
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 LIVE = os.environ.get("ANSWERLINE_LIVE_EMBEDDINGS") == "1"
+LIVE_MIN_SIMILARITY = os.environ.get("ANSWERLINE_MIN_SIMILARITY")
 
 FIXTURES = Path(__file__).parent / "fixtures" / "dental-faq"
 DIMENSIONS = 1536
@@ -29,6 +30,10 @@ THRESHOLDS = {
     "offline": {"recall@1": 0.55, "recall@3": 0.75, "recall@5": 0.85, "mrr": 0.65},
     "live": {"recall@1": 0.7, "recall@3": 0.85, "recall@5": 0.9, "mrr": 0.78},
 }
+
+OFFLINE_MIN_SIMILARITY = 0.15
+OFFLINE_FLOOR_THRESHOLDS = {"recall@1": 0.55, "recall@3": 0.7, "recall@5": 0.7, "mrr": 0.62}
+OFFLINE_FLOOR_MIN_EMPTY_OUT_OF_SCOPE = 4
 
 STOPWORDS = frozenset(
     "a about an and any are as at be by can could do does for from get go going guys has have how "
@@ -86,6 +91,7 @@ class QueryResult:
     top_vector_rank: int | None
     top_keyword_rank: int | None
     top_score: float
+    similarities: list[float | None]
 
     @property
     def first_rank(self) -> int | None:
@@ -93,6 +99,15 @@ class QueryResult:
             if faq_id in self.expected:
                 return position
         return None
+
+    @property
+    def top_similarity(self) -> float | None:
+        return self.similarities[0] if self.similarities else None
+
+    @property
+    def expected_similarity(self) -> float | None:
+        rank = self.first_rank
+        return self.similarities[rank - 1] if rank else None
 
 
 def load_faq() -> list[dict]:
@@ -120,6 +135,38 @@ def summarize(results: list[QueryResult]) -> dict[str, float]:
     return summary
 
 
+def median(values: list[float]) -> float:
+    ordered = sorted(values)
+    middle = len(ordered) // 2
+    if len(ordered) % 2:
+        return ordered[middle]
+    return (ordered[middle - 1] + ordered[middle]) / 2
+
+
+def similarity_summary(results: list[QueryResult]) -> str:
+    answers = [
+        r.expected_similarity for r in results if r.expected and r.expected_similarity is not None
+    ]
+    strays = [r.top_similarity for r in results if not r.expected and r.top_similarity is not None]
+    return (
+        f"  cosine similarity: in-scope answer hit min={min(answers):.3f} "
+        f"median={median(answers):.3f}; out_of_scope top hit median={median(strays):.3f} "
+        f"max={max(strays):.3f}"
+    )
+
+
+def format_floor_report(min_similarity: float, results: list[QueryResult]) -> str:
+    out_of_scope = [r for r in results if not r.expected]
+    empty = sum(not r.ranked for r in out_of_scope)
+    summary = summarize(results)
+    return (
+        f"relevance floor min_similarity={min_similarity}\n"
+        + "  "
+        + "  ".join(f"{name}={value:.3f}" for name, value in summary.items())
+        + f"\n  out_of_scope: {empty} of {len(out_of_scope)} returned no hits"
+    )
+
+
 def format_report(results: list[QueryResult]) -> str:
     mode = "live" if LIVE else "offline"
     lines = [f"retrieval quality ({mode} embeddings)"]
@@ -141,6 +188,7 @@ def format_report(results: list[QueryResult]) -> str:
         f"  out_of_scope (n={len(out_of_scope)}): top hit ranked first by both vector and "
         f"keyword search for {confident}"
     )
+    lines.append(similarity_summary(results))
     lines.append("per query:")
     for r in results:
         if r.expected:
@@ -193,7 +241,7 @@ async def seeded_faq():
         await conn.close()
 
 
-async def evaluate() -> list[QueryResult]:
+async def evaluate(min_similarity: float | None = None) -> list[QueryResult]:
     queries = load_queries()
     query_embeddings = await embed([q["query"] for q in queries])
     results = []
@@ -205,6 +253,7 @@ async def evaluate() -> list[QueryResult]:
                 query=spec["query"],
                 embedding=embedding,
                 top_k=TOP_K,
+                min_similarity=min_similarity,
             )
             top = hits[0] if hits else None
             results.append(
@@ -216,6 +265,7 @@ async def evaluate() -> list[QueryResult]:
                     top_vector_rank=top.vector_rank if top else None,
                     top_keyword_rank=top.keyword_rank if top else None,
                     top_score=top.score if top else 0.0,
+                    similarities=[h.similarity for h in hits],
                 )
             )
     return results
@@ -259,3 +309,25 @@ def test_dental_faq_retrieval_quality():
         if summary[name] < floor
     ]
     assert not failures, "\n".join(failures) + "\n" + report
+
+
+@pytest.mark.skipif(not DATABASE_URL, reason="DATABASE_URL not set")
+def test_dental_faq_relevance_floor():
+    if LIVE and LIVE_MIN_SIMILARITY is None:
+        pytest.skip("set ANSWERLINE_MIN_SIMILARITY to evaluate a live relevance floor")
+    min_similarity = float(LIVE_MIN_SIMILARITY) if LIVE else OFFLINE_MIN_SIMILARITY
+    baseline = asyncio.run(evaluate())
+    results = asyncio.run(evaluate(min_similarity))
+    print("\n" + format_floor_report(min_similarity, results))
+    if LIVE:
+        return
+    summary = summarize(results)
+    failures = [
+        f"{name}: {summary[name]:.3f} < {floor:.3f}"
+        for name, floor in OFFLINE_FLOOR_THRESHOLDS.items()
+        if summary[name] < floor
+    ]
+    assert not failures, "\n".join(failures)
+    assert summary["recall@1"] >= summarize(baseline)["recall@1"]
+    empty = sum(not r.ranked for r in results if not r.expected)
+    assert empty >= OFFLINE_FLOOR_MIN_EMPTY_OUT_OF_SCOPE

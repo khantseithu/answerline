@@ -12,7 +12,12 @@ from livekit.agents import llm
 from livekit.agents.llm import function_tool
 from pydantic import Field
 
-from .knowledge import KnowledgeHit, fetch_knowledge_scope, hybrid_search
+from .knowledge import (
+    DEFAULT_MIN_KEYWORD_TERMS,
+    KnowledgeHit,
+    fetch_knowledge_scope,
+    hybrid_search,
+)
 from .providers import build_embedder
 from .settings import Settings
 
@@ -86,6 +91,8 @@ class KnowledgeSearch:
         top_k: int,
         timeout: float,
         max_chars: int = MAX_RESULT_CHARS,
+        min_similarity: float | None = None,
+        min_keyword_terms: int = DEFAULT_MIN_KEYWORD_TERMS,
     ) -> None:
         self._pool = pool
         self._embedder = embedder
@@ -94,6 +101,8 @@ class KnowledgeSearch:
         self._top_k = top_k
         self._timeout = timeout
         self._max_chars = max_chars
+        self._min_similarity = min_similarity
+        self._min_keyword_terms = min_keyword_terms
 
     async def search(self, query: str) -> str:
         query = query.strip()
@@ -140,6 +149,8 @@ class KnowledgeSearch:
                 embedding=embedding,
                 top_k=self._top_k,
                 source_ids=self._source_ids,
+                min_similarity=self._min_similarity,
+                min_keyword_terms=self._min_keyword_terms,
             )
         timings["search_ms"] = (time.perf_counter() - started) * 1000
         return hits
@@ -195,6 +206,8 @@ async def open_knowledge_tools(settings: Settings, agent_slug: str) -> Knowledge
                 source_ids=scope.source_ids,
                 top_k=settings.knowledge_search_top_k,
                 timeout=settings.knowledge_search_timeout_seconds,
+                min_similarity=settings.knowledge_min_similarity,
+                min_keyword_terms=settings.knowledge_min_keyword_terms,
             )
     except Exception:
         logger.warning("search_knowledge unavailable for agent %s", agent_slug, exc_info=True)

@@ -74,7 +74,7 @@ Roadmap: *Knowledge base ingestion and hybrid search*
   - [ ] Optional reranker (Cohere, Jina, or local cross-encoder)
   - [x] Agent tool `search_knowledge` with a strict latency budget (target p95 < 300 ms)
   - [ ] Cite source in transcript/tool call log
-  - [ ] Relevance signal so out-of-scope queries don't return confident hits (#180)
+  - [x] Relevance signal so out-of-scope queries don't return confident hits (#180)
 - [x] Dashboard: knowledge page (add URL, upload file, add Q&A, status, re-sync, delete)
 - [x] Tests: retrieval quality fixtures for the dental FAQ
 - [x] CI runs the Python Postgres/Redis tests (#183)
@@ -259,6 +259,7 @@ Roadmap: *Multilingual agents*
 - Recording storage: Cloudflare R2 is the primary production target; other S3-compatible providers use an adapter. Local compose uses MinIO for development; recording is opt-in per agent (#132, #153)
 - M2 embeddings: OpenAI by default; Gemini and Ollama use 1536-dimensional vectors to fit `knowledge_chunks.embedding vector(1536)` (#34)
 - Auth: Better Auth (#128)
+- Knowledge relevance floor: `hybrid_search` returns absolute signals (cosine similarity, matched query terms) and the tool applies an optional `KNOWLEDGE_MIN_SIMILARITY`, off by default because similarity scales differ per embedding model; a keyword match counts as strong only when it covers at least `KNOWLEDGE_MIN_KEYWORD_TERMS` (default 2) distinct query terms (#180)
 
 ## Open decisions
 
