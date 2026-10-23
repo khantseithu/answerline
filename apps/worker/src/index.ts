@@ -15,7 +15,9 @@ const connection = createRedis();
 
 const handlers: Record<string, (job: Job) => Promise<void> | void> = {
   [QUEUES.callEvents]: createCallEventProcessor(db),
-  [QUEUES.ingestion]: createIngestionProcessor(db, createKnowledgeEmbedder(process.env)),
+  [QUEUES.ingestion]: createIngestionProcessor(db, createKnowledgeEmbedder(process.env), {
+    filesDir: env.KNOWLEDGE_FILES_DIR,
+  }),
   [QUEUES.postCall]: (job) => {
     console.log(`[post-call] ${job.name} ${job.id}`);
   },
