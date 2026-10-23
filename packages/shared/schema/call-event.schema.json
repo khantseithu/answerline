@@ -291,21 +291,36 @@
         },
         "name": {
           "type": "string",
-          "minLength": 1,
-          "maxLength": 200,
-          "pattern": "[^\t\\n\u000b\f\\r\u001c\u001d\u001e\u001f              \\u2028\\u2029  　﻿]"
+          "allOf": [
+            {
+              "pattern": "^[\\s\\S]{1,200}(?![\\s\\S])"
+            },
+            {
+              "pattern": "[^\t\\n\u000b\f\\r\u001c\u001d\u001e\u001f              \\u2028\\u2029  　﻿]"
+            }
+          ]
         },
         "phone": {
           "type": "string",
-          "minLength": 1,
-          "maxLength": 100,
-          "pattern": "[^\t\\n\u000b\f\\r\u001c\u001d\u001e\u001f              \\u2028\\u2029  　﻿]"
+          "allOf": [
+            {
+              "pattern": "^[\\s\\S]{1,100}(?![\\s\\S])"
+            },
+            {
+              "pattern": "[^\t\\n\u000b\f\\r\u001c\u001d\u001e\u001f              \\u2028\\u2029  　﻿]"
+            }
+          ]
         },
         "reason": {
           "type": "string",
-          "minLength": 1,
-          "maxLength": 2000,
-          "pattern": "[^\t\\n\u000b\f\\r\u001c\u001d\u001e\u001f              \\u2028\\u2029  　﻿]"
+          "allOf": [
+            {
+              "pattern": "^[\\s\\S]{1,2000}(?![\\s\\S])"
+            },
+            {
+              "pattern": "[^\t\\n\u000b\f\\r\u001c\u001d\u001e\u001f              \\u2028\\u2029  　﻿]"
+            }
+          ]
         },
         "type": {
           "type": "string",
