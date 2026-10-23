@@ -44,7 +44,7 @@ Three processes do the work:
 
 They share no process state. The agent and the worker talk only through Redis (BullMQ jobs). The web app talks only to LiveKit: it does not read Postgres or enqueue jobs yet.
 
-Differences from the README diagram, which shows the target design: phone calls over SIP, tools other than `search_knowledge`, the web app reading Postgres, and the web app enqueueing jobs are all **Planned** (see [Built vs planned](#built-vs-planned)).
+Differences from the README diagram, which shows the target design: phone calls over SIP, tools other than `search_knowledge` and `business_hours`, the web app reading Postgres, and the web app enqueueing jobs are all **Planned** (see [Built vs planned](#built-vs-planned)).
 
 ## Lifecycle of a call
 
@@ -195,7 +195,9 @@ Citations: each call also attaches a structured result to the `call.tool` event,
 
 Latency: with an instant local embedder and a 5,000-chunk corpus on a local Postgres, the tool measured p50 41 ms and p95 44 ms; at 20,000 chunks of synthetic text where every chunk matches the keyword query, p50 108 ms and p95 126 ms. The real embedding API round trip is added on top and usually dominates, so it is the number to watch with `embed_ms`.
 
-Not yet in the agent: the tool framework and other tools ([#45](https://github.com/khantseithu/answerline/issues/45)), business hours ([#49](https://github.com/khantseithu/answerline/issues/49)), noise cancellation ([#21](https://github.com/khantseithu/answerline/issues/21)), and `language` driving model choice ([#117](https://github.com/khantseithu/answerline/issues/117)). The `knowledge`, `tools`, and `hours` config fields are validated but not used.
+**Configured tools.** `tools.py` maps enabled `tools:` entries to LiveKit function tools and combines them with the knowledge tool at session startup. The first supported builtin is `business_hours`; add `- builtin: business_hours` to `tools:` and provide an `hours` configuration. It reports whether the business is open now in its configured timezone, the regular weekday/weekend schedules, and the configured after-hours policy. Opening times are inclusive and closing times exclusive; overnight schedules carry into the following day. Missing weekend hours mean no weekend openings. Equal opening and closing times are rejected as ambiguous, as are invalid timezone names and clock values when the tool is built. Unimplemented builtin, HTTP, and MCP entries are logged and omitted, preserving existing sample configs without exposing nonfunctional tools.
+
+Not yet in the agent: tool execution policies ([#45](https://github.com/khantseithu/answerline/issues/45)), holiday overrides and automatic after-hours voicemail/transfer routing ([#49](https://github.com/khantseithu/answerline/issues/49)), other builtins, HTTP and MCP tools, noise cancellation ([#21](https://github.com/khantseithu/answerline/issues/21)), and `language` driving model choice ([#117](https://github.com/khantseithu/answerline/issues/117)). The `knowledge` config field is validated but ingestion sources are managed through the knowledge API; `tools` and `hours` drive the configured tool registration described above.
 
 ### Worker (`apps/worker`)
 
@@ -395,7 +397,7 @@ The agent name keeps dispatch separate: a slot's web app issues tokens for `answ
 | Call log | Calls and turns with latency and usage in Postgres | Calls UI, call detail, post-call summary and cost (M5) |
 | Recording | Opt-in egress to local MinIO via the S3 API, URL on the call | Cloudflare R2 primary storage and an adapter for other S3-compatible providers ([#153](https://github.com/khantseithu/answerline/issues/153)); playback in the dashboard |
 | Knowledge base | Loaders, chunking, model-aware hash-based ingestion, env-configured embedding providers, atomic chunk/vector replacement, persisted status/errors, dashboard knowledge page, agent-side hybrid search (vector + full-text, RRF), `search_knowledge` tool with a timeout budget, citations in the tool call log | Relevance threshold for out-of-scope queries ([#180](https://github.com/khantseithu/answerline/issues/180)), reranking (M2) |
-| Tools | Config schema | Tool framework, booking, transfer, hours, HTTP, MCP (M3) |
+| Tools | Config-to-LiveKit registration, opt-in business-hours lookup, tool-call logging | Execution policies, booking, transfer, holiday overrides and after-hours routing, HTTP, MCP (M3) |
 | Evals | Suite schema, CLI stub, tables | Runner, assertions, dashboard (M6) |
 | Dashboard | App shell, design system, empty pages | Auth ([#128](https://github.com/khantseithu/answerline/issues/128)), data-backed pages (M5) |
 | API and webhooks | `POST /api/v1/token`, `GET /api/health` | REST v1, OpenAPI, webhooks, outbound calls (M9, M10) |

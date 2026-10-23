@@ -88,10 +88,12 @@ Roadmap: *Knowledge base ingestion and hybrid search*
 Roadmap: *Built-in tools: booking, transfer, business hours*
 
 - [ ] Tool framework
-  - [ ] Map `tools:` config to LiveKit function tools
+  - [x] Map `tools:` config to LiveKit function tools (#46); `business_hours` is the first supported configured tool
   - [x] Log every tool call (args, result, latency, error) to `tool_calls` (#47, pulled forward for #42)
   - [ ] Timeouts, retries, and spoken filler while a tool runs
 - [ ] `business_hours`: timezone-aware open/closed, holidays, `after_hours` behavior (voicemail / transfer / answer)
+  - [x] Opt-in lookup: timezone-aware weekday/weekend schedules, overnight hours, and configured after-hours policy (#46)
+  - [ ] Holiday overrides and automatic after-hours routing (#49)
 - [ ] `book_appointment`
   - [ ] Provider interface: availability lookup, create, cancel
   - [ ] Cal.com provider
