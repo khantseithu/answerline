@@ -130,7 +130,7 @@ Roadmap: *Phone calls over SIP*
 Roadmap: *Dashboard: calls, transcripts, cost per call*
 
 - [ ] Auth
-  - [ ] Pick auth library (Better Auth recommended), email/password + optional OAuth
+  - [ ] Better Auth (#128): email/password + optional OAuth
   - [ ] First-run admin account printed in logs (per README quickstart)
 - [x] App shell: sidebar (Calls, Agents, Knowledge, Evals, Phone numbers, Settings), dark mode
 - [ ] Calls list: filters (agent, date, channel, outcome), search transcripts, pagination
@@ -255,9 +255,9 @@ Roadmap: *Multilingual agents*
 - Agent config source of truth: the database; `agents/*.yaml` is the seed/import format and fallback (#131)
 - Recording storage default: MinIO in compose via the S3 API (#132); recording is opt-in per agent
 - M2 embeddings: OpenAI by default; Gemini and Ollama use 1536-dimensional vectors to fit `knowledge_chunks.embedding vector(1536)` (#34)
+- Auth: Better Auth (#128)
 
 ## Open decisions
 
-- Auth: Better Auth vs Auth.js (#128)
-- Turn detection for fully self-hosted setups: the agent defaults to the bundled `inference.TurnDetector(version="v1-mini")` with VAD interruption; Cloud `v1` and adaptive interruption are opt-in. Confirm on real calls (#130)
+- Turn detection for fully self-hosted setups: the agent defaults to the bundled `inference.TurnDetector(version="v1-mini")` with VAD interruption; Cloud `v1` and adaptive interruption are opt-in. Deferred: revisit on real phone calls in M4 (#130)
 - Model alias names in README (`claude-sonnet`, `gpt-mini`) vs full model IDs (#133)
