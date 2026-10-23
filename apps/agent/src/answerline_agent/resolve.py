@@ -46,10 +46,10 @@ def parse_agent_slug(metadata: str | None, default: str) -> str:
     return slug
 
 
-async def _load_from_database(database_url: str, slug: str) -> AgentConfig:
+async def _load_from_database(database_url: str, slug: str, tenant: str) -> AgentConfig:
     conn = await asyncpg.connect(database_url, timeout=DB_CONNECT_TIMEOUT)
     try:
-        return await fetch_agent_config(conn, slug)
+        return await fetch_agent_config(conn, slug, tenant)
     finally:
         await conn.close()
 
@@ -59,7 +59,7 @@ async def resolve_agent(metadata: str | None, settings: Settings) -> ResolvedAge
 
     if settings.database_url:
         try:
-            config = await _load_from_database(settings.database_url, slug)
+            config = await _load_from_database(settings.database_url, slug, settings.tenant)
         except AgentNotFoundError:
             logger.info("agent %s not in database, trying yaml", slug)
         except (OSError, asyncpg.PostgresError, ValidationError, TimeoutError):
