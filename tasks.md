@@ -101,6 +101,8 @@ Roadmap: *Built-in tools: booking, transfer, business hours*
   - [ ] Confirm details back to caller before booking
   - [ ] Emit `booking.created`
 - [ ] `capture_lead`: name, phone, reason → `leads` table + event
+  - [x] Lead storage and validated `lead.created` queue contract (#197)
+  - [ ] Capture tool and worker persistence (#57)
 - [ ] `transfer_call`: cold transfer (SIP REFER) and warm transfer (agent briefs human, then bridges); web calls fall back to message capture
 - [ ] Voicemail: record message, transcribe, attach to call
 - [ ] HTTP tools from config: templated URL/body, headers from secrets, JSON schema for params, response truncation

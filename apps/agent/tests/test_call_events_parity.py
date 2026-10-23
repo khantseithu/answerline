@@ -3,7 +3,12 @@ from pathlib import Path
 
 import jsonschema
 import pytest
-from answerline_agent.call_events import CALL_EVENTS_QUEUE, CallEvent, call_event_job_id
+from answerline_agent.call_events import (
+    CALL_EVENTS_QUEUE,
+    CallEvent,
+    call_event_job_id,
+    call_event_payload,
+)
 from pydantic import TypeAdapter, ValidationError
 
 SHARED = Path(__file__).resolve().parents[3] / "packages/shared"
@@ -79,3 +84,17 @@ def test_job_ids_follow_shared_format():
 def test_queue_name_matches_shared_constant():
     events_ts = (SHARED / "src/events.ts").read_text()
     assert f'callEvents: "{CALL_EVENTS_QUEUE}"' in events_ts
+
+
+def test_lead_payload_has_stable_distinct_job_ids():
+    data = json.loads((FIXTURES / "valid/lead-created.json").read_text())
+    event = ADAPTER.validate_python(data)
+    payload = call_event_payload(event)
+    assert payload == data
+    assert call_event_job_id(event) == f"{data['room_name']}_lead.created_{data['lead_id']}"
+    assert call_event_job_id(ADAPTER.validate_python(data)) == call_event_job_id(event)
+    another = ADAPTER.validate_python({**data, "lead_id": "41e21eda-93ce-4fd6-b161-7b1ed70be4a9"})
+    assert call_event_job_id(another) != call_event_job_id(event)
+    upper = ADAPTER.validate_python({**data, "lead_id": data["lead_id"].upper()})
+    assert call_event_job_id(upper) == call_event_job_id(event)
+    jsonschema.validate(payload, JSON_SCHEMA)

@@ -67,3 +67,29 @@ test("committed call event JSON Schema matches zod schema", async () => {
     "run `pnpm --filter @answerline/shared generate:schema`"
   );
 });
+
+test("lead event ids distinguish leads and stay stable for retries", async () => {
+  const data = JSON.parse(
+    await readFile(new URL("valid/lead-created.json", fixtures), "utf8")
+  ) as unknown;
+  const lead = callEventJob.parse(data);
+  const expected = `${lead.room_name}_lead.created_0b9c1c3e-2f4a-4e8e-9d3a-5f1f2b7c9a10`;
+  assert.equal(callEventJobId(lead), expected);
+  assert.equal(callEventJobId(callEventJob.parse(data)), expected);
+  assert.notEqual(
+    callEventJobId(callEventJob.parse({ ...lead, lead_id: crypto.randomUUID() })),
+    expected
+  );
+});
+
+test("lead ids are canonical across producer languages", async () => {
+  const data = JSON.parse(
+    await readFile(new URL("valid/lead-created.json", fixtures), "utf8")
+  ) as unknown;
+  const lead = callEventJob.parse(data);
+  const upper = callEventJob.parse({
+    ...lead,
+    lead_id: "0B9C1C3E-2F4A-4E8E-9D3A-5F1F2B7C9A10",
+  });
+  assert.equal(callEventJobId(upper), callEventJobId(lead));
+});

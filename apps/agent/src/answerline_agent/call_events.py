@@ -3,6 +3,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Annotated, Any, Literal
+from uuid import UUID
 
 from pydantic import AfterValidator, BaseModel, Field, StringConstraints
 
@@ -10,6 +11,12 @@ CALL_EVENTS_QUEUE = "call-events"
 
 Slug = Annotated[str, StringConstraints(pattern=r"^[a-z0-9][a-z0-9-]{0,62}$")]
 NonEmpty = Annotated[str, StringConstraints(min_length=1)]
+LEAD_WHITESPACE = (
+    "\u0009\u000a\u000b\u000c\u000d\u001c\u001d\u001e\u001f\u0020\u0085\u00a0\u1680"
+    "\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a"
+    "\u2028\u2029\u202f\u205f\u3000\ufeff"
+)
+LEAD_TEXT_PATTERN = f"[^{LEAD_WHITESPACE}]"
 MAX_SEQ = 2**53 - 1
 MAX_TOOL_RESULT_CHARS = 8192
 TRUNCATION_MARKER = "...[truncated]"
@@ -82,13 +89,29 @@ class CallEnded(CallRef):
     recording_url: NonEmpty | None = None
 
 
-CallEventModel = CallStarted | CallTurn | CallTool | CallEnded
+class LeadCreated(CallRef):
+    type: Literal["lead.created"] = "lead.created"
+    lead_id: UUID
+    name: Annotated[str, StringConstraints(min_length=1, max_length=200, pattern=LEAD_TEXT_PATTERN)]
+    phone: Annotated[
+        str, StringConstraints(min_length=1, max_length=100, pattern=LEAD_TEXT_PATTERN)
+    ]
+    reason: Annotated[
+        str,
+        StringConstraints(min_length=1, max_length=2000, pattern=LEAD_TEXT_PATTERN),
+    ]
+    created_at: Timestamp
+
+
+CallEventModel = CallStarted | CallTurn | CallTool | CallEnded | LeadCreated
 CallEvent = Annotated[CallEventModel, Field(discriminator="type")]
 
 ROLE_MAP: dict[str, Literal["caller", "agent"]] = {"user": "caller", "assistant": "agent"}
 
 
 def call_event_job_id(event: CallEventModel) -> str:
+    if isinstance(event, LeadCreated):
+        return f"{event.room_name}_{event.type}_{event.lead_id}"
     if isinstance(event, CallTurn | CallTool):
         return f"{event.room_name}_{event.type}_{event.seq}"
     return f"{event.room_name}_{event.type}"
