@@ -53,3 +53,19 @@ def test_tenant_must_be_a_slug(monkeypatch):
     monkeypatch.setenv("TENANT", "Not A Slug")
     with pytest.raises(ValidationError):
         Settings()
+
+
+def test_knowledge_search_defaults_and_overrides(monkeypatch):
+    monkeypatch.delenv("KNOWLEDGE_SEARCH_TIMEOUT_SECONDS", raising=False)
+    monkeypatch.delenv("KNOWLEDGE_SEARCH_TOP_K", raising=False)
+    settings = Settings()
+    assert settings.knowledge_search_timeout_seconds == 1.5
+    assert settings.knowledge_search_top_k == 4
+    monkeypatch.setenv("KNOWLEDGE_SEARCH_TIMEOUT_SECONDS", "0.8")
+    monkeypatch.setenv("KNOWLEDGE_SEARCH_TOP_K", "6")
+    settings = Settings()
+    assert settings.knowledge_search_timeout_seconds == 0.8
+    assert settings.knowledge_search_top_k == 6
+    monkeypatch.setenv("KNOWLEDGE_SEARCH_TIMEOUT_SECONDS", "0")
+    with pytest.raises(ValidationError):
+        Settings()

@@ -1,7 +1,10 @@
+import asyncio
+
+import httpx
 import openai
 import pytest
 from answerline_agent.config import LLMModels, Models
-from answerline_agent.providers import build_llm_chain
+from answerline_agent.providers import build_embedder, build_llm_chain
 from livekit.agents import llm
 
 STT = "deepgram/nova-3"
@@ -39,3 +42,24 @@ def test_keeps_available_fallbacks(only_anthropic_key, monkeypatch):
 def test_primary_without_credentials_still_fails(only_anthropic_key):
     with pytest.raises(openai.OpenAIError):
         build_llm_chain(models("openai/gpt-4.1-mini", []))
+
+
+def test_build_embedder_reuses_the_given_client(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("EMBEDDING_MODEL", "openai/text-embedding-3-small")
+    requests = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json={"data": [{"index": 0, "embedding": [1.0] * 1536}]})
+
+    async def scenario():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            embedder = build_embedder(client)
+            first = await embedder.embed(["hours"])
+            await embedder.embed(["prices"])
+            return first
+
+    vectors = asyncio.run(scenario())
+    assert len(requests) == 2
+    assert len(vectors[0]) == 1536

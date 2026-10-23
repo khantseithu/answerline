@@ -72,7 +72,7 @@ Roadmap: *Knowledge base ingestion and hybrid search*
 - [ ] Retrieval
   - [x] Hybrid search: pgvector cosine + Postgres full-text, merged with reciprocal rank fusion
   - [ ] Optional reranker (Cohere, Jina, or local cross-encoder)
-  - [ ] Agent tool `search_knowledge` with a strict latency budget (target p95 < 300 ms)
+  - [x] Agent tool `search_knowledge` with a strict latency budget (target p95 < 300 ms)
   - [ ] Cite source in transcript/tool call log
   - [ ] Relevance signal so out-of-scope queries don't return confident hits (#180)
 - [x] Dashboard: knowledge page (add URL, upload file, add Q&A, status, re-sync, delete)
