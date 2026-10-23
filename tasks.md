@@ -16,20 +16,20 @@ Legend: `[x]` done · `[ ]` todo · **Done when** = acceptance criteria for the 
 - [x] docker compose: Postgres (pgvector), Redis, LiveKit dev server
 - [x] Next.js 16 + Tailwind 4 + shadcn/ui (Base UI, all components)
 - [x] Python agent skeleton: loads YAML, builds STT / LLM fallback / TTS, greets
-- [ ] Database
-  - [ ] Pick ORM/migrations for TS side (Drizzle recommended) and add `packages/db`
-  - [ ] Initial schema: `tenants`, `users`, `agents`, `calls`, `call_turns`, `tool_calls`, `knowledge_sources`, `knowledge_chunks` (with `vector` column), `bookings`, `eval_runs`, `eval_results`, `api_keys`, `webhooks`, `webhook_deliveries`
-  - [ ] Enable `vector` extension in a migration
-  - [ ] `pnpm db:migrate`, `pnpm db:studio`, seed script that loads `agents/*.yaml`
-  - [ ] Python read access for the agent (asyncpg or SQLAlchemy core, no second migration system)
-- [ ] Config
-  - [ ] Typed env loading for web/worker (zod) and agent (pydantic-settings)
-  - [ ] Shared Python mirror of agent config schema stays in sync with Zod (generate JSON Schema from Zod, test Python model against it)
-- [ ] CI (GitHub Actions)
-  - [ ] JS: install, lint, typecheck, test, web build
-  - [ ] Python: uv sync, ruff, pytest
+- [x] Database
+  - [x] Pick ORM/migrations for TS side (Drizzle recommended) and add `packages/db`
+  - [x] Initial schema: `tenants`, `users`, `agents`, `calls`, `call_turns`, `tool_calls`, `knowledge_sources`, `knowledge_chunks` (with `vector` column), `bookings`, `eval_runs`, `eval_results`, `api_keys`, `webhooks`, `webhook_deliveries`
+  - [x] Enable `vector` extension in a migration
+  - [x] `pnpm db:migrate`, `pnpm db:studio`, seed script that loads `agents/*.yaml`
+  - [x] Python read access for the agent (asyncpg or SQLAlchemy core, no second migration system)
+- [x] Config
+  - [x] Typed env loading for web/worker (zod) and agent (pydantic-settings)
+  - [x] Shared Python mirror of agent config schema stays in sync with Zod (generate JSON Schema from Zod, test Python model against it)
+- [x] CI (GitHub Actions)
+  - [x] JS: install, lint, typecheck, test, web build
+  - [x] Python: uv sync, ruff, pytest
   - [ ] Turbo remote cache (optional)
-- [ ] Repo hygiene: `CLAUDE.md`/`AGENTS.md` for the root, PR template, issue templates, Renovate or Dependabot
+- [x] Repo hygiene: `CLAUDE.md`/`AGENTS.md` for the root, PR template, issue templates, Renovate or Dependabot
 
 **Done when:** fresh clone → `pnpm install && uv sync && pnpm infra:up && pnpm db:migrate` works and CI is green on `main`.
 
@@ -39,20 +39,20 @@ Legend: `[x]` done · `[ ]` todo · **Done when** = acceptance criteria for the 
 
 Roadmap: *Web voice calls with a sample agent*
 
-- [ ] Agent
+- [x] Agent
   - [x] Agent dispatch by agent ID (room metadata or dispatch metadata → load config from DB, fall back to YAML)
   - [x] Turn detection model (LiveKit `inference.TurnDetector` or self-hosted alternative; verify it runs without LiveKit Cloud)
   - [x] Interruption handling and false-interruption tuning
-  - [ ] Noise cancellation (optional, check licensing for self-hosted)
-  - [ ] Emit `call.started` / `call.ended` to Redis (BullMQ-compatible enqueue from Python, or a thin HTTP endpoint on web)
-  - [ ] Persist transcript turns with timestamps
+  - [ ] Noise cancellation (optional, check licensing for self-hosted): deferred to backlog, see #21
+  - [x] Emit `call.started` / `call.ended` to Redis (BullMQ-compatible enqueue from Python, or a thin HTTP endpoint on web)
+  - [x] Persist transcript turns with timestamps
   - [x] Graceful shutdown and max call duration
-- [ ] Web
-  - [ ] `POST /api/v1/token` issuing LiveKit access tokens for a room + agent dispatch
-  - [ ] **Talk to agent** button: connect, mic permission, live transcript, hang up (`@livekit/components-react`)
-  - [ ] Agent state indicator (listening / thinking / speaking) and audio visualizer
+- [x] Web
+  - [x] `POST /api/v1/token` issuing LiveKit access tokens for a room + agent dispatch
+  - [x] **Talk to agent** button: connect, mic permission, live transcript, hang up (`@livekit/components-react`)
+  - [x] Agent state indicator (listening / thinking / speaking) and audio visualizer
 - [x] Recording: LiveKit Egress to local disk or S3-compatible storage, link recording to call
-- [ ] Docs: `docs/architecture.md` first pass
+- [x] Docs: `docs/architecture.md` first pass
 
 **Done when:** from `localhost:3000`, click **Talk to agent**, hold a natural conversation with Bright Smile Dental, and see the transcript saved in Postgres.
 
@@ -132,7 +132,7 @@ Roadmap: *Dashboard: calls, transcripts, cost per call*
 - [ ] Auth
   - [ ] Pick auth library (Better Auth recommended), email/password + optional OAuth
   - [ ] First-run admin account printed in logs (per README quickstart)
-- [ ] App shell: sidebar (Calls, Agents, Knowledge, Evals, Phone numbers, Settings), dark mode
+- [x] App shell: sidebar (Calls, Agents, Knowledge, Evals, Phone numbers, Settings), dark mode
 - [ ] Calls list: filters (agent, date, channel, outcome), search transcripts, pagination
 - [ ] Call detail: transcript with timestamps, audio player synced to transcript, tool calls timeline, latency per turn (STT / LLM TTFT / TTS TTFB), cost breakdown
 - [ ] Post-call job (worker, `post-call` queue): summary, outcome tag, sentiment, cost calculation
