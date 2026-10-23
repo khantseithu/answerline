@@ -2,13 +2,13 @@ import asyncio
 import logging
 import time
 from collections.abc import Sequence
-from dataclasses import dataclass
-from typing import Annotated, Protocol
+from dataclasses import dataclass, field
+from typing import Annotated, Any, NamedTuple, Protocol
 from uuid import UUID
 
 import asyncpg
 import httpx
-from livekit.agents import llm
+from livekit.agents import RunContext, llm
 from livekit.agents.llm import function_tool
 from pydantic import Field
 
@@ -20,6 +20,7 @@ from .knowledge import (
 )
 from .providers import build_embedder
 from .settings import Settings
+from .tool_log import ToolLog
 
 logger = logging.getLogger("answerline.agent")
 
@@ -27,6 +28,7 @@ DB_CONNECT_TIMEOUT = 5.0
 POOL_MAX_SIZE = 3
 MAX_RESULT_CHARS = 2400
 MIN_BLOCK_CHARS = 200
+MAX_ERROR_CHARS = 300
 
 TOOL_DESCRIPTION = (
     "Look up facts about the business in its knowledge base: opening hours, services, "
@@ -64,8 +66,46 @@ def trim(text: str, limit: int) -> str:
     return f"{head or cut}..."
 
 
-def format_hits(hits: Sequence[KnowledgeHit], max_chars: int = MAX_RESULT_CHARS) -> str:
+def citation(hit: KnowledgeHit) -> dict[str, Any]:
+    metadata = hit.metadata or {}
+    fields: dict[str, Any] = {
+        "source_id": str(hit.source_id),
+        "chunk_id": str(hit.chunk_id),
+        "title": metadata.get("title"),
+        "uri": metadata.get("uri"),
+        "page": metadata.get("page"),
+        "score": hit.score,
+        "similarity": hit.similarity,
+    }
+    return {key: value for key, value in fields.items() if value is not None}
+
+
+class FormattedHits(NamedTuple):
+    text: str
+    used: list[KnowledgeHit]
+
+
+@dataclass(frozen=True)
+class SearchResult:
+    text: str
+    outcome: str
+    hits: list[KnowledgeHit] = field(default_factory=list)
+    error: str | None = None
+
+    def log(self) -> dict[str, Any]:
+        logged: dict[str, Any] = {
+            "text": self.text,
+            "outcome": self.outcome,
+            "citations": [citation(hit) for hit in self.hits],
+        }
+        if self.error:
+            logged["error"] = self.error
+        return logged
+
+
+def format_hits(hits: Sequence[KnowledgeHit], max_chars: int = MAX_RESULT_CHARS) -> FormattedHits:
     blocks: list[str] = []
+    used: list[KnowledgeHit] = []
     remaining = max_chars
     for index, hit in enumerate(hits, 1):
         block = f"[{index}] {hit_label(hit)}\n{hit.content.strip()}"
@@ -74,10 +114,11 @@ def format_hits(hits: Sequence[KnowledgeHit], max_chars: int = MAX_RESULT_CHARS)
                 break
             block = trim(block, remaining)
         blocks.append(block)
+        used.append(hit)
         remaining -= len(block) + 2
         if remaining <= 0:
             break
-    return "\n\n".join(blocks) if blocks else NO_RESULTS
+    return FormattedHits("\n\n".join(blocks) if blocks else NO_RESULTS, used)
 
 
 class KnowledgeSearch:
@@ -104,10 +145,10 @@ class KnowledgeSearch:
         self._min_similarity = min_similarity
         self._min_keyword_terms = min_keyword_terms
 
-    async def search(self, query: str) -> str:
+    async def search(self, query: str) -> SearchResult:
         query = query.strip()
         if not query:
-            return NO_RESULTS
+            return SearchResult(NO_RESULTS, "no_results")
         timings: dict[str, float] = {}
         started = time.perf_counter()
         try:
@@ -119,22 +160,25 @@ class KnowledgeSearch:
                 (time.perf_counter() - started) * 1000,
                 self._format_timings(timings),
             )
-            return UNAVAILABLE
-        except Exception:
+            return SearchResult(UNAVAILABLE, "timeout")
+        except Exception as exc:
             logger.warning(
                 "search_knowledge failed after %.0f ms (%s)",
                 (time.perf_counter() - started) * 1000,
                 self._format_timings(timings),
                 exc_info=True,
             )
-            return UNAVAILABLE
+            return SearchResult(
+                UNAVAILABLE, "error", error=f"{type(exc).__name__}: {exc}"[:MAX_ERROR_CHARS]
+            )
         logger.info(
             "search_knowledge %s total_ms=%.0f hits=%d",
             self._format_timings(timings),
             (time.perf_counter() - started) * 1000,
             len(hits),
         )
-        return format_hits(hits, self._max_chars)
+        text, used = format_hits(hits, self._max_chars)
+        return SearchResult(text, "ok" if used else "no_results", used)
 
     async def _lookup(self, query: str, timings: dict[str, float]) -> list[KnowledgeHit]:
         started = time.perf_counter()
@@ -160,11 +204,14 @@ class KnowledgeSearch:
         return " ".join(f"{name}={value:.0f}" for name, value in timings.items()) or "no timings"
 
 
-def build_search_knowledge_tool(search: KnowledgeSearch) -> llm.FunctionTool:
+def build_search_knowledge_tool(search: KnowledgeSearch, tool_log: ToolLog) -> llm.FunctionTool:
     async def search_knowledge(
+        context: RunContext,
         query: Annotated[str, Field(description=QUERY_DESCRIPTION)],
     ) -> str:
-        return await search.search(query)
+        result = await search.search(query)
+        tool_log.attach(context.function_call.call_id, result.log())
+        return result.text
 
     return function_tool(search_knowledge, description=TOOL_DESCRIPTION)
 
@@ -180,7 +227,9 @@ class KnowledgeTools:
         await self.pool.close()
 
 
-async def open_knowledge_tools(settings: Settings, agent_slug: str) -> KnowledgeTools | None:
+async def open_knowledge_tools(
+    settings: Settings, agent_slug: str, tool_log: ToolLog
+) -> KnowledgeTools | None:
     if not settings.database_url:
         return None
     pool: asyncpg.Pool | None = None
@@ -217,4 +266,6 @@ async def open_knowledge_tools(settings: Settings, agent_slug: str) -> Knowledge
             await pool.close()
         return None
     logger.info("search_knowledge enabled for agent %s (%d sources)", agent_slug, source_count)
-    return KnowledgeTools(tools=[build_search_knowledge_tool(search)], pool=pool, client=client)
+    return KnowledgeTools(
+        tools=[build_search_knowledge_tool(search, tool_log)], pool=pool, client=client
+    )
