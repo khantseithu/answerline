@@ -6,6 +6,9 @@
 
 > Answerline is an open alternative to hosted voice-agent platforms. You bring the model providers and the phone number; it handles the real-time voice pipeline, tools, call logs, evals, and deployment.
 
+> [!NOTE]
+> **Status: early development.** In-browser voice calls with a sample agent work today: per-call agent config, turn detection, LLM fallback, call logs and transcripts saved to Postgres, and opt-in recording. Everything marked *(planned)* below is on the [roadmap](tasks.md). See [docs/architecture.md](docs/architecture.md) for what is built.
+
 <!-- TODO: 2-minute demo video -->
 <p align="center">
   <a href="#"><img src="docs/assets/demo-thumbnail.png" alt="Watch the 2-minute demo" width="720"></a>
@@ -27,7 +30,7 @@ Hosted voice platforms make it easy to start, then get expensive and hard to cus
 
 Answerline gives you the same building blocks as open source:
 
-- **Own your stack.** Run it on your own server or cloud account. Call recordings and transcripts stay in your database.
+- **Own your stack.** Run it on your own server or cloud account. Transcripts stay in your database and recordings in your own object storage.
 - **Pay providers directly.** Use your own API keys for speech-to-text, LLMs, and text-to-speech, with no platform markup.
 - **Customize anything.** Agents are code and config, not a locked-down builder. Add tools, change prompts, swap models.
 - **Know it works.** Built-in evals replay test calls and score answers, so you can change prompts or models without guessing.
@@ -36,48 +39,53 @@ Answerline gives you the same building blocks as open source:
 
 **Voice**
 - Real-time voice agent built on [LiveKit Agents](https://docs.livekit.io/agents/), with interruption handling and turn detection
-- Inbound phone calls over SIP (Twilio, Telnyx, or any SIP trunk) and in-browser calls through an embeddable widget
-- Warm transfer to a human, voicemail fallback, and configurable business hours
+- In-browser calls from the dashboard; inbound phone calls over SIP (Twilio, Telnyx, or any SIP trunk) and an embeddable widget *(planned)*
+- Call limits (max duration, idle timeout) and opt-in call recording with a spoken notice
+- Warm transfer to a human, voicemail fallback, and configurable business hours *(planned)*
 
 **Knowledge and tools**
-- Knowledge base from PDFs, web pages, and Q&A pairs, with hybrid search (vector + keyword) and reranking
-- Built-in tools: appointment booking, business-hours lookup, call transfer, and lead capture
-- Custom HTTP tools defined in config, plus MCP server support for connecting external systems
+- Knowledge base from PDFs, web pages, and Q&A pairs, with hybrid search (vector + keyword) and reranking *(planned)*
+- Built-in tools: appointment booking, business-hours lookup, call transfer, and lead capture *(planned)*
+- Custom HTTP tools defined in config, plus MCP server support for connecting external systems *(planned)*
 
 **Models**
-- Pluggable providers for each stage: speech-to-text, LLM, and text-to-speech
+- Pluggable providers for each stage: speech-to-text, LLM, and text-to-speech (today: Deepgram STT and Cartesia TTS; more providers *(planned)*)
 - LLM routing with automatic fallback across Anthropic, OpenAI, Google Gemini, DeepSeek, and local models via Ollama
 
 **Operations**
-- Dashboard with call list, transcripts, recordings, tool calls, latency, and cost per call
-- Evals: scripted test calls replayed against your agent, scored for accuracy and tool use
-- OpenTelemetry tracing from incoming call to every model and tool call
-- REST API and webhooks (`call.started`, `call.ended`, `booking.created`) for your own systems
-- Multi-tenant: run separate agents for multiple businesses from one deployment
+- Every call and transcript logged to Postgres; dashboard with call list, transcripts, recordings, tool calls, latency, and cost per call *(planned)*
+- Evals: scripted test calls replayed against your agent, scored for accuracy and tool use *(planned)*
+- OpenTelemetry tracing from incoming call to every model and tool call *(planned)*
+- REST API and webhooks (`call.started`, `call.ended`, `booking.created`) for your own systems *(planned)*
+- Multi-tenant: run separate agents for multiple businesses from one deployment *(planned)*
 
-## Live demo
+## Live demo *(planned)*
 
 <!-- TODO: link -->
 Call the demo line or try it in your browser at **demo.answerline.dev**. The demo agent is the receptionist for a fictional dental clinic. Ask about opening hours or services, or book an appointment.
 
 ## Quickstart
 
-Requirements: Docker, plus API keys for at least one provider of each kind (speech-to-text, LLM, text-to-speech).
+Requirements today: Docker, Node 24 with pnpm, Python 3.13 with [uv](https://docs.astral.sh/uv/), and API keys for Deepgram (speech-to-text), Anthropic (LLM), and Cartesia (text-to-speech).
 
 ```bash
 git clone https://github.com/khantseithu/answerline.git
 cd answerline
 cp .env.example .env        # add your provider keys
-docker compose up -d
+pnpm install && uv sync
+pnpm infra:up               # Postgres, Redis, LiveKit, Egress, MinIO
+pnpm db:migrate && pnpm db:seed
+pnpm dev                    # web on :3000 + worker
+pnpm agent:dev              # voice agent (separate terminal)
 ```
 
-Open http://localhost:3000, sign in with the admin account printed in the logs, and click **Talk to agent** to call the sample agent from your browser.
+Open http://localhost:3000 and click **Talk to agent** to call the sample agent from your browser.
 
-To answer real phone calls, see [Connect a phone number](docs/telephony.md).
+*(planned)* A one-command `docker compose up -d` with prebuilt images and a first-run admin account (M7), and connecting a phone number over SIP (M4).
 
 ## Configure an agent
 
-Each agent is a single YAML file. You can also edit agents in the dashboard.
+Each agent is a single YAML file, loaded from the database first and `agents/<slug>.yaml` as a fallback. Editing agents in the dashboard, and the `knowledge`, `tools`, and `hours` sections below, are *(planned)*. Model names below are illustrative; see [`agents/bright-smile-dental.yaml`](agents/bright-smile-dental.yaml) for full model IDs.
 
 ```yaml
 # agents/bright-smile-dental.yaml
@@ -154,9 +162,9 @@ flowchart LR
 | Redis | | Job queues and caching |
 | LiveKit Server + SIP | | Media transport and phone connectivity |
 
-Design notes for each component are in [docs/architecture.md](docs/architecture.md).
+The diagram shows the target architecture; knowledge base, tools, SIP, and the dashboard API are *(planned)*. Design notes for what exists today are in [docs/architecture.md](docs/architecture.md).
 
-## Evals
+## Evals *(planned)*
 
 Write test calls as scripts, then run them against any agent. Each run reports the pass rate, latency, and cost, so you can compare prompts and models before going live.
 
@@ -179,7 +187,7 @@ Write test calls as scripts, then run them against any agent. Each run reports t
 docker compose run --rm worker eval agents/bright-smile-dental.yaml
 ```
 
-## Deployment
+## Deployment *(planned)*
 
 | Option | Best for | Guide |
 |---|---|---|
@@ -190,7 +198,7 @@ docker compose run --rm worker eval agents/bright-smile-dental.yaml
 
 The Terraform modules provision container apps for each service, managed Postgres and Redis, secrets, autoscaling for workers, and a GitHub Actions pipeline that promotes builds from dev to staging to prod.
 
-## API
+## API *(planned)*
 
 ```bash
 # List recent calls
@@ -214,18 +222,19 @@ answerline/
 │   ├── web/          # Next.js dashboard and API
 │   └── worker/       # Background jobs
 ├── packages/
+│   ├── db/           # Drizzle schema and migrations
 │   ├── llm/          # Provider adapters and routing
 │   └── shared/       # Types and schemas
 ├── agents/           # Example agent configs
 ├── evals/            # Example eval suites
-├── infra/            # Terraform (Azure, AWS)
+├── infra/            # Terraform (Azure, AWS) (planned)
 ├── docs/
 └── docker-compose.yml
 ```
 
 ## Roadmap
 
-- [ ] Web voice calls with a sample agent
+- [x] Web voice calls with a sample agent
 - [ ] Knowledge base ingestion and hybrid search
 - [ ] Built-in tools: booking, transfer, business hours
 - [ ] Phone calls over SIP
