@@ -10,9 +10,9 @@
 > **Status: early development.** In-browser voice calls with a sample agent work today: per-call agent config, turn detection, LLM fallback, call logs and transcripts saved to Postgres, and opt-in recording. Everything marked *(planned)* below is on the [roadmap](tasks.md). See [docs/architecture.md](docs/architecture.md) for what is built.
 
 <!-- TODO: 2-minute demo video (#123) -->
+https://github.com/user-attachments/assets/bfd76f0d-6233-4cc8-86b2-7ab52737ddd0
+
 <p align="center">
-  <a href="docs/assets/launch-preview.mp4"><img src="docs/assets/launch-preview-poster.jpg" alt="Watch the 45-second launch preview" width="720"></a>
-  <br>
   <sub>▶ <a href="docs/assets/launch-preview.mp4">Watch the 45-second launch preview</a>. It shows the v1 vision; some features in it are still <a href="#roadmap">planned</a>.</sub>
 </p>
 
