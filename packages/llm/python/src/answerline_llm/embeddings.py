@@ -9,8 +9,10 @@ from pydantic import BaseModel, ConfigDict, Field, HttpUrl, SecretStr, field_val
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 EMBEDDING_DIMENSIONS = 1536
-DEFAULT_EMBEDDING_MODEL = "openai/text-embedding-3-small"
+DEFAULT_EMBEDDING_MODEL = "google/gemini-embedding-2"
 EMBEDDING_PROVIDERS = ("openai", "google", "ollama")
+
+type EmbeddingInputType = Literal["document", "query"]
 
 
 def parse_embedding_model_ref(ref: str):
@@ -36,7 +38,12 @@ class EmbeddingSettings(BaseSettings):
         parse_embedding_model_ref(value)
         return value
 
-    def create_provider(self, *, client: httpx.AsyncClient | None = None):
+    def create_provider(
+        self,
+        *,
+        client: httpx.AsyncClient | None = None,
+        input_type: EmbeddingInputType = "document",
+    ):
         provider = parse_embedding_model_ref(self.embedding_model).provider
         key = {"openai": self.openai_api_key, "google": self.google_api_key}.get(provider)
         return create_embedding_provider(
@@ -44,6 +51,7 @@ class EmbeddingSettings(BaseSettings):
             api_key=key.get_secret_value() if key else None,
             base_url=str(self.ollama_base_url) if provider == "ollama" else None,
             client=client,
+            input_type=input_type,
         )
 
 
@@ -81,6 +89,14 @@ def _normalize(vector: list[float]) -> list[float]:
     return [value / norm for value in reduced]
 
 
+def _format_input(model: str, input_type: EmbeddingInputType, text: str) -> str:
+    if not model.startswith("gemini-embedding-2"):
+        return text
+    if input_type == "query":
+        return f"task: search result | query: {text}"
+    return f"title: none | text: {text}"
+
+
 @dataclass(frozen=True)
 class EmbeddingProvider:
     model_ref: str
@@ -89,6 +105,7 @@ class EmbeddingProvider:
     _timeout_seconds: float
     _client: httpx.AsyncClient | None
     dimensions: Literal[1536] = EMBEDDING_DIMENSIONS
+    input_type: EmbeddingInputType = "document"
 
     async def embed(self, texts: Sequence[str]) -> list[list[float]]:
         if isinstance(texts, str) or any(not isinstance(t, str) or not t.strip() for t in texts):
@@ -128,7 +145,9 @@ class EmbeddingProvider:
                 "requests": [
                     {
                         "model": f"models/{model}",
-                        "content": {"parts": [{"text": text}]},
+                        "content": {
+                            "parts": [{"text": _format_input(model, self.input_type, text)}]
+                        },
                         "outputDimensionality": EMBEDDING_DIMENSIONS,
                     }
                     for text in texts
@@ -177,6 +196,7 @@ def create_embedding_provider(
     base_url: str | None = None,
     timeout_seconds: float = 10,
     client: httpx.AsyncClient | None = None,
+    input_type: EmbeddingInputType = "document",
 ) -> EmbeddingProvider:
     provider = parse_embedding_model_ref(model_ref).provider
     if provider != "ollama" and (api_key is None or not api_key.strip()):
@@ -190,5 +210,10 @@ def create_embedding_provider(
     }
     url = str(HttpUrl(base_url or defaults[provider])).rstrip("/")
     return EmbeddingProvider(
-        model_ref, SecretStr(api_key) if api_key else None, url, timeout_seconds, client
+        model_ref,
+        SecretStr(api_key) if api_key else None,
+        url,
+        timeout_seconds,
+        client,
+        input_type=input_type,
     )

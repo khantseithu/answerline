@@ -7,7 +7,7 @@ test("defaults REDIS_URL and REDIS_PREFIX", () => {
   const env = parseEnv({});
   assert.equal(env.REDIS_URL, "redis://localhost:6379");
   assert.equal(env.REDIS_PREFIX, "bull");
-  assert.equal(env.EMBEDDING_MODEL, "openai/text-embedding-3-small");
+  assert.equal(env.EMBEDDING_MODEL, "google/gemini-embedding-2");
   assert.equal(env.OLLAMA_BASE_URL, "http://localhost:11434");
 });
 

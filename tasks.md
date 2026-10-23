@@ -67,6 +67,7 @@ Roadmap: *Knowledge base ingestion and hybrid search*
   - [x] Loaders: PDF, URL (fetch + readability), Q&A pairs, plain text/Markdown
   - [x] Chunking with overlap and source metadata
   - [x] Embeddings via pluggable provider (OpenAI, Gemini, Ollama) (#34)
+  - [x] Gemini Embedding 2 as the default embedding model (#212)
   - [x] Store chunks + embeddings + `tsvector` in Postgres
   - [x] Re-ingest on change (content hash), delete stale chunks
   - [x] Job status and errors visible to the dashboard
@@ -267,7 +268,7 @@ Roadmap: *Multilingual agents*
 - Agent events: the Python agent enqueues BullMQ jobs directly; the worker consumes them (#129)
 - Agent config source of truth: the database; `agents/*.yaml` is the seed/import format and fallback (#131)
 - Recording storage: Cloudflare R2 is the primary production target; other S3-compatible providers use an adapter. Local compose uses MinIO for development; recording is opt-in per agent (#132, #153)
-- M2 embeddings: OpenAI by default; Gemini and Ollama use 1536-dimensional vectors to fit `knowledge_chunks.embedding vector(1536)` (#34)
+- M2 embeddings: `google/gemini-embedding-2` by default (was OpenAI); every provider uses 1536-dimensional vectors to fit `knowledge_chunks.embedding vector(1536)`. Gemini Embedding 2 has no `taskType`, so the provider prefixes the text: `task: search result | query:` for agent queries, `title: none | text:` for ingested chunks. Switching models requires re-ingesting sources (#34, #212)
 - Auth: Better Auth (#128)
 - Knowledge relevance floor: `hybrid_search` returns absolute signals (cosine similarity, matched query terms) and the tool applies an optional `KNOWLEDGE_MIN_SIMILARITY`, off by default because similarity scales differ per embedding model; a keyword match counts as strong only when it covers at least `KNOWLEDGE_MIN_KEYWORD_TERMS` (default 2) distinct query terms (#180)
 - Booking: a minimal native provider ships first instead of Cal.com, which few target businesses use. Slots come from the agent's `hours` at a fixed length, bookings live in Postgres with an exclusion constraint against overlaps, and the agent writes bookings directly so it only confirms what was stored (an exception to #129). Cal.com and Google Calendar are optional adapters (#50, #205)
