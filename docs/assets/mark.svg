@@ -1,0 +1,18 @@
+<svg
+  aria-label="answerline"
+  fill="none"
+  height="64"
+  role="img"
+  viewBox="0 0 32 32"
+  width="64"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <title>answerline</title>
+  <rect fill="#007563" height="32" rx="8" width="32" />
+  <path
+    d="M6.5 16H9M12.5 12v8M16 8v16M19.5 10.5v11M23 16h2.5"
+    stroke="#f6fdfb"
+    stroke-linecap="round"
+    stroke-width="2.25"
+  />
+</svg>

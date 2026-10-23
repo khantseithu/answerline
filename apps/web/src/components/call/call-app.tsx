@@ -1,64 +1,169 @@
 "use client";
 
-import { useSession } from "@livekit/components-react";
-import { TokenSource } from "livekit-client";
+import { type AgentState, useAgent, useSession } from "@livekit/components-react";
+import { ConnectionState, TokenSource } from "livekit-client";
 import { AnimatePresence, motion } from "motion/react";
-import { useCallback, useMemo } from "react";
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import { toast } from "sonner";
 import { AgentSessionProvider } from "@/components/agents-ui/agent-session-provider";
 import { AgentSessionView_01 } from "@/components/agents-ui/blocks/agent-session-view-01";
 import { StartAudioButton } from "@/components/agents-ui/start-audio-button";
-import { Button } from "@/components/ui/button";
+import { LogoMark } from "@/components/brand/logo";
+import { LiveDot } from "@/components/call/live-dot";
 
 const CONTROLS = { camera: false, chat: true, leave: true, microphone: true, screenShare: false };
+
+const VISUALIZER = { barCount: 5, size: "lg", type: "bar" } as const;
 
 const FADE = {
   animate: { opacity: 1 },
   exit: { opacity: 0 },
   initial: { opacity: 0 },
-  transition: { duration: 0.3 },
+  transition: { duration: 0.2, ease: [0.22, 1, 0.36, 1] as const },
 };
 
-export function CallApp({ agentName, agentSlug }: { agentName: string; agentSlug: string }) {
+const AGENT_STATE_LABELS: Partial<Record<AgentState, string>> = {
+  connecting: "Connecting",
+  initializing: "Joining",
+  listening: "Listening",
+  "pre-connect-buffering": "Joining",
+  speaking: "Speaking",
+  thinking: "Thinking",
+};
+
+interface CallContextValue {
+  agentName: string;
+  isConnecting: boolean;
+  startCall: () => void;
+}
+
+const CallContext = createContext<CallContextValue | null>(null);
+
+export function useCall() {
+  const context = useContext(CallContext);
+  if (!context) {
+    throw new Error("useCall must be used within CallApp.");
+  }
+  return context;
+}
+
+function formatElapsed(totalSeconds: number) {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function CallElapsed() {
+  const [seconds, setSeconds] = useState(0);
+
+  useEffect(() => {
+    const startedAt = Date.now();
+    const id = window.setInterval(() => {
+      setSeconds(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  return (
+    <time className="numeric text-muted-foreground" dateTime={`PT${seconds}S`}>
+      {formatElapsed(seconds)}
+    </time>
+  );
+}
+
+function CallHeader({ agentName }: { agentName: string }) {
+  const { state } = useAgent();
+  const label = AGENT_STATE_LABELS[state] ?? "Live";
+
+  return (
+    <header className="absolute inset-x-0 top-0 z-60 flex h-16 items-center justify-between gap-4 px-4 md:px-8">
+      <div className="flex min-w-0 items-center gap-2.5">
+        <LogoMark className="hidden text-live sm:block" />
+        <span className="truncate font-medium text-sm sm:text-base">{agentName}</span>
+      </div>
+      <div
+        aria-live="polite"
+        className="flex shrink-0 items-center gap-2.5 rounded-full bg-muted px-3 py-1.5 text-sm"
+      >
+        <LiveDot />
+        <span className="font-medium">{label}</span>
+        <CallElapsed />
+      </div>
+    </header>
+  );
+}
+
+export function CallApp({
+  agentName,
+  agentSlug,
+  children,
+}: {
+  agentName: string;
+  agentSlug: string;
+  children: ReactNode;
+}) {
   const tokenSource = useMemo(
     () => TokenSource.endpoint(`/api/v1/token?agent=${encodeURIComponent(agentSlug)}`),
     [agentSlug]
   );
   const session = useSession(tokenSource);
-  const startCall = useCallback(() => session.start(), [session]);
-  const endCall = useCallback(() => session.end(), [session]);
+  const { start, end } = session;
+  const startCall = useCallback(() => {
+    start().catch(() => {
+      toast.error("Call setup failed", {
+        description: "Check that LiveKit is running and that this browser can use your microphone.",
+      });
+    });
+  }, [start]);
+  const endCall = useCallback(() => end(), [end]);
+
+  const value = useMemo(
+    () => ({
+      agentName,
+      isConnecting: session.connectionState === ConnectionState.Connecting,
+      startCall,
+    }),
+    [agentName, session.connectionState, startCall]
+  );
 
   return (
-    <AgentSessionProvider session={session}>
-      <AnimatePresence mode="wait">
-        {session.isConnected ? (
-          <motion.div className="fixed inset-0" key="session" {...FADE}>
-            <AgentSessionView_01
-              className="h-full"
-              controls={CONTROLS}
-              isPreConnectBufferEnabled
-              onDisconnect={endCall}
-              preConnectMessage="Connecting you to the receptionist…"
-            />
-          </motion.div>
-        ) : (
-          <motion.section
-            className="flex flex-1 flex-col items-center justify-center gap-6 px-6 text-center"
-            key="welcome"
-            {...FADE}
-          >
-            <div className="flex flex-col gap-2">
-              <h1 className="font-semibold text-3xl tracking-tight">{agentName}</h1>
-              <p className="text-muted-foreground">
-                Talk to the AI receptionist from your browser.
-              </p>
-            </div>
-            <Button className="w-56 rounded-full" onClick={startCall} size="lg">
-              Talk to agent
-            </Button>
-          </motion.section>
-        )}
-      </AnimatePresence>
-      <StartAudioButton label="Start audio" />
-    </AgentSessionProvider>
+    <CallContext.Provider value={value}>
+      <AgentSessionProvider session={session}>
+        {children}
+        <AnimatePresence>
+          {session.isConnected ? (
+            <motion.div
+              aria-label={`Call with ${agentName}`}
+              className="fixed inset-0 z-50 bg-background"
+              key="session"
+              role="dialog"
+              {...FADE}
+            >
+              <CallHeader agentName={agentName} />
+              <AgentSessionView_01
+                audioVisualizer={VISUALIZER}
+                className="h-full [&_[data-lk-state]]:text-live"
+                controls={CONTROLS}
+                isPreConnectBufferEnabled
+                onDisconnect={endCall}
+                preConnectMessage="Connecting you to the receptionist…"
+              />
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+        <StartAudioButton
+          className="fixed bottom-6 left-1/2 z-60 -translate-x-1/2"
+          label="Turn on call audio"
+        />
+      </AgentSessionProvider>
+    </CallContext.Provider>
   );
 }
