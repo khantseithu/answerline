@@ -10,7 +10,8 @@ if [[ ! "$slot" =~ ^[0-9]+$ ]]; then
   exit 1
 fi
 
-[[ -f .env ]] || cp .env.example .env
+source "$root/scripts/bootstrap.sh"
+ensure_env
 
 set_env() {
   local key="$1" value="$2" tmp
@@ -18,10 +19,6 @@ set_env() {
   grep -v "^${key}=" .env > "$tmp" || true
   printf '%s=%s\n' "$key" "$value" >> "$tmp"
   mv "$tmp" .env
-}
-
-get_env() {
-  grep "^$1=" .env | tail -1 | cut -d= -f2- || true
 }
 
 postgres_port="$(get_env POSTGRES_PORT)"
@@ -37,8 +34,7 @@ set_env REDIS_URL "redis://localhost:${redis_port}"
 set_env REDIS_PREFIX "bull-wt${slot}"
 set_env AGENT_NAME "answerline-wt${slot}"
 
-pnpm install --frozen-lockfile --prefer-offline
-uv sync --locked
+install_dependencies
 
 if docker compose exec -T postgres pg_isready -U answerline >/dev/null 2>&1; then
   exists="$(docker compose exec -T postgres psql -U answerline -d answerline -tAc "select 1 from pg_database where datname = '${database}'")"

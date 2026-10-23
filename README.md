@@ -71,7 +71,20 @@ Requirements today: Docker, Node 24 with pnpm, Python 3.13 with [uv](https://doc
 ```bash
 git clone https://github.com/khantseithu/answerline.git
 cd answerline
-cp .env.example .env        # add your provider keys
+pnpm bootstrap
+```
+
+Bootstrap checks prerequisites, creates `.env` only if absent, installs dependencies, starts infrastructure, waits for Postgres and Redis to be healthy, and migrates and seeds the database. It is safe to rerun and never starts dev servers. Add your provider keys to `.env` (bootstrap warns when they are empty), then start:
+
+```bash
+pnpm dev                    # web on :3000 + worker
+pnpm agent:dev              # voice agent (separate terminal)
+```
+
+Manual setup, for reference:
+
+```bash
+cp .env.example .env        # only if .env does not exist; add your provider keys
 pnpm install && uv sync
 pnpm infra:up               # Postgres, Redis, LiveKit, Egress, MinIO
 pnpm db:migrate && pnpm db:seed

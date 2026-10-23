@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "agent:dev": "uv run --env-file .env answerline-agent dev",
+    "bootstrap": "bash scripts/bootstrap.sh",
     "build": "turbo run build",
     "db:generate": "pnpm --filter @answerline/db generate",
     "db:migrate": "pnpm --filter @answerline/db migrate",
