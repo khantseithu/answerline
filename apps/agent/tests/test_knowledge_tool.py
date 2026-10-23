@@ -34,6 +34,10 @@ def hit(content: str, metadata: dict | None = None) -> KnowledgeHit:
         score=1.0,
         vector_rank=1,
         keyword_rank=None,
+        similarity=0.9,
+        keyword_score=None,
+        matched_terms=0,
+        query_terms=0,
     )
 
 
@@ -352,5 +356,37 @@ def test_search_returns_the_scoped_answer_end_to_end(monkeypatch, embedding_env)
             finally:
                 await tools.close()
             assert embedder.queries == ["when are you open", "how much is a cleaning"]
+
+    asyncio.run(scenario())
+
+
+@needs_database
+def test_relevance_floor_makes_out_of_scope_queries_return_no_results(monkeypatch, embedding_env):
+    embedder = FakeEmbedder(
+        {"when are you open": axis((1, 1.0)), "do you do botox": axis((7, 1.0))}
+    )
+    monkeypatch.setattr(knowledge_tool, "build_embedder", lambda client: embedder)
+    monkeypatch.setenv("KNOWLEDGE_MIN_SIMILARITY", "0.5")
+
+    async def scenario():
+        async with tenant_with_agents() as (admin, slug, tenant_id, source):
+            shared = await source("Hours")
+            await add_chunk(
+                admin,
+                tenant_id,
+                shared,
+                0,
+                "We are open Monday to Friday, nine to five.",
+                axis((1, 1.0)),
+                {"title": "Hours"},
+            )
+            tools = await open_knowledge_tools(settings_for(slug), "alpha")
+            assert tools is not None
+            try:
+                tool = tools.tools[0]
+                assert "nine to five" in await tool(query="when are you open")
+                assert await tool(query="do you do botox") == NO_RESULTS
+            finally:
+                await tools.close()
 
     asyncio.run(scenario())

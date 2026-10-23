@@ -120,6 +120,16 @@ def test_vector_only_keyword_only_and_fused_winner():
             assert winner.score == pytest.approx(1 / 62 + 1 / 61)
             assert vec_hit.score == pytest.approx(1 / 61)
             assert kw_hit.score == pytest.approx(1 / 62)
+            assert winner.similarity == pytest.approx(1 / math.sqrt(2))
+            assert vec_hit.similarity == pytest.approx(1.0)
+            assert kw_hit.similarity == pytest.approx(0.0)
+            assert winner.keyword_score is not None
+            assert winner.keyword_score > 0
+            assert vec_hit.keyword_score is None
+            assert kw_hit.keyword_score is not None
+            assert (winner.matched_terms, winner.query_terms) == (2, 2)
+            assert (vec_hit.matched_terms, vec_hit.query_terms) == (0, 2)
+            assert (kw_hit.matched_terms, kw_hit.query_terms) == (1, 2)
             assert winner.metadata == {"title": "Hours", "page": 2, "uri": "file:///faq.pdf"}
             assert vec_hit.metadata is None
             assert winner.content.startswith("Opening hours")
@@ -243,12 +253,151 @@ def test_empty_results_and_blank_query():
     run(scenario())
 
 
+FAR = axis((100, 1.0))
+NEAR = axis((100, 1.0), (101, 0.2))
+UNRELATED = axis((50, 1.0))
+
+
+async def seed_dental(conn: asyncpg.Connection, tenant_id: uuid.UUID):
+    source_id = await create_source(conn, tenant_id)
+    root_canal = await add_chunk(
+        conn, tenant_id, source_id, 0, "Do you perform root canals? Yes.", axis((0, 1.0))
+    )
+    cosmetic = await add_chunk(
+        conn,
+        tenant_id,
+        source_id,
+        1,
+        "Cosmetic surgery is referred out to a specialist.",
+        axis((1, 1.0)),
+    )
+    semantic = await add_chunk(
+        conn, tenant_id, source_id, 2, "We welcome patients of every age.", NEAR
+    )
+    return root_canal, cosmetic, semantic
+
+
+def test_floor_rejects_a_single_shared_common_word():
+    async def scenario():
+        async with database() as (conn, tenant):
+            tenant_id = await tenant()
+            root_canal, _, _ = await seed_dental(conn, tenant_id)
+            query = "Do you perform cosmetic surgery or Botox?"
+            unfiltered = await hybrid_search(
+                conn, tenant_id=tenant_id, query=query, embedding=UNRELATED
+            )
+            hit = next(h for h in unfiltered if h.chunk_id == root_canal)
+            assert (hit.matched_terms, hit.query_terms) == (1, 4)
+            floored = await hybrid_search(
+                conn, tenant_id=tenant_id, query=query, embedding=UNRELATED, min_similarity=0.5
+            )
+            assert root_canal not in [h.chunk_id for h in floored]
+
+    run(scenario())
+
+
+def test_floor_keeps_multi_term_keyword_matches_despite_low_similarity():
+    async def scenario():
+        async with database() as (conn, tenant):
+            tenant_id = await tenant()
+            root_canal, cosmetic, _ = await seed_dental(conn, tenant_id)
+            hits = await hybrid_search(
+                conn,
+                tenant_id=tenant_id,
+                query="cosmetic surgery",
+                embedding=UNRELATED,
+                min_similarity=0.5,
+            )
+            assert [h.chunk_id for h in hits] == [cosmetic]
+            assert hits[0].similarity == pytest.approx(0.0)
+            assert (hits[0].matched_terms, hits[0].query_terms) == (2, 2)
+            relaxed = await hybrid_search(
+                conn,
+                tenant_id=tenant_id,
+                query="Do you perform surgery?",
+                embedding=UNRELATED,
+                min_similarity=0.5,
+                min_keyword_terms=1,
+            )
+            assert {h.chunk_id for h in relaxed} == {root_canal, cosmetic}
+
+    run(scenario())
+
+
+def test_floor_keeps_high_similarity_vector_hits_and_drops_the_rest():
+    async def scenario():
+        async with database() as (conn, tenant):
+            tenant_id = await tenant()
+            _, _, semantic = await seed_dental(conn, tenant_id)
+            hits = await hybrid_search(
+                conn,
+                tenant_id=tenant_id,
+                query="Who can come in?",
+                embedding=FAR,
+                min_similarity=0.9,
+            )
+            assert [h.chunk_id for h in hits] == [semantic]
+            assert hits[0].similarity > 0.9
+            nothing = await hybrid_search(
+                conn,
+                tenant_id=tenant_id,
+                query="Who can come in?",
+                embedding=FAR,
+                min_similarity=0.999,
+            )
+            assert nothing == []
+
+    run(scenario())
+
+
+def test_single_term_query_is_a_strong_keyword_match():
+    async def scenario():
+        async with database() as (conn, tenant):
+            tenant_id = await tenant()
+            root_canal, _, _ = await seed_dental(conn, tenant_id)
+            weak = await hybrid_search(
+                conn,
+                tenant_id=tenant_id,
+                query="does it hurt, canals?",
+                embedding=UNRELATED,
+                min_similarity=0.5,
+            )
+            assert weak == []
+            hits = await hybrid_search(
+                conn, tenant_id=tenant_id, query="canals", embedding=UNRELATED, min_similarity=0.5
+            )
+            assert [h.chunk_id for h in hits] == [root_canal]
+
+    run(scenario())
+
+
+def test_no_floor_returns_everything():
+    async def scenario():
+        async with database() as (conn, tenant):
+            tenant_id = await tenant()
+            await seed_dental(conn, tenant_id)
+            hits = await hybrid_search(
+                conn, tenant_id=tenant_id, query="Who can come in?", embedding=FAR
+            )
+            assert len(hits) == 3
+
+    run(scenario())
+
+
 def test_rejects_invalid_limits():
     async def scenario():
         async with database() as (conn, _):
             with pytest.raises(ValueError):
                 await hybrid_search(
                     conn, tenant_id=uuid.uuid4(), query="x", embedding=axis((0, 1.0)), top_k=0
+                )
+            with pytest.raises(ValueError):
+                await hybrid_search(
+                    conn,
+                    tenant_id=uuid.uuid4(),
+                    query="x",
+                    embedding=axis((0, 1.0)),
+                    min_keyword_terms=0,
                 )
 
     run(scenario())
