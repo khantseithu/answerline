@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { agents, calls, callTurns, type Database, tenants } from "@answerline/db";
+import { agents, calls, callTurns, type Database, tenants, toolCalls } from "@answerline/db";
 import { type CallEventJob, callEventJob, parseAgentConfig } from "@answerline/shared";
 import type { Job } from "bullmq";
 import { and, eq } from "drizzle-orm";
@@ -133,6 +133,29 @@ async function handleTurn(
     .onConflictDoNothing({ target: [callTurns.callId, callTurns.seq] });
 }
 
+async function handleTool(
+  db: Database,
+  event: Extract<CallEventJob, { type: "call.tool" }>,
+  ref: Ref
+) {
+  const startedAt = new Date(event.started_at);
+  const callId = await ensureCallId(db, event, ref, startedAt);
+  await db
+    .insert(toolCalls)
+    .values({
+      args: event.args,
+      callId,
+      createdAt: startedAt,
+      error: event.error,
+      latencyMs: event.latency_ms,
+      name: event.name,
+      result: event.result,
+      seq: event.seq,
+      status: event.status,
+    })
+    .onConflictDoNothing({ target: [toolCalls.callId, toolCalls.seq] });
+}
+
 async function handleEnded(
   db: Database,
   event: Extract<CallEventJob, { type: "call.ended" }>,
@@ -170,6 +193,9 @@ export async function persistCallEvent(
       break;
     case "call.turn":
       await handleTurn(db, event, ref);
+      break;
+    case "call.tool":
+      await handleTool(db, event, ref);
       break;
     case "call.ended":
       await handleEnded(db, event, ref);

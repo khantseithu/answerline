@@ -134,9 +134,10 @@ export const toolCalls = pgTable(
     latencyMs: integer(),
     name: text().notNull(),
     result: jsonb(),
+    seq: integer().notNull(),
     status: toolCallStatus().notNull(),
   },
-  (t) => [index().on(t.callId)]
+  (t) => [uniqueIndex().on(t.callId, t.seq)]
 );
 
 export const knowledgeSources = pgTable(

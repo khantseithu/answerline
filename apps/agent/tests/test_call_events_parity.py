@@ -72,6 +72,8 @@ def test_job_ids_follow_shared_format():
     assert ids["ended"] == f"{room}_call.ended"
     assert ids["started-web"] == f"{room}_call.started"
     assert ids["turn-caller"] == f"{room}_call.turn_1"
+    assert ids["tool-ok"] == f"{room}_call.tool_0"
+    assert ids["tool-ok"] == f"{room}_call.tool_0"
 
 
 def test_queue_name_matches_shared_constant():
