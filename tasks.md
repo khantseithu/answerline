@@ -74,8 +74,10 @@ Roadmap: *Knowledge base ingestion and hybrid search*
   - [ ] Optional reranker (Cohere, Jina, or local cross-encoder)
   - [ ] Agent tool `search_knowledge` with a strict latency budget (target p95 < 300 ms)
   - [ ] Cite source in transcript/tool call log
+  - [ ] Relevance signal so out-of-scope queries don't return confident hits (#180)
 - [x] Dashboard: knowledge page (add URL, upload file, add Q&A, status, re-sync, delete)
 - [x] Tests: retrieval quality fixtures for the dental FAQ
+- [x] CI runs the Python Postgres/Redis tests (#183)
 
 **Done when:** upload the sample FAQ PDF, ask the agent about opening hours/services, and get correct answers grounded in the KB.
 
