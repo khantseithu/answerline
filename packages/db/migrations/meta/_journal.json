@@ -15,6 +15,13 @@
       "when": 1792677702293,
       "tag": "0001_init",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792725577306,
+      "tag": "0002_tiresome_gunslinger",
+      "breakpoints": true
     }
   ]
 }

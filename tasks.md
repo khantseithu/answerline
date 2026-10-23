@@ -62,13 +62,13 @@ Roadmap: *Web voice calls with a sample agent*
 
 Roadmap: *Knowledge base ingestion and hybrid search*
 
-- [ ] Ingestion (worker, `ingestion` queue)
-  - [ ] Loaders: PDF, URL (fetch + readability), Q&A pairs, plain text/Markdown
-  - [ ] Chunking with overlap and source metadata
-  - [x] Embeddings via pluggable provider (OpenAI, Gemini, Ollama) (#34)
-  - [ ] Store chunks + embeddings + `tsvector` in Postgres
-  - [ ] Re-ingest on change (content hash), delete stale chunks
-  - [ ] Job status and errors visible to the dashboard
+- [x] Ingestion (worker, `ingestion` queue; injected embedding seam pending #34)
+  - [x] Loaders: PDF, URL (fetch + readability), Q&A pairs, plain text/Markdown
+  - [x] Chunking with overlap and source metadata
+  - [ ] Embeddings via pluggable provider (OpenAI, Gemini, Ollama)
+  - [x] Store chunks + embeddings + `tsvector` in Postgres
+  - [x] Re-ingest on change (content hash), delete stale chunks
+  - [x] Job status and errors visible to the dashboard (persisted fields; UI remains #43)
 - [ ] Retrieval
   - [ ] Hybrid search: pgvector cosine + Postgres full-text, merged with reciprocal rank fusion
   - [ ] Optional reranker (Cohere, Jina, or local cross-encoder)
