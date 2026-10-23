@@ -13,6 +13,7 @@ import { asc, eq } from "drizzle-orm";
 import { Redis } from "ioredis";
 import {
   createIngestionProcessor,
+  createKnowledgeEmbedder,
   type EmbedKnowledge,
   enqueueIngestion,
   ingestKnowledgeSource,
@@ -21,6 +22,8 @@ import {
 const SEARCH_NINE = /nine/;
 const PROVIDER_UNAVAILABLE = /provider unavailable/;
 const SOURCE_NOT_FOUND = /not found for tenant/;
+const EMBEDDER_NOT_CONFIGURED =
+  /Knowledge embedding provider is not configured: Missing API key for embedding provider openai/;
 
 const skip = process.env.DATABASE_URL ? false : "DATABASE_URL not set";
 const queueSkip =
@@ -294,3 +297,33 @@ test(
       }
     })
 );
+
+test("the env embedder defers a missing API key to an ingestion error", async () => {
+  const embed = createKnowledgeEmbedder({});
+  await assert.rejects(embed(["hello"]), EMBEDDER_NOT_CONFIGURED);
+});
+
+test("the env embedder calls the configured provider", async () => {
+  const requests: { body: unknown; url: string }[] = [];
+  const embed = createKnowledgeEmbedder(
+    { EMBEDDING_MODEL: "ollama/qwen3-embedding:4b", OLLAMA_BASE_URL: "http://ollama.test:11434" },
+    (url, init) => {
+      requests.push({ body: JSON.parse(String(init?.body)), url: String(url) });
+      return Promise.resolve(
+        Response.json({
+          embeddings: [Array.from({ length: EMBEDDING_DIMENSIONS }, (_, index) => index + 1)],
+        })
+      );
+    }
+  );
+  const [vector] = await embed(["hello"]);
+  assert.equal(requests[0]?.url, "http://ollama.test:11434/api/embed");
+  assert.deepEqual(requests[0]?.body, {
+    dimensions: EMBEDDING_DIMENSIONS,
+    input: ["hello"],
+    model: "qwen3-embedding:4b",
+    truncate: false,
+  });
+  assert.equal(vector?.length, EMBEDDING_DIMENSIONS);
+  assert.ok(Math.abs(Math.hypot(...(vector ?? [])) - 1) < 1e-9);
+});
