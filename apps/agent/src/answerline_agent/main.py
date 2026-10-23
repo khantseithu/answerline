@@ -4,6 +4,7 @@ from livekit.plugins import silero
 
 from .call_limits import SHUTDOWN_PROCESS_TIMEOUT, CallLifecycle, drain_timeout
 from .call_session import CallSessionEvents, wait_for_caller
+from .capture_lead import LeadCaptureContext
 from .knowledge_tool import open_knowledge_tools
 from .prompts import compose_instructions
 from .providers import build_llm_chain, build_stt, build_tts
@@ -36,7 +37,17 @@ async def entrypoint(ctx: JobContext) -> None:
     ctx.log_context_fields = {"room": ctx.room.name}
     resolved = await resolve_agent(ctx.job.metadata, settings)
     config = resolved.config
-    tools = build_configured_tools(config, settings)
+    publisher = CallEventPublisher(settings.redis_url, settings.redis_prefix)
+    tools = build_configured_tools(
+        config,
+        settings,
+        lead_context=LeadCaptureContext(
+            publisher=publisher,
+            tenant=settings.tenant,
+            agent=resolved.slug,
+            room_name=ctx.room.name,
+        ),
+    )
     session = AgentSession(
         stt=build_stt(config.models.stt),
         llm=build_llm_chain(config.models),
@@ -52,7 +63,7 @@ async def entrypoint(ctx: JobContext) -> None:
     recording = build_call_recording(ctx, config, settings.tenant)
     events = CallSessionEvents(
         session=session,
-        publisher=CallEventPublisher(settings.redis_url, settings.redis_prefix),
+        publisher=publisher,
         room_name=ctx.room.name,
         tenant=settings.tenant,
         agent=resolved.slug,

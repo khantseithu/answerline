@@ -141,3 +141,46 @@ def test_flush_is_bounded_when_publish_hangs(monkeypatch):
         return loop.time() - started
 
     assert asyncio.run(run()) < 2
+
+
+@pytest.mark.skipif(not REDIS_URL, reason="REDIS_URL not set")
+def test_confirmed_lead_enqueue_is_acknowledged_and_retry_configured():
+    prefix = f"test-{uuid.uuid4()}"
+
+    async def run():
+        publisher = CallEventPublisher(REDIS_URL, prefix)
+        client = aioredis.from_url(REDIS_URL, decode_responses=True)
+        event = ADAPTER.validate_python(json.loads((VALID / "lead-created.json").read_text()))
+        try:
+            await publisher.publish_confirmed(event)
+            await publisher.publish_confirmed(event)
+            job_id = call_event_job_id(event)
+            assert await client.lrange(f"{prefix}:{CALL_EVENTS_QUEUE}:wait", 0, -1) == [job_id]
+            job = await client.hgetall(f"{prefix}:{CALL_EVENTS_QUEUE}:{job_id}")
+            assert json.loads(job["data"]) == call_event_payload(event)
+            options = json.loads(job["opts"])
+            assert options["attempts"] == 3
+            assert options["backoff"] == {"type": "exponential", "delay": 500}
+        finally:
+            await publisher.close()
+            keys = [key async for key in client.scan_iter(match=f"{prefix}:*")]
+            if keys:
+                await client.delete(*keys)
+            await client.aclose()
+
+    asyncio.run(run())
+
+
+def test_confirmed_enqueue_propagates_queue_failure(monkeypatch):
+    class BrokenQueue:
+        def __init__(self, *args):
+            pass
+
+        async def add(self, *args):
+            raise RuntimeError("unavailable")
+
+    monkeypatch.setattr(publisher_module, "Queue", BrokenQueue)
+    _, event = _fixture_events()[0]
+    publisher = CallEventPublisher("redis://unused", "test")
+    with pytest.raises(RuntimeError, match="unavailable"):
+        asyncio.run(publisher.publish_confirmed(event))

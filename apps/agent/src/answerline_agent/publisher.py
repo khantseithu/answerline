@@ -2,6 +2,8 @@ import asyncio
 import logging
 
 from bullmq import Queue
+from redis.exceptions import ConnectionError as RedisConnectionError
+from redis.exceptions import TimeoutError as RedisTimeoutError
 
 from .call_events import (
     CALL_EVENTS_QUEUE,
@@ -43,6 +45,23 @@ class CallEventPublisher:
             )
         except Exception:
             logger.warning("failed to publish call event %s", job_id, exc_info=True)
+
+    async def publish_confirmed(self, event: CallEventModel) -> None:
+        try:
+            await asyncio.wait_for(
+                self._queue.add(
+                    event.type,
+                    call_event_payload(event),
+                    {
+                        "jobId": call_event_job_id(event),
+                        "attempts": 3,
+                        "backoff": {"type": "exponential", "delay": 500},
+                    },
+                ),
+                self._publish_timeout,
+            )
+        except (RedisConnectionError, RedisTimeoutError) as exc:
+            raise ConnectionError("Call event queue is temporarily unavailable") from exc
 
     async def flush(self, timeout: float = FLUSH_TIMEOUT) -> None:
         pending = list(self._pending)

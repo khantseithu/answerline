@@ -34,7 +34,7 @@ def test_only_configured_supported_tools_are_registered_once(caplog):
 def test_unimplemented_config_does_not_register_dead_tools(caplog):
     agent = config()
     agent.tools = [
-        BuiltinTool(builtin="capture_lead"),
+        BuiltinTool(builtin="book_appointment"),
         HttpTool(
             http={
                 "name": "lookup",
@@ -46,7 +46,7 @@ def test_unimplemented_config_does_not_register_dead_tools(caplog):
         McpTool(mcp={"name": "crm", "url": "https://x.test"}),
     ]
     assert build_configured_tools(agent) == []
-    assert "capture_lead is not implemented" in caplog.text
+    assert "book_appointment is not implemented" in caplog.text
     assert "McpTool is not implemented" in caplog.text
 
 
@@ -79,7 +79,10 @@ def test_entrypoint_registers_configured_tools_alongside_knowledge(monkeypatch, 
         return query
 
     agent_config = config()
-    agent_config.tools = [BuiltinTool(builtin="business_hours")]
+    agent_config.tools = [
+        BuiltinTool(builtin="business_hours"),
+        BuiltinTool(builtin="capture_lead"),
+    ]
     knowledge_tool = llm.function_tool(search_knowledge, description="Search knowledge")
     knowledge = (
         SimpleNamespace(tools=[knowledge_tool], close=AsyncMock()) if has_knowledge else None
@@ -107,7 +110,16 @@ def test_entrypoint_registers_configured_tools_alongside_knowledge(monkeypatch, 
         asyncio.run(main.entrypoint(ctx))
     registered = session.start.call_args.kwargs["agent"].tools
     assert [tool.id for tool in registered] == (
-        ["search_knowledge", "business_hours"] if has_knowledge else ["business_hours"]
+        ["search_knowledge", "business_hours", "capture_lead"]
+        if has_knowledge
+        else ["business_hours", "capture_lead"]
     )
     if has_knowledge:
         assert registered[0] is knowledge_tool
+
+
+def test_capture_lead_requires_per_call_context():
+    agent = config()
+    agent.tools = [BuiltinTool(builtin="capture_lead")]
+    with pytest.raises(ValueError, match="requires a per-call lead context"):
+        build_configured_tools(agent)

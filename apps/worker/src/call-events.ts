@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { agents, calls, callTurns, type Database, tenants, toolCalls } from "@answerline/db";
+import { agents, calls, callTurns, type Database, leads, tenants, toolCalls } from "@answerline/db";
 import { type CallEventJob, callEventJob, parseAgentConfig } from "@answerline/shared";
 import type { Job } from "bullmq";
 import { and, eq } from "drizzle-orm";
@@ -181,6 +181,34 @@ async function handleEnded(
     .onConflictDoUpdate({ set: fields, target: calls.roomName });
 }
 
+async function handleLead(
+  db: Database,
+  event: Extract<CallEventJob, { type: "lead.created" }>,
+  ref: Ref
+) {
+  const createdAt = new Date(event.created_at);
+  const callId = await ensureCallId(db, event, ref, createdAt);
+  const [call] = await db
+    .select({ agentId: calls.agentId, tenantId: calls.tenantId })
+    .from(calls)
+    .where(eq(calls.id, callId));
+  if (call?.agentId !== ref.agentId || call.tenantId !== ref.tenantId) {
+    throw new Error("lead call reference does not match the tenant and agent");
+  }
+  await db
+    .insert(leads)
+    .values({
+      ...ref,
+      callId,
+      createdAt,
+      id: event.lead_id,
+      name: event.name,
+      phone: event.phone,
+      reason: event.reason,
+    })
+    .onConflictDoNothing({ target: leads.id });
+}
+
 export async function persistCallEvent(
   db: Database,
   event: CallEventJob,
@@ -196,6 +224,9 @@ export async function persistCallEvent(
       break;
     case "call.tool":
       await handleTool(db, event, ref);
+      break;
+    case "lead.created":
+      await handleLead(db, event, ref);
       break;
     case "call.ended":
       await handleEnded(db, event, ref);

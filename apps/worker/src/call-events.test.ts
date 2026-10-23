@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { agents, calls, callTurns, createDb, tenants, toolCalls } from "@answerline/db";
+import { agents, calls, callTurns, createDb, leads, tenants, toolCalls } from "@answerline/db";
 import type { CallEventJob } from "@answerline/shared";
 import { asc, eq } from "drizzle-orm";
 import { persistCallEvent } from "./call-events.ts";
 
 const skip = process.env.DATABASE_URL ? false : "DATABASE_URL not set";
 const AGENT = "bright-smile-dental";
+const LEAD_SCOPE_MISMATCH = /lead call reference does not match/;
 const MISSING_YAML = /agents\/no-such-agent\.yaml does not exist/;
 
 type EventOf<T extends CallEventJob["type"]> = Extract<CallEventJob, { type: T }>;
@@ -278,5 +279,94 @@ test("an unknown agent with no yaml fails the job", { skip }, () =>
       persistCallEvent(db, { ...started, agent: "no-such-agent" }),
       MISSING_YAML
     );
+  })
+);
+
+test("lead.created persists caller details once even before call.started", { skip }, () =>
+  withTenant(async ({ base, started }, db) => {
+    const event: EventOf<"lead.created"> = {
+      ...base,
+      created_at: "2026-10-22T14:00:10.000Z",
+      lead_id: crypto.randomUUID(),
+      name: "Alex Morgan",
+      phone: "+15555550123",
+      reason: "Please call back.",
+      type: "lead.created",
+    };
+    await persistCallEvent(db, event);
+    const placeholder = await getCall(db, base.room_name);
+    await persistCallEvent(db, { ...event, name: "Duplicate delivery" });
+    await persistCallEvent(db, started);
+    const call = await getCall(db, base.room_name);
+    const rows = await db.select().from(leads).where(eq(leads.callId, call.id));
+    assert.equal(rows.length, 1);
+    assert.deepEqual(rows[0], {
+      agentId: call.agentId,
+      callId: call.id,
+      createdAt: new Date(event.created_at),
+      id: event.lead_id,
+      name: event.name,
+      phone: event.phone,
+      reason: event.reason,
+      tenantId: call.tenantId,
+    });
+    assert.equal(call.id, placeholder.id);
+    assert.equal(call.channel, "sip");
+    assert.equal(call.startedAt.toISOString(), started.started_at);
+  })
+);
+
+test("lead.created cannot attach a lead to another tenant's call", { skip }, () =>
+  withTenant(async ({ base, started }, db) => {
+    await persistCallEvent(db, started);
+    const otherTenant = `other-${crypto.randomUUID()}`;
+    try {
+      await assert.rejects(
+        persistCallEvent(db, {
+          ...base,
+          created_at: "2026-10-22T14:00:10.000Z",
+          lead_id: crypto.randomUUID(),
+          name: "Alex Morgan",
+          phone: "+15555550123",
+          reason: "Please call back.",
+          tenant: otherTenant,
+          type: "lead.created",
+        }),
+        LEAD_SCOPE_MISMATCH
+      );
+      const call = await getCall(db, base.room_name);
+      assert.deepEqual(await db.select().from(leads).where(eq(leads.callId, call.id)), []);
+    } finally {
+      await db.delete(tenants).where(eq(tenants.slug, otherTenant));
+    }
+  })
+);
+
+test("lead.created cannot attach a lead to another agent's call", { skip }, () =>
+  withTenant(async ({ base, started }, db) => {
+    await persistCallEvent(db, started);
+    const call = await getCall(db, base.room_name);
+    const [agent] = await db.select().from(agents).where(eq(agents.id, call.agentId));
+    assert.ok(agent);
+    await db.insert(agents).values({
+      config: agent.config,
+      name: agent.name,
+      slug: "another-agent",
+      tenantId: agent.tenantId,
+    });
+    await assert.rejects(
+      persistCallEvent(db, {
+        ...base,
+        agent: "another-agent",
+        created_at: "2026-10-22T14:00:10.000Z",
+        lead_id: crypto.randomUUID(),
+        name: "Alex Morgan",
+        phone: "+15555550123",
+        reason: "Please call back.",
+        type: "lead.created",
+      }),
+      LEAD_SCOPE_MISMATCH
+    );
+    assert.deepEqual(await db.select().from(leads).where(eq(leads.callId, call.id)), []);
   })
 );

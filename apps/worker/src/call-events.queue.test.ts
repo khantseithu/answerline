@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
-import { calls, callTurns, createDb, tenants, toolCalls } from "@answerline/db";
+import { calls, callTurns, createDb, leads, tenants, toolCalls } from "@answerline/db";
 import { type CallEventJob, callEventJob, callEventJobId, QUEUES } from "@answerline/shared";
 import { Queue, Worker } from "bullmq";
 import { eq } from "drizzle-orm";
@@ -28,6 +28,7 @@ test("processes call events end to end through bullmq", { skip, timeout: 30_000 
 
   const events: CallEventJob[] = await Promise.all(
     [
+      "lead-created.json",
       "started-sip.json",
       "turn-agent.json",
       "tool-ok.json",
@@ -70,6 +71,11 @@ test("processes call events end to end through bullmq", { skip, timeout: 30_000 
     assert.equal(call.durationMs, 180_000);
     const turns = await db.select().from(callTurns).where(eq(callTurns.callId, call.id));
     assert.deepEqual(turns.map((t) => t.seq).sort(), [0, 1]);
+    const captured = await db.select().from(leads).where(eq(leads.callId, call.id));
+    assert.equal(captured.length, 1);
+    assert.equal(captured[0]?.name, "Alex Morgan");
+    assert.equal(captured[0]?.tenantId, call.tenantId);
+    assert.equal(captured[0]?.agentId, call.agentId);
     const tools = await db.select().from(toolCalls).where(eq(toolCalls.callId, call.id));
     assert.deepEqual(tools.map((t) => [t.seq, t.status]).sort(), [
       [0, "ok"],
