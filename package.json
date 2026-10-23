@@ -2,7 +2,7 @@
   "name": "answerline",
   "private": true,
   "scripts": {
-    "agent:dev": "uv run --env-file .env answerline-agent dev",
+    "agent:dev": "dotenvx run -- uv run answerline-agent dev",
     "bootstrap": "bash scripts/bootstrap.sh",
     "build": "turbo run build",
     "db:generate": "pnpm --filter @answerline/db generate",
@@ -18,7 +18,7 @@
     "prepare": "lefthook install",
     "py:lint": "uv run ruff check . && uv run ruff format --check .",
     "py:test": "uv run pytest",
-    "test": "turbo run test",
+    "test": "node --test scripts/*.test.mjs && turbo run test",
     "typecheck": "turbo run typecheck",
     "wt": "treehouse get",
     "wt:gc": "scripts/worktree-gc.sh",
@@ -26,6 +26,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
+    "@dotenvx/dotenvx": "^2.38.2",
     "lefthook": "^2.2.2",
     "turbo": "^2.11.10",
     "typescript": "^5.9.3",

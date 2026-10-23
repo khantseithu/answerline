@@ -92,6 +92,8 @@ pnpm dev                    # web on :3000 + worker
 pnpm agent:dev              # voice agent (separate terminal)
 ```
 
+The scripts use the project-local [Dotenvx](https://dotenvx.com/docs/quickstart) CLI to load the root `.env` for web, worker, database tools, and the uv-managed Python agent. No global Dotenvx install is needed. Keep local `.env` plaintext for Docker Compose and worktree setup; never commit it or `.env.keys`. See [environment configuration](docs/environment.md) for encryption and deployment.
+
 Open http://localhost:3000 and click **Talk to agent** to call the sample agent from your browser.
 
 *(planned)* A one-command `docker compose up -d` with prebuilt images and a first-run admin account (M7), and connecting a phone number over SIP (M4).
