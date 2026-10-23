@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { resolve } from "node:path";
 import { test } from "node:test";
 import { parseEnv } from "./env.ts";
 
@@ -21,4 +22,12 @@ test("validates embedding provider configuration without requiring unused keys",
 
 test("rejects an invalid REDIS_URL", () => {
   assert.throws(() => parseEnv({ REDIS_URL: "not a url" }));
+});
+
+test("resolves KNOWLEDGE_FILES_DIR with a repo-root default", () => {
+  assert.equal(parseEnv({}).KNOWLEDGE_FILES_DIR, resolve(process.cwd(), "../../.data/knowledge"));
+  assert.equal(
+    parseEnv({ KNOWLEDGE_FILES_DIR: "/srv/knowledge" }).KNOWLEDGE_FILES_DIR,
+    "/srv/knowledge"
+  );
 });

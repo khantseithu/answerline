@@ -1,13 +1,18 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { test } from "node:test";
+import { pathToFileURL } from "node:url";
 import type { knowledgeSources } from "@answerline/db";
 import { loadKnowledgeSource } from "./knowledge-loaders.ts";
 import { assertPublicAddress, fetchKnowledgePage } from "./knowledge-url.ts";
 
 const ABSOLUTE_PATH = /absolute/;
+const INSIDE_TENANT = /inside the tenant/;
+const NO_TENANT_DIR = /directory for this tenant does not exist/;
+const NOT_FOUND = /not found/;
+const NOT_CONFIGURED = /not configured/;
 const CLEANINGS = /dental cleanings/;
 const EXCLUDED_CONTENT = /Ignore navigation|must not execute/;
 const PUBLIC_IP = /public/;
@@ -72,31 +77,114 @@ test("loads inline text and validates Q&A pairs with citation metadata", async (
   await assert.rejects(loadKnowledgeSource(source({ content: "   " })));
 });
 
-test("loads PDF pages and plain text/Markdown files", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "answerline-loaders-"));
+async function withFilesDir(
+  run: (filesDir: string, tenantId: string, tenantDir: string) => Promise<void>
+) {
+  const filesDir = await mkdtemp(join(tmpdir(), "answerline-loaders-"));
+  const tenantId = crypto.randomUUID();
+  const tenantDir = join(filesDir, tenantId);
+  await mkdir(tenantDir);
   try {
-    const markdown = join(directory, "hours.md");
-    const plain = join(directory, "hours.txt");
-    const document = join(directory, "hours.pdf");
+    await run(filesDir, tenantId, tenantDir);
+  } finally {
+    await rm(filesDir, { recursive: true });
+  }
+}
+
+test("loads PDF pages and plain text/Markdown files inside the tenant directory", async () => {
+  await withFilesDir(async (filesDir, tenantId, tenantDir) => {
+    const markdown = join(tenantDir, "hours.md");
+    const plain = join(tenantDir, "hours.txt");
+    const document = join(tenantDir, "hours.pdf");
     await Promise.all([
       writeFile(markdown, "# Opening hours\nWeekdays at nine"),
       writeFile(plain, "Weekdays at nine"),
       writeFile(document, pdf("Weekdays at nine")),
     ]);
-    const [md, txt, pages] = await Promise.all(
-      [markdown, plain, document].map((uri) => loadKnowledgeSource(source({ type: "file", uri })))
+    const [md, txt, pages, viaUri] = await Promise.all(
+      [markdown, plain, document, pathToFileURL(plain).href].map((uri) =>
+        loadKnowledgeSource(source({ tenantId, type: "file", uri }), { filesDir })
+      )
     );
     assert.equal(md?.[0]?.text, "# Opening hours\nWeekdays at nine");
     assert.equal(txt?.[0]?.text, "Weekdays at nine");
     assert.equal(pages?.[0]?.text, "Weekdays at nine");
     assert.equal(pages?.[0]?.metadata.page, 1);
+    assert.equal(viaUri?.[0]?.text, "Weekdays at nine");
     await assert.rejects(
-      loadKnowledgeSource(source({ type: "file", uri: "relative.md" })),
+      loadKnowledgeSource(source({ tenantId, type: "file", uri: "relative.md" }), { filesDir }),
       ABSOLUTE_PATH
     );
-  } finally {
-    await rm(directory, { recursive: true });
-  }
+    await assert.rejects(
+      loadKnowledgeSource(source({ tenantId, type: "file", uri: join(tenantDir, "missing.md") }), {
+        filesDir,
+      }),
+      NOT_FOUND
+    );
+  });
+});
+
+test("file sources are confined to the tenant files directory", async () => {
+  await withFilesDir(async (filesDir, tenantId, tenantDir) => {
+    const otherDir = join(filesDir, crypto.randomUUID());
+    const outsideDir = await mkdtemp(join(tmpdir(), "answerline-outside-"));
+    try {
+      await mkdir(otherDir);
+      const secret = join(outsideDir, "secret.txt");
+      const otherFile = join(otherDir, "other.txt");
+      const shared = join(filesDir, "shared.txt");
+      await Promise.all([
+        writeFile(secret, "secret"),
+        writeFile(otherFile, "other tenant"),
+        writeFile(shared, "shared"),
+      ]);
+      await Promise.all([
+        symlink(otherFile, join(tenantDir, "link-other.txt")),
+        symlink(secret, join(tenantDir, "link-outside.txt")),
+        symlink(outsideDir, join(tenantDir, "link-dir")),
+      ]);
+      const attempts = [
+        secret,
+        pathToFileURL(secret).href,
+        `${tenantDir}/../shared.txt`,
+        `${tenantDir}/../${relative(filesDir, secret)}`,
+        otherFile,
+        shared,
+        tenantDir,
+        join(tenantDir, "link-other.txt"),
+        join(tenantDir, "link-outside.txt"),
+        join(tenantDir, "link-dir", "secret.txt"),
+      ];
+      await Promise.all(
+        attempts.map((uri) =>
+          assert.rejects(
+            loadKnowledgeSource(source({ tenantId, type: "file", uri }), { filesDir }),
+            INSIDE_TENANT,
+            uri
+          )
+        )
+      );
+    } finally {
+      await rm(outsideDir, { recursive: true });
+    }
+  });
+});
+
+test("file sources fail clearly without a configured or existing files directory", async () => {
+  await withFilesDir(async (filesDir, tenantId, tenantDir) => {
+    const file = join(tenantDir, "hours.txt");
+    await writeFile(file, "Weekdays at nine");
+    await assert.rejects(
+      loadKnowledgeSource(source({ tenantId, type: "file", uri: file })),
+      NOT_CONFIGURED
+    );
+    await assert.rejects(
+      loadKnowledgeSource(source({ tenantId: crypto.randomUUID(), type: "file", uri: file }), {
+        filesDir,
+      }),
+      NO_TENANT_DIR
+    );
+  });
 });
 
 test("extracts readable URL content without navigation or scripts", async () => {
