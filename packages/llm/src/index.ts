@@ -1,3 +1,15 @@
+export {
+  createEmbeddingProvider,
+  DEFAULT_EMBEDDING_MODEL,
+  EMBEDDING_DIMENSIONS,
+  EMBEDDING_PROVIDERS,
+  type EmbeddingOptions,
+  type EmbeddingProvider,
+  embeddingConfigFromEnv,
+  embeddingEnvSchema,
+  parseEmbeddingModelRef,
+} from "./embeddings.ts";
+
 export const PROVIDERS = ["anthropic", "openai", "google", "deepseek", "ollama"] as const;
 
 export type Provider = (typeof PROVIDERS)[number];

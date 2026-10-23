@@ -49,6 +49,18 @@ def test_event_publishing_settings(monkeypatch):
     assert settings.tenant == "acme"
 
 
+def test_embedding_settings(monkeypatch):
+    monkeypatch.delenv("EMBEDDING_MODEL", raising=False)
+    assert Settings().embedding_model == "openai/text-embedding-3-small"
+    monkeypatch.setenv("EMBEDDING_MODEL", "ollama/qwen3-embedding:4b")
+    monkeypatch.setenv("OLLAMA_BASE_URL", "http://local:11434")
+    settings = Settings()
+    assert settings.create_provider().model_ref == "ollama/qwen3-embedding:4b"
+    monkeypatch.setenv("EMBEDDING_MODEL", "anthropic/model")
+    with pytest.raises(ValidationError):
+        Settings()
+
+
 def test_tenant_must_be_a_slug(monkeypatch):
     monkeypatch.setenv("TENANT", "Not A Slug")
     with pytest.raises(ValidationError):

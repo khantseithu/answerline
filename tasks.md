@@ -65,7 +65,7 @@ Roadmap: *Knowledge base ingestion and hybrid search*
 - [ ] Ingestion (worker, `ingestion` queue)
   - [ ] Loaders: PDF, URL (fetch + readability), Q&A pairs, plain text/Markdown
   - [ ] Chunking with overlap and source metadata
-  - [ ] Embeddings via pluggable provider (OpenAI, Gemini, Ollama)
+  - [x] Embeddings via pluggable provider (OpenAI, Gemini, Ollama) (#34)
   - [ ] Store chunks + embeddings + `tsvector` in Postgres
   - [ ] Re-ingest on change (content hash), delete stale chunks
   - [ ] Job status and errors visible to the dashboard
@@ -254,6 +254,7 @@ Roadmap: *Multilingual agents*
 - Agent events: the Python agent enqueues BullMQ jobs directly; the worker consumes them (#129)
 - Agent config source of truth: the database; `agents/*.yaml` is the seed/import format and fallback (#131)
 - Recording storage default: MinIO in compose via the S3 API (#132); recording is opt-in per agent
+- M2 embeddings: OpenAI by default; Gemini and Ollama use 1536-dimensional vectors to fit `knowledge_chunks.embedding vector(1536)` (#34)
 
 ## Open decisions
 
