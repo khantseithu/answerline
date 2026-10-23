@@ -29,15 +29,17 @@ CONFIG = {
 }
 
 
-def _settings(database_url: str | None = None) -> Settings:
-    return Settings(_env_file=None, agents_dir=DEFAULT_AGENTS_DIR, database_url=database_url)
+def _settings(database_url: str | None = None, tenant: str = "default") -> Settings:
+    return Settings(
+        _env_file=None, agents_dir=DEFAULT_AGENTS_DIR, database_url=database_url, tenant=tenant
+    )
 
 
 def _fake_database(monkeypatch, result):
     calls = []
 
-    async def fake(database_url, slug):
-        calls.append((database_url, slug))
+    async def fake(database_url, slug, tenant):
+        calls.append((database_url, slug, tenant))
         if isinstance(result, Exception):
             raise result
         return result
@@ -84,7 +86,14 @@ def test_database_hit_skips_yaml(monkeypatch):
     resolved = asyncio.run(resolve_agent(json.dumps({"agent": DEFAULT}), settings))
     assert resolved.source == "database"
     assert resolved.config.name == "Database Clinic"
-    assert calls == [("postgres://db", DEFAULT)]
+    assert calls == [("postgres://db", DEFAULT, "default")]
+
+
+def test_database_lookup_uses_configured_tenant(monkeypatch):
+    calls = _fake_database(monkeypatch, AgentConfig.model_validate(CONFIG))
+    settings = _settings(database_url="postgres://db", tenant="acme")
+    asyncio.run(resolve_agent(json.dumps({"agent": DEFAULT}), settings))
+    assert calls == [("postgres://db", DEFAULT, "acme")]
 
 
 def test_database_miss_falls_back_to_yaml(monkeypatch):
@@ -156,3 +165,30 @@ async def _database_roundtrip() -> None:
 @pytest.mark.skipif(not DATABASE_URL, reason="DATABASE_URL not set")
 def test_resolve_against_postgres():
     asyncio.run(_database_roundtrip())
+
+
+async def _tenant_roundtrip() -> None:
+    tenant = f"test-{uuid.uuid4().hex[:12]}"
+    conn = await asyncpg.connect(DATABASE_URL)
+    try:
+        tenant_id = await conn.fetchval(
+            "insert into tenants (slug, name) values ($1, $1) returning id", tenant
+        )
+        await conn.execute(
+            "insert into agents (tenant_id, slug, name, config) values ($1, $2, $3, $4)",
+            tenant_id,
+            DEFAULT,
+            CONFIG["name"],
+            json.dumps(CONFIG),
+        )
+        own = await resolve_agent(None, _settings(database_url=DATABASE_URL, tenant=tenant))
+        assert own.source == "database"
+        assert own.config.name == "Database Clinic"
+    finally:
+        await conn.execute("delete from tenants where slug = $1", tenant)
+        await conn.close()
+
+
+@pytest.mark.skipif(not DATABASE_URL, reason="DATABASE_URL not set")
+def test_resolve_reads_the_configured_tenant():
+    asyncio.run(_tenant_roundtrip())
