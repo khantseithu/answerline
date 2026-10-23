@@ -10,7 +10,14 @@ export {
   parseEmbeddingModelRef,
 } from "./embeddings.ts";
 
-export const PROVIDERS = ["anthropic", "openai", "google", "deepseek", "ollama"] as const;
+export const PROVIDERS = [
+  "anthropic",
+  "openai",
+  "google",
+  "deepseek",
+  "ollama",
+  "openrouter",
+] as const;
 
 export type Provider = (typeof PROVIDERS)[number];
 

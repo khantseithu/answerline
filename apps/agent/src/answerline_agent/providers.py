@@ -37,6 +37,8 @@ def build_llm(ref: str) -> llm.LLM:
             return openai.LLM.with_deepseek(model=m.model)
         case "ollama":
             return openai.LLM.with_ollama(model=m.model)
+        case "openrouter":
+            return openai.LLM.with_openrouter(model=m.model)
     raise ValueError(f"Unsupported LLM provider: {ref}")
 
 

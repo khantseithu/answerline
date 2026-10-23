@@ -13,6 +13,7 @@ Legend: `[x]` done · `[ ]` todo · **Done when** = acceptance criteria for the 
 - [x] Biome (TS) and Ruff (Python) lint/format
 - [x] Zod schemas: agent config, eval suite, events, queue names
 - [x] `packages/llm` model refs and fallback (TS + Python)
+  - [x] OpenRouter LLM provider (`openrouter/<vendor>/<model>` refs) (#209)
 - [x] docker compose: Postgres (pgvector), Redis, LiveKit dev server
 - [x] Next.js 16 + Tailwind 4 + shadcn/ui (Base UI, all components)
 - [x] Python agent skeleton: loads YAML, builds STT / LLM fallback / TTS, greets
@@ -272,6 +273,7 @@ Roadmap: *Multilingual agents*
 - Booking: a minimal native provider ships first instead of Cal.com, which few target businesses use. Slots come from the agent's `hours` at a fixed length, bookings live in Postgres with an exclusion constraint against overlaps, and the agent writes bookings directly so it only confirms what was stored (an exception to #129). Cal.com and Google Calendar are optional adapters (#50, #205)
 - Booking providers: a Python `BookingProvider` protocol (availability, create, cancel) behind a registry keyed by the `book_appointment` `provider` name; the tool takes its timezone from `hours`, and callers can cancel only bookings made earlier in the same call. Cross-call cancellation is deferred (#51)
 - Booking confirmation: `book_appointment` only prepares a booking; `confirm_booking` writes it and is refused until the caller has spoken after the read-back, so the model cannot book in the same breath as summarizing (#55)
+- OpenRouter model refs: `openrouter/<vendor>/<model>` (e.g. `openrouter/anthropic/claude-sonnet-4.5`). The model ref pattern allows one optional extra `/` segment so OpenRouter's own ids pass unchanged; the provider is everything before the first `/` (#209)
 
 ## Open decisions
 

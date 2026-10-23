@@ -1,7 +1,9 @@
 import { parse } from "yaml";
 import { z } from "zod";
 
-const modelRef = z.string().regex(/^[a-z0-9-]+\/[\w.:-]+$/, "expected provider/model");
+const modelRef = z
+  .string()
+  .regex(/^[a-z0-9-]+\/(?:[\w.:-]+\/)?[\w.:-]+$/, "expected provider/model");
 
 const knowledgeSource = z.discriminatedUnion("type", [
   z.object({ type: z.literal("url"), url: z.url() }),

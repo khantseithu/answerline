@@ -20,6 +20,7 @@ def only_anthropic_key(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
 
 
 def test_skips_fallbacks_without_credentials(only_anthropic_key, caplog):
@@ -42,6 +43,23 @@ def test_keeps_available_fallbacks(only_anthropic_key, monkeypatch):
 def test_primary_without_credentials_still_fails(only_anthropic_key):
     with pytest.raises(openai.OpenAIError):
         build_llm_chain(models("openai/gpt-4.1-mini", []))
+
+
+def test_builds_openrouter_primary(only_anthropic_key, monkeypatch):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test")
+    chain = build_llm_chain(models("openrouter/anthropic/claude-sonnet-4.5", []))
+    assert chain.model == "anthropic/claude-sonnet-4.5"
+
+
+def test_openrouter_fallback_needs_its_key(only_anthropic_key, monkeypatch, caplog):
+    fallback = ["openrouter/anthropic/claude-sonnet-4.5"]
+    chain = build_llm_chain(models("anthropic/claude-sonnet-4-6", fallback))
+    assert not isinstance(chain, llm.FallbackAdapter)
+    assert "skipping fallback LLM openrouter/anthropic/claude-sonnet-4.5" in caplog.text
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test")
+    chain = build_llm_chain(models("anthropic/claude-sonnet-4-6", fallback))
+    assert isinstance(chain, llm.FallbackAdapter)
 
 
 def test_build_embedder_reuses_the_given_client(monkeypatch):
