@@ -21,6 +21,7 @@ from .knowledge import (
 from .providers import build_embedder
 from .settings import Settings
 from .tool_log import ToolLog
+from .tool_policy import execute_tool, retry_transient
 
 logger = logging.getLogger("answerline.agent")
 
@@ -134,7 +135,9 @@ class KnowledgeSearch:
         max_chars: int = MAX_RESULT_CHARS,
         min_similarity: float | None = None,
         min_keyword_terms: int = DEFAULT_MIN_KEYWORD_TERMS,
+        retries: int = 1,
     ) -> None:
+        self._retries = retries
         self._pool = pool
         self._embedder = embedder
         self._tenant_id = tenant_id
@@ -153,7 +156,7 @@ class KnowledgeSearch:
         started = time.perf_counter()
         try:
             async with asyncio.timeout(self._timeout):
-                hits = await self._lookup(query, timings)
+                hits = await retry_transient(lambda: self._lookup(query, timings), self._retries)
         except TimeoutError:
             logger.warning(
                 "search_knowledge timed out after %.0f ms (%s)",
@@ -204,12 +207,21 @@ class KnowledgeSearch:
         return " ".join(f"{name}={value:.0f}" for name, value in timings.items()) or "no timings"
 
 
-def build_search_knowledge_tool(search: KnowledgeSearch, tool_log: ToolLog) -> llm.FunctionTool:
+def build_search_knowledge_tool(
+    search: KnowledgeSearch, tool_log: ToolLog, settings: Settings | None = None
+) -> llm.FunctionTool:
+    settings = settings or Settings()
+
     async def search_knowledge(
         context: RunContext,
         query: Annotated[str, Field(description=QUERY_DESCRIPTION)],
     ) -> str:
-        result = await search.search(query)
+        result = await execute_tool(
+            lambda: search.search(query),
+            context=context,
+            timeout=settings.tool_timeout_seconds,
+            filler_delay=settings.tool_filler_delay_seconds,
+        )
         tool_log.attach(context.function_call.call_id, result.log())
         return result.text
 
@@ -257,6 +269,7 @@ async def open_knowledge_tools(
                 timeout=settings.knowledge_search_timeout_seconds,
                 min_similarity=settings.knowledge_min_similarity,
                 min_keyword_terms=settings.knowledge_min_keyword_terms,
+                retries=settings.tool_retries,
             )
     except Exception:
         logger.warning("search_knowledge unavailable for agent %s", agent_slug, exc_info=True)
@@ -267,5 +280,5 @@ async def open_knowledge_tools(
         return None
     logger.info("search_knowledge enabled for agent %s (%d sources)", agent_slug, source_count)
     return KnowledgeTools(
-        tools=[build_search_knowledge_tool(search, tool_log)], pool=pool, client=client
+        tools=[build_search_knowledge_tool(search, tool_log, settings)], pool=pool, client=client
     )

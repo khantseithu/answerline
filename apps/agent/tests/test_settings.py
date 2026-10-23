@@ -85,3 +85,37 @@ def test_knowledge_relevance_floor_is_off_by_default(monkeypatch):
     monkeypatch.setenv("KNOWLEDGE_MIN_SIMILARITY", "1.5")
     with pytest.raises(ValidationError):
         Settings()
+
+
+def test_tool_execution_defaults_and_overrides(monkeypatch):
+    for name in ("TOOL_TIMEOUT_SECONDS", "TOOL_RETRIES", "TOOL_FILLER_DELAY_SECONDS"):
+        monkeypatch.delenv(name, raising=False)
+    settings = Settings()
+    assert settings.tool_timeout_seconds == 10
+    assert settings.tool_retries == 1
+    assert settings.tool_filler_delay_seconds == 0.8
+    monkeypatch.setenv("TOOL_TIMEOUT_SECONDS", "3")
+    monkeypatch.setenv("TOOL_RETRIES", "2")
+    monkeypatch.setenv("TOOL_FILLER_DELAY_SECONDS", "0.5")
+    settings = Settings()
+    assert settings.tool_timeout_seconds == 3
+    assert settings.tool_retries == 2
+    assert settings.tool_filler_delay_seconds == 0.5
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [
+        ("TOOL_TIMEOUT_SECONDS", "0"),
+        ("TOOL_TIMEOUT_SECONDS", "inf"),
+        ("TOOL_TIMEOUT_SECONDS", "nan"),
+        ("TOOL_RETRIES", "4"),
+        ("TOOL_FILLER_DELAY_SECONDS", "-1"),
+        ("TOOL_FILLER_DELAY_SECONDS", "inf"),
+        ("TOOL_FILLER_DELAY_SECONDS", "nan"),
+    ],
+)
+def test_invalid_tool_execution_settings_are_rejected(monkeypatch, name, value):
+    monkeypatch.setenv(name, value)
+    with pytest.raises(ValidationError):
+        Settings()

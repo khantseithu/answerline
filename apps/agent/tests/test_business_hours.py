@@ -40,7 +40,7 @@ def test_business_hours_uses_local_schedule(monkeypatch, instant, weekdays, week
     hours = Hours(
         timezone="America/New_York", weekdays=weekdays, weekends=weekends, after_hours="answer"
     )
-    result = asyncio.run(build_business_hours_tool(hours)())
+    result = asyncio.run(build_business_hours_tool(hours)(context=None))
     assert result == {
         "is_open": expected,
         "local_time": now.astimezone(business_hours.ZoneInfo(hours.timezone)).isoformat(),

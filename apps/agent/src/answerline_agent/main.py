@@ -36,7 +36,7 @@ async def entrypoint(ctx: JobContext) -> None:
     ctx.log_context_fields = {"room": ctx.room.name}
     resolved = await resolve_agent(ctx.job.metadata, settings)
     config = resolved.config
-    tools = build_configured_tools(config)
+    tools = build_configured_tools(config, settings)
     session = AgentSession(
         stt=build_stt(config.models.stt),
         llm=build_llm_chain(config.models),
