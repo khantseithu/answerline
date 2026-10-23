@@ -1,6 +1,8 @@
 import asyncio
+import time
 from contextlib import nullcontext
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -26,14 +28,23 @@ class FrozenDatetime(datetime):
 
 
 class FakeContext:
+    def __init__(self, items=None):
+        self.session = SimpleNamespace(history=SimpleNamespace(items=items or []))
+
     def with_filler(self, *args, **kwargs):
         return nullcontext()
 
+    def says(self, role="user", *, earlier=False):
+        created_at = time.time() + (-1 if earlier else 1)
+        message = SimpleNamespace(type="message", role=role, created_at=created_at)
+        self.session.history.items.append(message)
+
 
 class FakeProvider:
-    def __init__(self, slots=(), fail=None):
-        self.slots = list(slots)
+    def __init__(self, slots=None, fail=None, fail_create=None):
+        self.slots = slots
         self.fail = fail
+        self.fail_create = fail_create
         self.windows = []
         self.created = []
         self.cancelled = []
@@ -43,12 +54,14 @@ class FakeProvider:
         if self.fail:
             error, self.fail = self.fail, None
             raise error
+        if self.slots is None:
+            return [Slot(start=start, end=start + timedelta(minutes=30))]
         return self.slots
 
     async def create(self, start, attendee):
         self.created.append((start, attendee))
-        if self.fail:
-            raise self.fail
+        if self.fail_create:
+            raise self.fail_create
         return Booking(id=f"b{len(self.created)}", start=start, end=start + timedelta(minutes=30))
 
     async def cancel(self, booking_id):
@@ -61,10 +74,10 @@ def frozen_now(monkeypatch):
 
 
 def tools(provider):
-    check, book, cancel = build_booking_tools(
+    check, book, confirm, cancel = build_booking_tools(
         provider, "America/New_York", Settings(tool_timeout_seconds=1, tool_retries=1)
     )
-    return check, book, cancel
+    return check, book, confirm, cancel
 
 
 def slot(hour, day=24):
@@ -79,15 +92,17 @@ def test_tool_schemas_hide_context():
     assert [schema["name"] for schema in schemas] == [
         "check_availability",
         "book_appointment",
+        "confirm_booking",
         "cancel_appointment",
     ]
     assert set(schemas[1]["parameters"]["required"]) == {"start", "name", "phone"}
     assert set(schemas[1]["parameters"]["properties"]) == {"start", "name", "phone", "notes"}
+    assert schemas[2]["parameters"]["required"] == ["confirmation_id"]
 
 
 def test_availability_searches_local_days_from_now_and_returns_sorted_local_times():
     provider = FakeProvider([slot(15), slot(9), slot(15, day=23)])
-    check, _, _ = tools(provider)
+    check, *_ = tools(provider)
     result = asyncio.run(check(FakeContext(), "2026-10-23", "2026-10-24"))
     assert provider.windows == [(NOW, datetime(2026, 10, 25, tzinfo=ZONE))]
     assert result == {
@@ -103,7 +118,7 @@ def test_availability_searches_local_days_from_now_and_returns_sorted_local_time
 
 def test_availability_caps_slots():
     provider = FakeProvider([slot(0, day=24) for _ in range(booking.MAX_SLOTS + 1)])
-    check, _, _ = tools(provider)
+    check, *_ = tools(provider)
     result = asyncio.run(check(FakeContext(), "2026-10-24"))
     assert len(result["slots"]) == booking.MAX_SLOTS
     assert result["more_available"] is True
@@ -120,7 +135,7 @@ def test_availability_caps_slots():
 )
 def test_invalid_availability_ranges_do_not_reach_provider(start_date, end_date):
     provider = FakeProvider()
-    check, _, _ = tools(provider)
+    check, *_ = tools(provider)
     with pytest.raises(ToolError):
         asyncio.run(check(FakeContext(), start_date, end_date))
     assert provider.windows == []
@@ -128,46 +143,84 @@ def test_invalid_availability_ranges_do_not_reach_provider(start_date, end_date)
 
 def test_availability_retries_transient_failure():
     provider = FakeProvider([slot(9)], fail=ConnectionError())
-    check, _, _ = tools(provider)
+    check, *_ = tools(provider)
     result = asyncio.run(check(FakeContext(), "2026-10-24"))
     assert len(provider.windows) == 2
     assert result["slots"] == ["2026-10-24T09:00:00-04:00"]
 
 
-def test_book_normalizes_details_and_cancels_only_same_call_bookings():
+def test_book_prepares_normalized_details_without_writing():
+    provider = FakeProvider()
+    _, book, _, _ = tools(provider)
+    result = asyncio.run(
+        book(FakeContext(), "2026-10-24T09:00:00", "\ufeff Alex \u0085", " +15555550123 ", "\n")
+    )
+    assert result == {
+        "confirmation_id": "c1",
+        "start": "2026-10-24T09:00:00-04:00",
+        "name": "Alex",
+        "phone": "+15555550123",
+        "notes": None,
+        "status": "awaiting_confirmation",
+    }
+    target = datetime(2026, 10, 24, 9, tzinfo=ZONE)
+    assert provider.windows == [(target, target + timedelta(microseconds=1))]
+    assert provider.created == []
+
+
+def test_confirm_requires_the_caller_to_speak_after_the_read_back():
     async def scenario():
         provider = FakeProvider()
-        _, book, cancel = tools(provider)
-        result = await book(
-            FakeContext(), "2026-10-24T09:00:00", "﻿ Alex \u0085", " +15555550123 ", "\n"
-        )
+        _, book, confirm, cancel = tools(provider)
+        context = FakeContext()
+        context.says(earlier=True)
+        prepared = await book(context, "2026-10-24T09:00:00", "Alex", "+15555550123", "Cleaning")
+        with pytest.raises(ToolError, match="wait for them to confirm"):
+            await confirm(context, prepared["confirmation_id"])
+        context.says(role="assistant")
+        with pytest.raises(ToolError, match="wait for them to confirm"):
+            await confirm(context, prepared["confirmation_id"])
+        assert provider.created == []
+        context.says()
+        result = await confirm(context, prepared["confirmation_id"])
         start, attendee = provider.created[0]
         assert start == datetime(2026, 10, 24, 9, tzinfo=ZONE)
-        assert (attendee.name, attendee.phone, attendee.notes) == ("Alex", "+15555550123", None)
+        assert (attendee.name, attendee.phone, attendee.notes) == (
+            "Alex",
+            "+15555550123",
+            "Cleaning",
+        )
         assert result == {
             "booking_id": "b1",
             "start": "2026-10-24T09:00:00-04:00",
             "end": "2026-10-24T09:30:00-04:00",
             "status": "confirmed",
         }
+        with pytest.raises(ToolError, match="Unknown confirmation_id"):
+            await confirm(context, prepared["confirmation_id"])
         with pytest.raises(ToolError, match="booked during this call"):
-            await cancel(FakeContext(), "someone-else")
-        assert await cancel(FakeContext(), "b1") == {"booking_id": "b1", "status": "cancelled"}
+            await cancel(context, "someone-else")
+        assert await cancel(context, "b1") == {"booking_id": "b1", "status": "cancelled"}
         with pytest.raises(ToolError, match="booked during this call"):
-            await cancel(FakeContext(), "b1")
+            await cancel(context, "b1")
         assert provider.cancelled == ["b1"]
 
     asyncio.run(scenario())
 
 
-def test_bookings_are_isolated_per_call():
+def test_confirmations_and_bookings_are_isolated_per_call():
     async def scenario():
         provider = FakeProvider()
-        _, book, _ = tools(provider)
-        _, _, other_cancel = tools(provider)
-        await book(FakeContext(), "2026-10-24T09:00:00-04:00", "Alex", "+15555550123")
+        _, book, confirm, _ = tools(provider)
+        _, _, other_confirm, other_cancel = tools(provider)
+        context = FakeContext()
+        prepared = await book(context, "2026-10-24T09:00:00-04:00", "Alex", "+15555550123")
+        context.says()
+        with pytest.raises(ToolError, match="Unknown confirmation_id"):
+            await other_confirm(context, prepared["confirmation_id"])
+        await confirm(context, prepared["confirmation_id"])
         with pytest.raises(ToolError, match="booked during this call"):
-            await other_cancel(FakeContext(), "b1")
+            await other_cancel(context, "b1")
 
     asyncio.run(scenario())
 
@@ -183,23 +236,36 @@ def test_bookings_are_isolated_per_call():
 )
 def test_invalid_bookings_do_not_reach_provider(start, name, phone):
     provider = FakeProvider()
-    _, book, _ = tools(provider)
+    _, book, _, _ = tools(provider)
     with pytest.raises(ToolError):
         asyncio.run(book(FakeContext(), start, name, phone))
-    assert provider.created == []
+    assert provider.windows == []
 
 
-def test_taken_slot_asks_for_another_time():
-    provider = FakeProvider(fail=SlotUnavailableError())
-    _, book, _ = tools(provider)
+def test_book_refuses_a_time_that_is_not_open():
+    provider = FakeProvider([slot(10)])
+    _, book, _, _ = tools(provider)
     with pytest.raises(ToolError, match="no longer available"):
         asyncio.run(book(FakeContext(), "2026-10-24T09:00:00", "Alex", "+15555550123"))
 
 
+async def book_and_confirm(provider):
+    _, book, confirm, _ = tools(provider)
+    context = FakeContext()
+    prepared = await book(context, "2026-10-24T09:00:00", "Alex", "+15555550123")
+    context.says()
+    return await confirm(context, prepared["confirmation_id"])
+
+
+def test_slot_taken_before_confirmation_asks_for_another_time():
+    provider = FakeProvider(fail_create=SlotUnavailableError())
+    with pytest.raises(ToolError, match="no longer available"):
+        asyncio.run(book_and_confirm(provider))
+
+
 def test_create_is_not_retried_after_transient_failure():
-    provider = FakeProvider(fail=ConnectionError())
-    _, book, _ = tools(provider)
+    provider = FakeProvider(fail_create=ConnectionError())
     with pytest.raises(ToolError) as caught:
-        asyncio.run(book(FakeContext(), "2026-10-24T09:00:00", "Alex", "+15555550123"))
+        asyncio.run(book_and_confirm(provider))
     assert str(caught.value) == UNAVAILABLE
     assert len(provider.created) == 1

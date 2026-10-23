@@ -1,5 +1,7 @@
+import time as clock
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
+from itertools import count
 from typing import Annotated, Protocol
 from zoneinfo import ZoneInfo
 
@@ -12,6 +14,9 @@ from .tool_policy import execute_tool
 
 MAX_SEARCH_DAYS = 14
 MAX_SLOTS = 20
+UNAVAILABLE_SLOT = (
+    "That time is no longer available. Offer the caller another time from check_availability."
+)
 
 
 @dataclass(frozen=True)
@@ -34,6 +39,13 @@ class Booking:
     end: datetime
 
 
+@dataclass(frozen=True)
+class PendingBooking:
+    start: datetime
+    attendee: Attendee
+    issued_at: float
+
+
 class SlotUnavailableError(Exception):
     pass
 
@@ -52,9 +64,17 @@ def build_booking_tools(
     settings = settings or Settings()
     zone = ZoneInfo(timezone)
     booked: set[str] = set()
+    pending: dict[str, PendingBooking] = {}
+    confirmation_ids = count(1)
 
     def local(value: datetime) -> str:
         return value.astimezone(zone).isoformat()
+
+    def caller_spoke_since(context: RunContext, since: float) -> bool:
+        return any(
+            item.type == "message" and item.role == "user" and item.created_at > since
+            for item in context.session.history.items
+        )
 
     async def check_availability(
         context: RunContext,
@@ -102,7 +122,7 @@ def build_booking_tools(
         notes: Annotated[
             str | None, Field(max_length=2000, description="The reason for the appointment")
         ] = None,
-    ) -> dict[str, str]:
+    ) -> dict[str, str | None]:
         try:
             when = datetime.fromisoformat(start)
         except ValueError as exc:
@@ -120,15 +140,50 @@ def build_booking_tools(
         )
         if not attendee.name or not attendee.phone:
             raise ToolError("Provide the caller's name and phone number.")
+        slots = await execute_tool(
+            lambda: provider.availability(when, when + timedelta(microseconds=1)),
+            context=context,
+            timeout=settings.tool_timeout_seconds,
+            retry_safe=True,
+            retries=settings.tool_retries,
+            filler_delay=settings.tool_filler_delay_seconds,
+        )
+        if not any(slot.start == when for slot in slots):
+            raise ToolError(UNAVAILABLE_SLOT)
+        confirmation_id = f"c{next(confirmation_ids)}"
+        pending[confirmation_id] = PendingBooking(
+            start=when, attendee=attendee, issued_at=clock.time()
+        )
+        return {
+            "confirmation_id": confirmation_id,
+            "start": local(when),
+            "name": attendee.name,
+            "phone": attendee.phone,
+            "notes": attendee.notes,
+            "status": "awaiting_confirmation",
+        }
+
+    async def confirm_booking(
+        context: RunContext,
+        confirmation_id: Annotated[
+            str, Field(description="The confirmation_id that book_appointment returned")
+        ],
+    ) -> dict[str, str]:
+        request = pending.get(confirmation_id)
+        if request is None:
+            raise ToolError("Unknown confirmation_id. Call book_appointment first.")
+        if not caller_spoke_since(context, request.issued_at):
+            raise ToolError(
+                "Read the appointment details back to the caller and wait for them to "
+                "confirm before calling confirm_booking."
+            )
 
         async def create() -> Booking:
             try:
-                return await provider.create(when, attendee)
+                return await provider.create(request.start, request.attendee)
             except SlotUnavailableError as exc:
-                raise ToolError(
-                    "That time is no longer available. Offer the caller another time "
-                    "from check_availability."
-                ) from exc
+                pending.pop(confirmation_id, None)
+                raise ToolError(UNAVAILABLE_SLOT) from exc
 
         booking = await execute_tool(
             create,
@@ -136,6 +191,7 @@ def build_booking_tools(
             timeout=settings.tool_timeout_seconds,
             filler_delay=settings.tool_filler_delay_seconds,
         )
+        pending.pop(confirmation_id, None)
         booked.add(booking.id)
         return {
             "booking_id": booking.id,
@@ -147,7 +203,7 @@ def build_booking_tools(
     async def cancel_appointment(
         context: RunContext,
         booking_id: Annotated[
-            str, Field(description="The booking_id that book_appointment returned")
+            str, Field(description="The booking_id that confirm_booking returned")
         ],
     ) -> dict[str, str]:
         if booking_id not in booked:
@@ -174,16 +230,25 @@ def build_booking_tools(
         llm.function_tool(
             book_appointment,
             description=(
-                "Book an appointment at a start time from check_availability, using only the "
-                "name, phone number, and reason the caller provided. Success means the "
-                "appointment is confirmed."
+                "Prepare an appointment at a start time from check_availability, using only "
+                "the name, phone number, and reason the caller provided. This does not book "
+                "anything: read the returned time and details back to the caller, ask them "
+                "to confirm, and call confirm_booking only after they agree. Call it again "
+                "if any detail changes."
+            ),
+        ),
+        llm.function_tool(
+            confirm_booking,
+            description=(
+                "Book the appointment prepared by book_appointment after the caller has "
+                "heard the details and agreed. Success means the appointment is confirmed."
             ),
         ),
         llm.function_tool(
             cancel_appointment,
             description=(
                 "Cancel an appointment booked earlier in this call, using the booking_id "
-                "that book_appointment returned."
+                "that confirm_booking returned."
             ),
         ),
     ]
