@@ -14,6 +14,7 @@ from livekit.agents.voice.events import (
 )
 
 from .call_events import CallEventModel, CallRecorder, summarize_usage
+from .tool_log import ToolLog
 
 logger = logging.getLogger("answerline.agent")
 
@@ -47,8 +48,10 @@ class CallSessionEvents:
         tenant: str,
         agent: str,
         recording_url: Callable[[], str | None] | None = None,
+        tool_log: ToolLog | None = None,
     ) -> None:
         self._session = session
+        self._tool_log = tool_log or ToolLog()
         self._publisher = publisher
         self._recorder = CallRecorder(room_name=room_name, tenant=tenant, agent=agent)
         self._recording_url = recording_url
@@ -92,6 +95,7 @@ class CallSessionEvents:
 
     def _on_tools(self, ev: FunctionToolsExecutedEvent) -> None:
         for call, output in ev.zipped():
+            logged = self._tool_log.take(call.call_id)
             try:
                 self._publisher.publish(
                     self._recorder.tool(
@@ -101,6 +105,7 @@ class CallSessionEvents:
                         is_error=output.is_error,
                         started_at=call.created_at,
                         finished_at=output.created_at,
+                        logged=logged,
                     )
                 )
             except Exception:

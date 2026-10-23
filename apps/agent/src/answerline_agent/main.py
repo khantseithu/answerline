@@ -11,6 +11,7 @@ from .publisher import CallEventPublisher
 from .recording import build_call_recording, start_with_notice
 from .resolve import resolve_agent
 from .settings import Settings
+from .tool_log import ToolLog
 from .turns import build_turn_handling
 
 settings = Settings()
@@ -42,7 +43,8 @@ async def entrypoint(ctx: JobContext) -> None:
         turn_handling=build_turn_handling(settings),
         user_away_timeout=settings.idle_timeout_seconds or None,
     )
-    knowledge = await open_knowledge_tools(settings, resolved.slug)
+    tool_log = ToolLog()
+    knowledge = await open_knowledge_tools(settings, resolved.slug, tool_log)
     if knowledge:
         ctx.add_shutdown_callback(lambda _reason: knowledge.close())
     recording = build_call_recording(ctx, config, settings.tenant)
@@ -53,6 +55,7 @@ async def entrypoint(ctx: JobContext) -> None:
         tenant=settings.tenant,
         agent=resolved.slug,
         recording_url=(lambda: recording.url) if recording else None,
+        tool_log=tool_log,
     )
     await session.start(
         room=ctx.room,

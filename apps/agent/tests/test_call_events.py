@@ -1,3 +1,5 @@
+import json
+
 from answerline_agent.call_events import (
     MAX_TOOL_RESULT_CHARS,
     CallRecorder,
@@ -204,6 +206,36 @@ def test_tool_result_is_bounded():
     assert len(bounded) == MAX_TOOL_RESULT_CHARS
     assert bounded.endswith("...[truncated]")
     assert bound_result({"text": "short"}) == {"text": "short"}
-    huge = bound_result({"text": long})
+    huge = bound_result({"data": long})
     assert isinstance(huge, str)
     assert len(huge) == MAX_TOOL_RESULT_CHARS
+
+
+def test_structured_result_truncates_text_before_other_fields():
+    citations = [{"source_id": f"s{i}", "title": "FAQ", "page": i} for i in range(20)]
+    value = {"text": "word " * 4000, "outcome": "ok", "citations": citations}
+    bounded = bound_result(value)
+    assert bounded["citations"] == citations
+    assert bounded["outcome"] == "ok"
+    assert bounded["text"].endswith("...[truncated]")
+    assert len(json.dumps(bounded, ensure_ascii=False)) <= MAX_TOOL_RESULT_CHARS
+
+
+def test_structured_result_truncation_accounts_for_json_escaping():
+    value = {"text": '"\n' * 6000, "citations": [{"page": 1}]}
+    bounded = bound_result(value)
+    assert bounded["citations"] == [{"page": 1}]
+    assert len(json.dumps(bounded, ensure_ascii=False)) <= MAX_TOOL_RESULT_CHARS
+
+
+def test_logged_structured_result_replaces_the_tool_output():
+    logged = {"text": "Open 9 to 5", "citations": [{"source_id": "s1"}]}
+    event = _tool(_recorder(), logged=logged)
+    assert event.result == logged
+    assert _tool(_recorder(), logged=None).result == "Open 9 to 5"
+
+
+def test_logged_result_is_ignored_for_errors():
+    event = _tool(_recorder(), output="boom", is_error=True, logged={"text": "x"})
+    assert event.result is None
+    assert event.error == "boom"

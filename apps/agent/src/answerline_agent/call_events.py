@@ -13,6 +13,7 @@ NonEmpty = Annotated[str, StringConstraints(min_length=1)]
 MAX_SEQ = 2**53 - 1
 MAX_TOOL_RESULT_CHARS = 8192
 TRUNCATION_MARKER = "...[truncated]"
+MAX_JSON_ESCAPE_EXPANSION = 6
 TIMESTAMP_PATTERN = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$"
 
 
@@ -114,7 +115,25 @@ def bound_result(value: Any, limit: int = MAX_TOOL_RESULT_CHARS) -> Any:
         encoded = json.dumps(value, ensure_ascii=False)
     except (TypeError, ValueError):
         return bound_text(str(value), limit)
-    return value if len(encoded) <= limit else bound_text(encoded, limit)
+    if len(encoded) <= limit:
+        return value
+    if isinstance(value, dict) and isinstance(value.get("text"), str):
+        shrunk = _shrink_text_field(value, limit)
+        if shrunk is not None:
+            return shrunk
+    return bound_text(encoded, limit)
+
+
+def _shrink_text_field(value: dict, limit: int) -> dict | None:
+    text = value["text"]
+    budget = len(text)
+    while budget > len(TRUNCATION_MARKER):
+        candidate = {**value, "text": bound_text(text, budget)}
+        excess = len(json.dumps(candidate, ensure_ascii=False)) - limit
+        if excess <= 0:
+            return candidate
+        budget -= max(excess // MAX_JSON_ESCAPE_EXPANSION, 1)
+    return None
 
 
 def parse_tool_args(arguments: str | None) -> dict[str, Any]:
@@ -228,13 +247,14 @@ class CallRecorder:
         is_error: bool,
         started_at: float,
         finished_at: float,
+        logged: Any = None,
     ) -> CallTool:
         event = CallTool(
             **self._ref(),
             seq=self.next_tool_seq,
             name=name,
             args=parse_tool_args(arguments),
-            result=None if is_error else bound_result(output),
+            result=None if is_error else bound_result(output if logged is None else logged),
             status="error" if is_error else "ok",
             error=bound_text(str(output)) if is_error else None,
             latency_ms=max(round((finished_at - started_at) * 1000), 0),

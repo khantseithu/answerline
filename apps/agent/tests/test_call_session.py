@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 from answerline_agent import call_session
 from answerline_agent.call_session import CallSessionEvents
+from answerline_agent.tool_log import ToolLog
 from livekit import rtc
 from livekit.agents.llm import AgentHandoff, ChatMessage, FunctionCall, FunctionCallOutput
 from livekit.agents.metrics import STTModelUsage
@@ -39,7 +40,7 @@ class FakePublisher:
         self.closed = True
 
 
-def _events(session=None, publisher=None, recording_url=None):
+def _events(session=None, publisher=None, recording_url=None, tool_log=None):
     session = session or FakeSession()
     publisher = publisher or FakePublisher()
     events = CallSessionEvents(
@@ -49,6 +50,7 @@ def _events(session=None, publisher=None, recording_url=None):
         tenant="default",
         agent="bright-smile-dental",
         recording_url=recording_url,
+        tool_log=tool_log,
     )
     return events, session, publisher
 
@@ -143,6 +145,34 @@ def test_executed_tools_become_ordered_tool_events():
         500,
     )
     assert third.args == {"query": "price"}
+
+
+def test_attached_tool_log_data_becomes_the_logged_result():
+    tool_log = ToolLog()
+    _, session, publisher = _events(tool_log=tool_log)
+    logged = {"text": "Open 9 to 5", "outcome": "ok", "citations": [{"source_id": "s1"}]}
+    tool_log.attach("call_0", logged)
+    session.handlers["function_tools_executed"](
+        _tools_executed(
+            ("search_knowledge", '{"query": "hours"}', "Open 9 to 5", False, 100.0, 100.2),
+            ("lookup", "{}", "plain", False, 100.0, 100.2),
+        )
+    )
+    first, second = publisher.events
+    assert first.result == logged
+    assert second.result == "plain"
+    assert tool_log.take("call_0") is None
+
+
+def test_attached_tool_log_data_is_dropped_when_the_tool_errors():
+    tool_log = ToolLog()
+    _, session, publisher = _events(tool_log=tool_log)
+    tool_log.attach("call_0", {"text": "x"})
+    session.handlers["function_tools_executed"](
+        _tools_executed(("search_knowledge", "{}", "boom", True, 100.0, 100.2))
+    )
+    assert publisher.events[0].result is None
+    assert tool_log.take("call_0") is None
 
 
 def test_close_publishes_completed_with_usage_without_waiting_for_shutdown():

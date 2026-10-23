@@ -7,9 +7,18 @@
   "name": "search_knowledge",
   "args": { "query": "do you take insurance" },
   "result": {
-    "text": "We accept most major insurance plans.",
+    "text": "[1] Insurance FAQ | https://example.com/insurance | page 2\nWe accept most major insurance plans.",
+    "outcome": "ok",
     "citations": [
-      { "source_id": "6f1d2c7e-9a41-4c8e-8d3b-2a5f7e9b1c04", "page": 2 }
+      {
+        "source_id": "6f1d2c7e-9a41-4c8e-8d3b-2a5f7e9b1c04",
+        "chunk_id": "0d5c8b1a-3e7f-4a62-9c10-8b4e6f2d7a35",
+        "title": "Insurance FAQ",
+        "uri": "https://example.com/insurance",
+        "page": 2,
+        "score": 0.0328,
+        "similarity": 0.81
+      }
     ]
   },
   "status": "ok",
