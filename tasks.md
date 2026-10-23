@@ -251,6 +251,7 @@ Roadmap: *Multilingual agents*
 - [ ] Hosted demo at `demo.answerline.dev` (browser + phone number), with abuse limits (call length, rate limits)
 - [x] Adopt the Signal “a” identity, publish reusable brand assets, and update site branding (#192)
 - [ ] 2-minute demo video and `docs/assets/demo-thumbnail.png`
+- [x] 45-second launch preview video in the README, captioned as the v1 vision (#202)
 - [ ] Docs: `architecture.md`, `telephony.md`, deploy guides, configuration reference, tools reference
 - [ ] Make repo public, add topics, social preview image
 - [ ] Security: dependency audit, secret scanning, `SECURITY.md`
