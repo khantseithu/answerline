@@ -12,6 +12,7 @@ Principles:
 - **Latency is the product.** Anything in the live call path must be fast; push slow work to the worker.
 
 `README.md` is the vision we work backward from. `tasks.md` is the roadmap; check items off when they land.
+Keep `tasks.md`, the corresponding GitHub issues, and the Answerline Roadmap GitHub Project in sync. When roadmap scope, decisions, or status change, update every affected issue and project item in the same task and verify all three agree before finishing.
 
 ## Layout
 
@@ -69,6 +70,7 @@ Python
 ## Task workflow
 
 Every change goes **issue → worktree → PR → merge**. No work starts without an issue, and nothing lands on `main` without a PR.
+Use the `gh` CLI for all GitHub operations, including issues, pull requests, and project boards. Check `gh auth status` first; if authentication is expired, tell the user and stop GitHub operations until they reauthenticate. Do not silently switch to a browser or another connector. If a sandboxed `gh auth status` reports an invalid token, retry it in the host context before treating authentication as expired; the keyring login may still work there.
 
 1. **Issue.** Start from a GitHub issue (roadmap issues are grouped by milestone, with sub-issues under parent issues). If none exists, open one first: imperative title, milestone, `roadmap` label. If the task needs a product or design decision, settle it with the user before coding and record the outcome on the issue (and in `tasks.md` Decisions).
 2. **Worktree.** Lease a treehouse slot and branch from `origin/main`: `treehouse get -b <type>/<short-desc>` (or a Claude Code subagent with `isolation: "worktree"`). One issue per worktree; split work that touches shared contracts so the contract PR lands first (see "Parallel work").
