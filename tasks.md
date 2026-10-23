@@ -245,6 +245,7 @@ Roadmap: *Multilingual agents*
 ## Launch
 
 - [ ] Hosted demo at `demo.answerline.dev` (browser + phone number), with abuse limits (call length, rate limits)
+- [x] Adopt the Signal “a” identity, publish reusable brand assets, and update site branding (#192)
 - [ ] 2-minute demo video and `docs/assets/demo-thumbnail.png`
 - [ ] Docs: `architecture.md`, `telephony.md`, deploy guides, configuration reference, tools reference
 - [ ] Make repo public, add topics, social preview image
@@ -254,6 +255,7 @@ Roadmap: *Multilingual agents*
 
 ## Decisions
 
+- Brand: adopt the Signal “a” identity selected from the logo concepts; keep outlined mark, wordmark, light/dark variants, and app icons in `brand/` (#192)
 - ORM and migrations: Drizzle with postgres.js (#127)
 - Agent events: the Python agent enqueues BullMQ jobs directly; the worker consumes them (#129)
 - Agent config source of truth: the database; `agents/*.yaml` is the seed/import format and fallback (#131)

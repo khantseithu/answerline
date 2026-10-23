@@ -236,7 +236,7 @@ function BrandPanel({ theme }: { theme: "light" | "dark" }) {
       )}
     >
       <span className="text-muted-foreground text-xs capitalize">{theme}</span>
-      <Logo className="[&>span]:text-3xl [&>svg]:size-10" />
+      <Logo className="[&>svg]:h-10" />
     </div>
   );
 }
@@ -289,7 +289,7 @@ export default function DesignPage() {
           </div>
 
           <GuideSection
-            description="A lowercase wordmark in Geist and a mark drawn from the call visualizer at rest: a quiet line that picks up and speaks."
+            description="Signal “a”: a lowercase a cut by a continuous voice line, paired with the outlined wordmark from the approved logo."
             id="brand"
             title="Brand"
           >
@@ -306,7 +306,7 @@ export default function DesignPage() {
                   <LogoMark className="size-5" />
                 </span>
                 <span className="flex size-4 items-center justify-center rounded-[4px] bg-[#007563] text-[#f6fdfb]">
-                  <LogoMark className="size-3" strokeWidth={3} />
+                  <LogoMark className="size-3" />
                 </span>
               </Surface>
               <Surface className="flex flex-col justify-center gap-2 text-sm/relaxed">
@@ -317,9 +317,9 @@ export default function DesignPage() {
                   <code className="numeric text-xs">live</code> wherever a call is happening.
                 </p>
                 <p className="text-muted-foreground">
-                  Files: <code className="numeric text-xs">docs/assets/logo.svg</code>,{" "}
-                  <code className="numeric text-xs">logo-dark.svg</code>,{" "}
-                  <code className="numeric text-xs">mark.svg</code>, and{" "}
+                  Files: <code className="numeric text-xs">brand/logo-black.svg</code>,{" "}
+                  <code className="numeric text-xs">logo-white.svg</code>,{" "}
+                  <code className="numeric text-xs">mark-black.svg</code>, and{" "}
                   <code className="numeric text-xs">apps/web/src/app/icon.svg</code>.
                 </p>
               </Surface>

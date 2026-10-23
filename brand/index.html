@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta content="width=device-width,initial-scale=1" name="viewport">
+    <title>Answerline — Brand assets</title>
+    <style>
+    :root {
+      --paper: #f3f2ee;
+      --ink: #111;
+      --muted: #555;
+      --rule: #d7d6d0;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      font:
+        15px / 1.5 Arial,
+        Helvetica,
+        sans-serif;
+      color: var(--ink);
+      background: var(--paper);
+    }
+    main {
+      max-width: 1240px;
+      padding: 48px 5vw;
+      margin: auto;
+    }
+    header {
+      display: flex;
+      gap: 24px;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--ink);
+    }
+    header img {
+      width: 190px;
+      height: auto;
+    }
+    h1 {
+      margin: 48px 0 16px;
+      font-size: clamp(32px, 5vw, 58px);
+      line-height: 1.1;
+      letter-spacing: -0.055em;
+    }
+    h2 {
+      margin: 0;
+      font-size: 23px;
+      letter-spacing: -0.035em;
+    }
+    p {
+      max-width: 620px;
+      color: var(--muted);
+    }
+
+    header p {
+      margin: 0;
+      color: var(--muted);
+    }
+    section {
+      padding: 32px 0;
+      border-bottom: 1px solid var(--rule);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 24px;
+    }
+    figure {
+      min-width: 0;
+      margin: 0;
+    }
+    .light {
+      color: #111;
+      background: white;
+    }
+    .dark {
+      color: white;
+      background: #111;
+    }
+    .art {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 220px;
+      padding: 36px;
+    }
+    .art img {
+      display: block;
+      width: auto;
+      max-width: 100%;
+      height: auto;
+      max-height: 140px;
+    }
+    figcaption {
+      display: flex;
+      gap: 12px;
+      justify-content: space-between;
+      padding: 16px;
+      font-size: 12px;
+      border-top: 1px solid #8884;
+    }
+    a {
+      color: inherit;
+      text-underline-offset: 4px;
+    }
+    a + a {
+      margin-left: 12px;
+    }
+    a:focus-visible {
+      outline: 2px solid currentColor;
+      outline-offset: 4px;
+    }
+    footer {
+      padding: 28px 0;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    @media (max-width: 650px) {
+      main {
+        padding: 28px 20px;
+      }
+      .grid {
+        grid-template-columns: 1fr;
+      }
+      header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .art {
+        height: 190px;
+        padding: 28px;
+      }
+    }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <img alt="answerline" src="logo-black.svg">
+        <p>Signal “a” / Brand assets</p>
+      </header>
+      <h1>A line that answers.</h1>
+      <p>
+        The approved Answerline identity. The same traced artwork, prepared for different
+        placements. Choose black on light surfaces and white on dark surfaces.
+      </p>
+      <section>
+        <h2>Horizontal logo</h2>
+        <p>Headers, documentation, and wide placements.</p>
+        <div class="grid">
+          <figure class="light">
+            <div class="art"><img alt="Answerline logo black" src="logo-black.svg"></div>
+            <figcaption>
+              <span>logo-black</span
+              ><span
+                ><a download href="logo-black.svg">SVG</a>
+                <a download href="logo-black.png">PNG</a></span
+              >
+            </figcaption>
+          </figure>
+          <figure class="dark">
+            <div class="art"><img alt="Answerline logo white" src="logo-white.svg"></div>
+            <figcaption>
+              <span>logo-white</span
+              ><span
+                ><a download href="logo-white.svg">SVG</a>
+                <a download href="logo-white.png">PNG</a></span
+              >
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+      <section>
+        <h2>Standalone mark</h2>
+        <p>Compact navigation, avatars, and symbol-only placements.</p>
+        <div class="grid">
+          <figure class="light">
+            <div class="art"><img alt="Answerline mark black" src="mark-black.svg"></div>
+            <figcaption>
+              <span>mark-black</span
+              ><span
+                ><a download href="mark-black.svg">SVG</a>
+                <a download href="mark-black.png">PNG</a></span
+              >
+            </figcaption>
+          </figure>
+          <figure class="dark">
+            <div class="art"><img alt="Answerline mark white" src="mark-white.svg"></div>
+            <figcaption>
+              <span>mark-white</span
+              ><span
+                ><a download href="mark-white.svg">SVG</a>
+                <a download href="mark-white.png">PNG</a></span
+              >
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+      <section>
+        <h2>Wordmark</h2>
+        <p>The name alone, with the original outlined lettering.</p>
+        <div class="grid">
+          <figure class="light">
+            <div class="art"><img alt="Answerline wordmark black" src="wordmark-black.svg"></div>
+            <figcaption>
+              <span>wordmark-black</span
+              ><span
+                ><a download href="wordmark-black.svg">SVG</a>
+                <a download href="wordmark-black.png">PNG</a></span
+              >
+            </figcaption>
+          </figure>
+          <figure class="dark">
+            <div class="art"><img alt="Answerline wordmark white" src="wordmark-white.svg"></div>
+            <figcaption>
+              <span>wordmark-white</span
+              ><span
+                ><a download href="wordmark-white.svg">SVG</a>
+                <a download href="wordmark-white.png">PNG</a></span
+              >
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+      <section>
+        <h2>Stacked logo</h2>
+        <p>Square placements and cover artwork.</p>
+        <div class="grid">
+          <figure class="light">
+            <div class="art">
+              <img alt="Answerline logo stacked black" src="logo-stacked-black.svg">
+            </div>
+            <figcaption>
+              <span>logo-stacked-black</span
+              ><span
+                ><a download href="logo-stacked-black.svg">SVG</a>
+                <a download href="logo-stacked-black.png">PNG</a></span
+              >
+            </figcaption>
+          </figure>
+          <figure class="dark">
+            <div class="art">
+              <img alt="Answerline logo stacked white" src="logo-stacked-white.svg">
+            </div>
+            <figcaption>
+              <span>logo-stacked-white</span
+              ><span
+                ><a download href="logo-stacked-white.svg">SVG</a>
+                <a download href="logo-stacked-white.png">PNG</a></span
+              >
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+      <section>
+        <h2>App icon</h2>
+        <p>A fixed teal tile for browser tabs and home screens.</p>
+        <div class="grid">
+          <figure class="light">
+            <div class="art"><img alt="Answerline app icon" src="app-icon.svg"></div>
+            <figcaption>
+              <span>app-icon</span
+              ><span
+                ><a download href="app-icon.svg">SVG</a>
+                <a download href="app-icon.png">PNG</a></span
+              >
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+      <footer>
+        SVG for scalable artwork · PNG for uploads · <a href="README.md">Usage guide</a><br>Keep the
+        voice line transparent. Preserve proportions and leave clear space around the mark.
+      </footer>
+    </main>
+  </body>
+</html>
