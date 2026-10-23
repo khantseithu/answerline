@@ -28,10 +28,13 @@ const EMBEDDER_NOT_CONFIGURED =
 const skip = process.env.DATABASE_URL ? false : "DATABASE_URL not set";
 const queueSkip =
   process.env.DATABASE_URL && process.env.REDIS_URL ? false : "DATABASE_URL or REDIS_URL not set";
-const fakeEmbed: EmbedKnowledge = async (texts) =>
-  texts.map(() =>
-    Array.from({ length: EMBEDDING_DIMENSIONS }, (_, index) => (index === 0 ? 1 : 0))
-  );
+const withModel = (
+  embed: (texts: string[]) => Promise<number[][]>,
+  modelRef = "test/fake-embedding"
+): EmbedKnowledge => Object.assign(embed, { modelRef });
+const fakeEmbed = withModel(async (texts) =>
+  texts.map(() => Array.from({ length: EMBEDDING_DIMENSIONS }, (_, index) => (index === 0 ? 1 : 0)))
+);
 
 async function withSource(
   run: (db: ReturnType<typeof createDb>, input: IngestionJob) => Promise<void>
@@ -90,10 +93,14 @@ test(
     withSource(async (db, input) => {
       const before = await getSource(db, input.sourceId);
       assert.deepEqual(
-        await ingestKnowledgeSource(db, input, async (texts) => {
-          assert.equal((await getSource(db, input.sourceId)).status, "processing");
-          return fakeEmbed(texts);
-        }),
+        await ingestKnowledgeSource(
+          db,
+          input,
+          withModel(async (texts) => {
+            assert.equal((await getSource(db, input.sourceId)).status, "processing");
+            return fakeEmbed(texts);
+          })
+        ),
         { changed: true }
       );
       const source = await getSource(db, input.sourceId);
@@ -123,9 +130,13 @@ test("unchanged content skips embeddings; changed content deletes all stale chun
     const firstHash = (await getSource(db, input.sourceId)).contentHash;
     assert.ok(before.length > 1);
     assert.deepEqual(
-      await ingestKnowledgeSource(db, input, () => {
-        throw new Error("must not embed unchanged content");
-      }),
+      await ingestKnowledgeSource(
+        db,
+        input,
+        withModel(() => {
+          throw new Error("must not embed unchanged content");
+        })
+      ),
       { changed: false }
     );
     assert.deepEqual(
@@ -145,6 +156,25 @@ test("unchanged content skips embeddings; changed content deletes all stale chun
   })
 );
 
+test("an embedding model change re-embeds unchanged content", { skip }, () =>
+  withSource(async (db, input) => {
+    await ingestKnowledgeSource(db, input, fakeEmbed);
+    const before = await getSource(db, input.sourceId);
+    let embeds = 0;
+    const result = await ingestKnowledgeSource(
+      db,
+      input,
+      withModel((texts) => {
+        embeds += 1;
+        return fakeEmbed(texts);
+      }, "test/other-embedding")
+    );
+    assert.deepEqual(result, { changed: true });
+    assert.equal(embeds, 1);
+    assert.notEqual((await getSource(db, input.sourceId)).contentHash, before.contentHash);
+  })
+);
+
 test(
   "failed embedding retains the last good chunks and hash; retry clears the error",
   { skip },
@@ -158,9 +188,13 @@ test(
         .set({ content: "Updated hours" })
         .where(eq(knowledgeSources.id, input.sourceId));
       await assert.rejects(
-        ingestKnowledgeSource(db, input, () => {
-          throw new Error("Embedding provider unavailable");
-        }),
+        ingestKnowledgeSource(
+          db,
+          input,
+          withModel(() => {
+            throw new Error("Embedding provider unavailable");
+          })
+        ),
         PROVIDER_UNAVAILABLE
       );
       const failed = await getSource(db, input.sourceId);
@@ -195,7 +229,13 @@ test(
         [Array.from({ length: EMBEDDING_DIMENSIONS }, () => 1e100)],
       ].reduce(async (pending, invalid) => {
         await pending;
-        await assert.rejects(ingestKnowledgeSource(db, input, () => Promise.resolve(invalid)));
+        await assert.rejects(
+          ingestKnowledgeSource(
+            db,
+            input,
+            withModel(() => Promise.resolve(invalid))
+          )
+        );
         assert.equal((await getSource(db, input.sourceId)).status, "failed");
         assert.deepEqual(await getChunks(db, input.sourceId), chunks);
       }, Promise.resolve());
@@ -216,10 +256,14 @@ test("batches provider requests and inserts for larger sources", { skip }, () =>
       .set({ content: "opening hours ".repeat(15_000) })
       .where(eq(knowledgeSources.id, input.sourceId));
     const batchSizes: number[] = [];
-    await ingestKnowledgeSource(db, input, (texts) => {
-      batchSizes.push(texts.length);
-      return fakeEmbed(texts);
-    });
+    await ingestKnowledgeSource(
+      db,
+      input,
+      withModel((texts) => {
+        batchSizes.push(texts.length);
+        return fakeEmbed(texts);
+      })
+    );
     const chunks = await getChunks(db, input.sourceId);
     assert.ok(chunks.length > 128);
     assert.ok(batchSizes.length > 2);
@@ -249,10 +293,10 @@ test("tenant mismatch cannot ingest or modify another tenant's source", { skip }
 test("concurrent deliveries serialize replacement and embed unchanged content once", { skip }, () =>
   withSource(async (db, input) => {
     let embeds = 0;
-    const embed: EmbedKnowledge = (texts) => {
+    const embed = withModel((texts) => {
       embeds += 1;
       return fakeEmbed(texts);
-    };
+    });
     const results = await Promise.all([
       ingestKnowledgeSource(db, input, embed),
       ingestKnowledgeSource(db, input, embed),

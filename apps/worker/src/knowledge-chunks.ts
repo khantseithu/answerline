@@ -6,8 +6,17 @@ export interface ChunkOptions {
   overlapChars?: number;
 }
 
-export function knowledgeContentHash(documents: KnowledgeDocument[]) {
-  return createHash("sha256").update(JSON.stringify(documents)).digest("hex");
+export const DEFAULT_CHUNK_OPTIONS = { maxChars: 1600, overlapChars: 240 } as const;
+
+export function knowledgeContentHash(
+  documents: KnowledgeDocument[],
+  embeddingModel: string,
+  options: ChunkOptions = {}
+) {
+  const sizes = { ...DEFAULT_CHUNK_OPTIONS, ...options };
+  return createHash("sha256")
+    .update(JSON.stringify({ documents, embeddingModel, sizes }))
+    .digest("hex");
 }
 
 function validateChunkSizes(maxChars: number, overlapChars: number) {
@@ -22,8 +31,8 @@ function validateChunkSizes(maxChars: number, overlapChars: number) {
 }
 
 export function chunkKnowledge(documents: KnowledgeDocument[], options: ChunkOptions = {}) {
-  const maxChars = options.maxChars ?? 1600;
-  const overlapChars = options.overlapChars ?? 240;
+  const maxChars = options.maxChars ?? DEFAULT_CHUNK_OPTIONS.maxChars;
+  const overlapChars = options.overlapChars ?? DEFAULT_CHUNK_OPTIONS.overlapChars;
   validateChunkSizes(maxChars, overlapChars);
   const chunks: { content: string; metadata: Record<string, unknown>; seq: number }[] = [];
   for (const document of documents) {
