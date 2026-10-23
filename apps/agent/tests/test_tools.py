@@ -143,6 +143,7 @@ def test_book_appointment_uses_opened_provider_once():
     assert [tool.id for tool in tools] == [
         "check_availability",
         "book_appointment",
+        "confirm_booking",
         "cancel_appointment",
     ]
 
