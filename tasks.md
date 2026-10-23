@@ -96,7 +96,7 @@ Roadmap: *Built-in tools: booking, transfer, business hours*
   - [ ] Holiday overrides and automatic after-hours routing (#49)
 - [ ] `book_appointment` (#50)
   - [x] Provider interface: availability lookup, create, cancel (#51)
-  - [ ] Native provider: slots from `hours`, bookings stored in Postgres without double-booking (#205)
+  - [x] Native provider: slots from `hours`, bookings stored in Postgres without double-booking (#205)
   - [ ] Confirm details back to caller before booking
   - [ ] Emit `booking.created`
   - [ ] Cal.com adapter (optional, #53)

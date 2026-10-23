@@ -24,7 +24,8 @@ knowledge:
 
 tools:
   - builtin: book_appointment
-    provider: cal_com
+    provider: answerline
+    slot_minutes: 30
   - builtin: transfer_call
     to: "+15555550100"
   - http:
