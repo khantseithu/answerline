@@ -59,16 +59,42 @@ export const callEndedJob = z.object({
   usage: z.record(z.string(), z.number()).optional(),
 });
 
+export const leadCreatedJob = z.object({
+  ...callRef,
+  created_at: z.iso.datetime({ offset: true }),
+  lead_id: z.uuid().toLowerCase(),
+  name: z
+    .string()
+    .min(1)
+    .max(200)
+    .regex(/^\S(?:[\s\S]*\S)?(?![\s\S])/),
+  phone: z
+    .string()
+    .min(1)
+    .max(100)
+    .regex(/^\S(?:[\s\S]*\S)?(?![\s\S])/),
+  reason: z
+    .string()
+    .min(1)
+    .max(2000)
+    .regex(/^\S(?:[\s\S]*\S)?(?![\s\S])/),
+  type: z.literal("lead.created"),
+});
+
 export const callEventJob = z.discriminatedUnion("type", [
   callStartedJob,
   callTurnJob,
   callToolJob,
   callEndedJob,
+  leadCreatedJob,
 ]);
 
 export type CallEventJob = z.infer<typeof callEventJob>;
 
 export function callEventJobId(event: CallEventJob): string {
+  if (event.type === "lead.created") {
+    return `${event.room_name}_${event.type}_${event.lead_id}`;
+  }
   return event.type === "call.turn" || event.type === "call.tool"
     ? `${event.room_name}_${event.type}_${event.seq}`
     : `${event.room_name}_${event.type}`;

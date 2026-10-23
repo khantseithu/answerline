@@ -3,8 +3,9 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Annotated, Any, Literal
+from uuid import UUID
 
-from pydantic import AfterValidator, BaseModel, Field, StringConstraints
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstraints
 
 CALL_EVENTS_QUEUE = "call-events"
 
@@ -82,13 +83,33 @@ class CallEnded(CallRef):
     recording_url: NonEmpty | None = None
 
 
-CallEventModel = CallStarted | CallTurn | CallTool | CallEnded
+class LeadCreated(CallRef):
+    model_config = ConfigDict(regex_engine="python-re")
+
+    type: Literal["lead.created"] = "lead.created"
+    lead_id: UUID
+    name: Annotated[
+        str, StringConstraints(min_length=1, max_length=200, pattern=r"^\S(?:[\s\S]*\S)?(?![\s\S])")
+    ]
+    phone: Annotated[
+        str, StringConstraints(min_length=1, max_length=100, pattern=r"^\S(?:[\s\S]*\S)?(?![\s\S])")
+    ]
+    reason: Annotated[
+        str,
+        StringConstraints(min_length=1, max_length=2000, pattern=r"^\S(?:[\s\S]*\S)?(?![\s\S])"),
+    ]
+    created_at: Timestamp
+
+
+CallEventModel = CallStarted | CallTurn | CallTool | CallEnded | LeadCreated
 CallEvent = Annotated[CallEventModel, Field(discriminator="type")]
 
 ROLE_MAP: dict[str, Literal["caller", "agent"]] = {"user": "caller", "assistant": "agent"}
 
 
 def call_event_job_id(event: CallEventModel) -> str:
+    if isinstance(event, LeadCreated):
+        return f"{event.room_name}_{event.type}_{event.lead_id}"
     if isinstance(event, CallTurn | CallTool):
         return f"{event.room_name}_{event.type}_{event.seq}"
     return f"{event.room_name}_{event.type}"

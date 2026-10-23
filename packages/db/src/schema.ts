@@ -205,6 +205,25 @@ export const bookings = pgTable(
   (t) => [index().on(t.tenantId, t.startsAt)]
 );
 
+export const leads = pgTable(
+  "leads",
+  {
+    agentId: uuid()
+      .notNull()
+      .references(() => agents.id, { onDelete: "cascade" }),
+    callId: uuid()
+      .notNull()
+      .references(() => calls.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+    id: id(),
+    name: text().notNull(),
+    phone: text().notNull(),
+    reason: text().notNull(),
+    tenantId: tenantId(),
+  },
+  (t) => [index().on(t.tenantId, t.createdAt)]
+);
+
 export const evalRuns = pgTable(
   "eval_runs",
   {
