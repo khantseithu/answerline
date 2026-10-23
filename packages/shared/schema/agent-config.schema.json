@@ -178,11 +178,37 @@
               "builtin": {
                 "type": "string",
                 "enum": [
-                  "book_appointment",
                   "transfer_call",
                   "business_hours",
                   "capture_lead"
                 ]
+              }
+            },
+            "required": [
+              "builtin"
+            ],
+            "additionalProperties": {}
+          },
+          {
+            "type": "object",
+            "properties": {
+              "builtin": {
+                "type": "string",
+                "const": "book_appointment"
+              },
+              "provider": {
+                "default": "answerline",
+                "type": "string",
+                "enum": [
+                  "answerline",
+                  "cal_com"
+                ]
+              },
+              "slot_minutes": {
+                "default": 30,
+                "type": "integer",
+                "minimum": 5,
+                "maximum": 480
               }
             },
             "required": [

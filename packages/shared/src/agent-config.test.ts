@@ -59,3 +59,20 @@ test("committed JSON Schema matches zod schema", async () => {
     "run `pnpm --filter @answerline/shared generate:schema`"
   );
 });
+
+test("book_appointment defaults to the native provider with 30 minute slots", () => {
+  const source = `name: A
+greeting: Hi
+instructions: Be brief.
+models:
+  stt: deepgram/nova-3
+  llm:
+    primary: anthropic/claude-sonnet-4-6
+  tts: cartesia/sonic-3
+tools:
+  - builtin: book_appointment
+`;
+  assert.deepEqual(parseAgentConfig(source).tools, [
+    { builtin: "book_appointment", provider: "answerline", slot_minutes: 30 },
+  ]);
+});
