@@ -170,6 +170,7 @@ Roadmap: *Docker Compose and Coolify deploys*
 - [ ] Full `docker-compose.yml`: web, worker, agent, Postgres, Redis, LiveKit, LiveKit SIP, Egress, with healthchecks and migrations on start
 - [ ] Production LiveKit config (keys, TURN, UDP port range, domain/TLS notes)
 - [ ] `.env.example` complete and documented
+- [ ] Recording storage: Cloudflare R2 as the primary target, with an adapter for other S3-compatible providers ([#153](https://github.com/khantseithu/answerline/issues/153))
 - [ ] Images published to GHCR on tag (multi-arch)
 - [ ] `docs/deploy/docker.md`
 - [ ] Coolify template + `docs/deploy/coolify.md`
@@ -183,7 +184,7 @@ Roadmap: *Docker Compose and Coolify deploys*
 
 Roadmap: *Terraform modules for Azure and AWS*
 
-- [ ] `infra/azure`: Container Apps (web, worker, agent), Postgres Flexible Server with pgvector, Azure Cache for Redis, Key Vault, Blob Storage for recordings, autoscaling for worker/agent
+- [ ] `infra/azure`: Container Apps (web, worker, agent), Postgres Flexible Server with pgvector, Azure Cache for Redis, Key Vault, Cloudflare R2 for recordings, autoscaling for worker/agent
 - [ ] `infra/aws`: ECS Fargate (or EKS), RDS Postgres, ElastiCache, Secrets Manager, S3
 - [ ] LiveKit: self-hosted on VMs/EC2 with UDP, or LiveKit Cloud as documented option
 - [ ] Environments: dev, staging, prod via workspaces or separate state
@@ -253,7 +254,7 @@ Roadmap: *Multilingual agents*
 - ORM and migrations: Drizzle with postgres.js (#127)
 - Agent events: the Python agent enqueues BullMQ jobs directly; the worker consumes them (#129)
 - Agent config source of truth: the database; `agents/*.yaml` is the seed/import format and fallback (#131)
-- Recording storage default: MinIO in compose via the S3 API (#132); recording is opt-in per agent
+- Recording storage: Cloudflare R2 is the primary production target; other S3-compatible providers use an adapter. Local compose uses MinIO for development; recording is opt-in per agent (#132, #153)
 - M2 embeddings: OpenAI by default; Gemini and Ollama use 1536-dimensional vectors to fit `knowledge_chunks.embedding vector(1536)` (#34)
 - Auth: Better Auth (#128)
 

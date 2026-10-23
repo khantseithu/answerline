@@ -22,7 +22,7 @@ Files land in the `recordings` bucket at `<tenant>/<room_name>.ogg`. `call.ended
 
 ## Storage
 
-`pnpm infra:up` starts MinIO, creates the bucket, and starts the egress worker. Egress holds the storage credentials; the agent only needs `S3_BUCKET`.
+`pnpm infra:up` starts MinIO for local development, creates the bucket, and starts the egress worker. Egress holds the storage credentials; the agent only needs `S3_BUCKET`. Cloudflare R2 is the planned primary production target, with an adapter for other S3-compatible providers.
 
 | | |
 |---|---|
@@ -31,7 +31,7 @@ Files land in the `recordings` bucket at `<tenant>/<room_name>.ogg`. `call.ended
 | Dev credentials | `answerline` / `answerline-secret` |
 | Bucket | `recordings` |
 
-Override the `S3_*` and `MINIO_*` variables in `.env` (see `.env.example`). To use AWS S3 or any other S3-compatible store, point the `egress` service's `storage.s3` block at it instead of MinIO. The dev credentials are for local use only.
+Override the `S3_*` and `MINIO_*` variables in `.env` (see `.env.example`). The dev credentials are for local use only.
 
 ## Consent
 

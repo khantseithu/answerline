@@ -266,7 +266,7 @@ OpenAI `text-embedding-3-*` requests native `dimensions: 1536`; legacy OpenAI mo
 | `egress` | `livekit/egress` | S3 output pointed at MinIO |
 | `minio`, `minio-init` | `cgr.dev/chainguard/minio` | S3 API and console, `minio-init` creates the bucket |
 
-MinIO's upstream repository is archived, so compose uses Chainguard's rebuild of the final source. A maintained replacement is tracked in [#153](https://github.com/khantseithu/answerline/issues/153). The recording code only uses the S3 API, so the swap is compose and env only. LiveKit SIP is not in compose yet (**Planned**, [#63](https://github.com/khantseithu/answerline/issues/63)).
+MinIO is used only as the local development S3 service. Cloudflare R2 is the planned primary production target, with an adapter for other S3-compatible providers ([#153](https://github.com/khantseithu/answerline/issues/153)). LiveKit SIP is not in compose yet (**Planned**, [#63](https://github.com/khantseithu/answerline/issues/63)).
 
 ## Data model
 
@@ -366,7 +366,7 @@ The agent name keeps dispatch separate: a slot's web app issues tokens for `answ
 | Phone calls | Channel and caller ID fields in events and schema | LiveKit SIP, trunks, dispatch rules (M4, [#63](https://github.com/khantseithu/answerline/issues/63)-[#71](https://github.com/khantseithu/answerline/issues/71)) |
 | Voice loop | STT, LLM fallback, TTS, local turn detection, interruption tuning, call limits | Noise cancellation, multilingual model choice (M11) |
 | Call log | Calls and turns with latency and usage in Postgres | Calls UI, call detail, post-call summary and cost (M5) |
-| Recording | Opt-in egress to S3-compatible storage, URL on the call | Playback in the dashboard, replacement for MinIO ([#153](https://github.com/khantseithu/answerline/issues/153)) |
+| Recording | Opt-in egress to local MinIO via the S3 API, URL on the call | Cloudflare R2 primary storage and an adapter for other S3-compatible providers ([#153](https://github.com/khantseithu/answerline/issues/153)); playback in the dashboard |
 | Knowledge base | Loaders, chunking, hash-based ingestion, atomic chunk/vector replacement, persisted status/errors, enqueue helper, agent-side hybrid search (vector + full-text, RRF) | Production embedding provider wiring (#34), `search_knowledge` tool, reranking, citations, dashboard (M2) |
 | Tools | Config schema | Tool framework, booking, transfer, hours, HTTP, MCP (M3) |
 | Evals | Suite schema, CLI stub, tables | Runner, assertions, dashboard (M6) |
@@ -382,11 +382,10 @@ Settled (see [`tasks.md`](../tasks.md#decisions)):
 - Drizzle with postgres.js for the schema and migrations ([#127](https://github.com/khantseithu/answerline/issues/127)).
 - The Python agent enqueues BullMQ jobs directly; the worker consumes them ([#129](https://github.com/khantseithu/answerline/issues/129)).
 - The database is the agent config source of truth; YAML is the seed format and fallback ([#131](https://github.com/khantseithu/answerline/issues/131)).
-- Recordings go to MinIO through the S3 API by default, opt-in per agent ([#132](https://github.com/khantseithu/answerline/issues/132)).
+- Cloudflare R2 is the planned primary recording store; other S3-compatible providers use an adapter. Local compose uses MinIO for development. Recording is opt-in per agent ([#132](https://github.com/khantseithu/answerline/issues/132)).
 
 Open:
 
 - Auth library: Better Auth or Auth.js ([#128](https://github.com/khantseithu/answerline/issues/128)).
 - Turn detection defaults for self-hosted setups, pending real-call checks ([#130](https://github.com/khantseithu/answerline/issues/130)).
 - Model alias names in the README versus full model ids ([#133](https://github.com/khantseithu/answerline/issues/133)).
-- MinIO replacement ([#153](https://github.com/khantseithu/answerline/issues/153)).
