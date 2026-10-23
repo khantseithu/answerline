@@ -255,7 +255,7 @@ export default function DesignPage() {
           <span className="hidden text-muted-foreground text-sm sm:inline">Design system</span>
           <div className="ml-auto flex items-center gap-1.5">
             <ThemeToggle />
-            <Link className={buttonVariants({ variant: "outline" })} href="/">
+            <Link className={buttonVariants({ variant: "outline" })} href="/overview">
               Open dashboard
             </Link>
           </div>

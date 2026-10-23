@@ -16,7 +16,7 @@ export interface NavItem {
 }
 
 export const PRIMARY_NAV: NavItem[] = [
-  { href: "/", icon: LayoutGridIcon, title: "Overview" },
+  { href: "/overview", icon: LayoutGridIcon, title: "Overview" },
   { href: "/calls", icon: PhoneIncomingIcon, title: "Calls" },
 ];
 

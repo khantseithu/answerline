@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { isActive } from "./nav";
 
-test("overview is active only on the root path", () => {
-  assert.equal(isActive("/", "/"), true);
-  assert.equal(isActive("/calls", "/"), false);
+test("overview is active only on its path", () => {
+  assert.equal(isActive("/overview", "/overview"), true);
+  assert.equal(isActive("/calls", "/overview"), false);
 });
 
 test("sections stay active on nested paths", () => {
