@@ -42,7 +42,7 @@ export function embeddingConfigFromEnv(source: NodeJS.ProcessEnv) {
   const env = embeddingEnvSchema.parse(source);
   const { provider } = parseEmbeddingModelRef(env.EMBEDDING_MODEL);
   return {
-    apiKey: provider === "openai" ? env.OPENAI_API_KEY : env.GOOGLE_API_KEY,
+    apiKey: { google: env.GOOGLE_API_KEY, ollama: undefined, openai: env.OPENAI_API_KEY }[provider],
     baseUrl: provider === "ollama" ? env.OLLAMA_BASE_URL : undefined,
     modelRef: env.EMBEDDING_MODEL,
   };

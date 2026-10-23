@@ -38,7 +38,7 @@ class EmbeddingSettings(BaseSettings):
 
     def create_provider(self, *, client: httpx.AsyncClient | None = None):
         provider = parse_embedding_model_ref(self.embedding_model).provider
-        key = self.openai_api_key if provider == "openai" else self.google_api_key
+        key = {"openai": self.openai_api_key, "google": self.google_api_key}.get(provider)
         return create_embedding_provider(
             self.embedding_model,
             api_key=key.get_secret_value() if key else None,

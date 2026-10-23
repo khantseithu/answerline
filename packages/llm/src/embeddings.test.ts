@@ -45,12 +45,13 @@ test("embedding model refs and typed env default to OpenAI", () => {
       .apiKey,
     "g"
   );
-  assert.equal(
+  assert.deepEqual(
     embeddingConfigFromEnv({
       EMBEDDING_MODEL: "ollama/qwen3-embedding:4b",
+      GOOGLE_API_KEY: "g",
       OLLAMA_BASE_URL: "http://local:11434",
-    }).baseUrl,
-    "http://local:11434"
+    }),
+    { apiKey: undefined, baseUrl: "http://local:11434", modelRef: "ollama/qwen3-embedding:4b" }
   );
   assert.throws(() => embeddingEnvSchema.parse({ OLLAMA_BASE_URL: "invalid" }));
 });

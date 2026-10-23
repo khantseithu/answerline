@@ -224,7 +224,7 @@ Drizzle ORM with postgres.js ([#127](https://github.com/khantseithu/answerline/i
 | `GOOGLE_API_KEY` | unset | Required when constructing a Gemini embedding provider |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama server; no key required |
 
-The worker's Zod env schema includes these settings; the agent's Pydantic `Settings` inherits `EmbeddingSettings`. Keys are checked when the provider is constructed, not at application startup. Explicit factory options can override the model, key, base URL, and timeout without reading environment variables.
+The worker's Zod env schema includes these settings; the Python side reads them through `EmbeddingSettings`. The voice agent does not load embedding settings yet; query embedding for `search_knowledge` is **Planned**. Keys are checked when the provider is constructed, not at application startup. Explicit factory options can override the model, key, base URL, and timeout without reading environment variables.
 
 ```ts
 import { createEmbeddingProvider, embeddingConfigFromEnv } from "@answerline/llm";

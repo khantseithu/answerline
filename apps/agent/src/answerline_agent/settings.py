@@ -1,16 +1,15 @@
 from pathlib import Path
 from typing import Literal
 
-from answerline_llm import EmbeddingSettings
 from pydantic import Field
-from pydantic_settings import SettingsConfigDict
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .call_events import Slug
 
 DEFAULT_AGENTS_DIR = Path(__file__).resolve().parents[4] / "agents"
 
 
-class Settings(EmbeddingSettings):
+class Settings(BaseSettings):
     model_config = SettingsConfigDict(extra="ignore")
 
     agent_name: str = "answerline"

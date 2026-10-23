@@ -54,7 +54,9 @@ def test_model_refs_and_env(monkeypatch):
     assert EmbeddingSettings().create_provider().model_ref == "google/gemini-embedding-001"
     monkeypatch.setenv("EMBEDDING_MODEL", "ollama/qwen3-embedding:4b")
     monkeypatch.setenv("OLLAMA_BASE_URL", "http://local:11434")
-    assert EmbeddingSettings().create_provider().model_ref == "ollama/qwen3-embedding:4b"
+    ollama = EmbeddingSettings().create_provider()
+    assert ollama.model_ref == "ollama/qwen3-embedding:4b"
+    assert ollama._api_key is None
     assert parse_embedding_model_ref("ollama/org/model:tag").model == "org/model:tag"
     for ref in ("anthropic/a", "gemini/a", "openai/", "openai/a b"):
         with pytest.raises(ValueError):
