@@ -5,15 +5,12 @@
 Requirements: Node 24, pnpm 11, Python 3.13 with [uv](https://docs.astral.sh/uv/), Docker.
 
 ```bash
-pnpm install
-uv sync
-cp .env.example .env
-pnpm infra:up      # Postgres (pgvector), Redis, LiveKit dev server, MinIO, Egress (see docs/recording.md)
-pnpm db:migrate
-pnpm db:seed       # default tenant + agents/*.yaml
+pnpm bootstrap     # prerequisites, .env, deps, infra, migrate + seed; safe to rerun
 pnpm dev           # web on :3000 and worker
 pnpm agent:dev     # Python voice agent
 ```
+
+See the [README Quickstart](README.md#quickstart) for what bootstrap does and the equivalent manual steps.
 
 Already running Postgres or Redis locally? Set `POSTGRES_PORT` / `REDIS_PORT` in `.env` and update `DATABASE_URL` / `REDIS_URL` to match.
 
