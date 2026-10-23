@@ -12,6 +12,7 @@ from .recording import build_call_recording, start_with_notice
 from .resolve import resolve_agent
 from .settings import Settings
 from .tool_log import ToolLog
+from .tools import build_configured_tools
 from .turns import build_turn_handling
 
 settings = Settings()
@@ -35,6 +36,7 @@ async def entrypoint(ctx: JobContext) -> None:
     ctx.log_context_fields = {"room": ctx.room.name}
     resolved = await resolve_agent(ctx.job.metadata, settings)
     config = resolved.config
+    tools = build_configured_tools(config)
     session = AgentSession(
         stt=build_stt(config.models.stt),
         llm=build_llm_chain(config.models),
@@ -61,7 +63,7 @@ async def entrypoint(ctx: JobContext) -> None:
         room=ctx.room,
         agent=Agent(
             instructions=compose_instructions(config.instructions),
-            tools=knowledge.tools if knowledge else [],
+            tools=[*(knowledge.tools if knowledge else []), *tools],
         ),
     )
     lifecycle = CallLifecycle(session=session, events=events, job=ctx, settings=settings)
