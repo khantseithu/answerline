@@ -66,6 +66,15 @@ Python
 - Async throughout the call path. Nothing blocking in the agent's event loop.
 - Provider construction goes through `answerline_agent.providers`; don't instantiate plugins elsewhere.
 
+## Task workflow
+
+Every change goes **issue → worktree → PR → merge**. No work starts without an issue, and nothing lands on `main` without a PR.
+
+1. **Issue.** Start from a GitHub issue (roadmap issues are grouped by milestone, with sub-issues under parent issues). If none exists, open one first: imperative title, milestone, `roadmap` label. If the task needs a product or design decision, settle it with the user before coding and record the outcome on the issue (and in `tasks.md` Decisions).
+2. **Worktree.** Lease a treehouse slot and branch from `origin/main`: `treehouse get -b <type>/<short-desc>` (or a Claude Code subagent with `isolation: "worktree"`). One issue per worktree; split work that touches shared contracts so the contract PR lands first (see "Parallel work").
+3. **PR.** Run the checks (`pnpm lint && pnpm typecheck && pnpm test`, `pnpm py:lint && pnpm py:test`; load the slot `.env` so DB/Redis tests run), push, and open a PR into `main` with a Conventional Commit title and a body containing `Closes #N`, what changed, and exactly what was and wasn't tested. Bugs found along the way get their own issue or PR, not a drive-by fix.
+4. **Merge.** When CI is green and the PR is reviewed: return the slot (`treehouse return <path>` / `pnpm wt:gc`), squash-merge with `gh pr merge --squash --delete-branch`, then rebase any other open branches on the new `main`. Issues close from `Closes #N`; close a parent issue once all its sub-issues are closed, and check the item off in `tasks.md`.
+
 ## Parallel work (worktrees)
 
 Parallel tasks run in [treehouse](https://github.com/kunchenguid/treehouse) worktrees, never in the main checkout. The main checkout stays on `main` for review and merging.
