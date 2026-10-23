@@ -14,6 +14,7 @@ const COUNT_MISMATCH = /count mismatch/;
 const MISSING_KEY = /Missing API key/;
 const HTTP_ERROR = /HTTP 429/;
 const NETWORK_ERROR = /network down/;
+const OPENAI_MODEL = "openai/text-embedding-3-small";
 
 const vector = (size = 1536, value = 1) => Array.from({ length: size }, () => value);
 const mockFetch = (handler: (url: string, init: RequestInit) => Response) => {
@@ -28,9 +29,10 @@ const unitVector = (embedding: number[]) => {
   assert.ok(Math.abs(Math.hypot(...embedding) - 1) < 1e-12);
 };
 
-test("embedding model refs and typed env default to OpenAI", () => {
+test("embedding model refs and typed env default to Gemini Embedding 2", () => {
+  assert.equal(DEFAULT_EMBEDDING_MODEL, "google/gemini-embedding-2");
   assert.equal(embeddingEnvSchema.parse({}).EMBEDDING_MODEL, DEFAULT_EMBEDDING_MODEL);
-  assert.deepEqual(embeddingConfigFromEnv({ OPENAI_API_KEY: "test" }), {
+  assert.deepEqual(embeddingConfigFromEnv({ GOOGLE_API_KEY: "test", OPENAI_API_KEY: "o" }), {
     apiKey: "test",
     baseUrl: undefined,
     modelRef: DEFAULT_EMBEDDING_MODEL,
@@ -41,9 +43,12 @@ test("embedding model refs and typed env default to OpenAI", () => {
     assert.throws(() => embeddingEnvSchema.parse({ EMBEDDING_MODEL: ref }));
   }
   assert.equal(
-    embeddingConfigFromEnv({ EMBEDDING_MODEL: "google/gemini-embedding-001", GOOGLE_API_KEY: "g" })
-      .apiKey,
-    "g"
+    embeddingConfigFromEnv({
+      EMBEDDING_MODEL: OPENAI_MODEL,
+      GOOGLE_API_KEY: "g",
+      OPENAI_API_KEY: "o",
+    }).apiKey,
+    "o"
   );
   assert.deepEqual(
     embeddingConfigFromEnv({
@@ -77,10 +82,11 @@ test("OpenAI requests dimensions and restores batch order", async () => {
         ],
       });
     }),
+    modelRef: OPENAI_MODEL,
   });
   const result = await provider.embed(["first", "second"]);
   assert.equal(provider.dimensions, 1536);
-  assert.equal(provider.modelRef, DEFAULT_EMBEDDING_MODEL);
+  assert.equal(provider.modelRef, OPENAI_MODEL);
   result.forEach(unitVector);
   assert.ok((result[0]?.[0] ?? 0) > 0);
   assert.ok((result[1]?.[0] ?? 0) < 0);
@@ -120,6 +126,38 @@ test("Gemini requests native output dimensions for every batch item", async () =
   result.forEach(unitVector);
 });
 
+test("Gemini Embedding 2 puts the retrieval task in the input text", async () => {
+  const bodies: unknown[] = [];
+  const fetch = mockFetch((_url, init) => {
+    bodies.push(JSON.parse(String(init.body)));
+    return Response.json({ embeddings: [{ values: vector() }] });
+  });
+  await createEmbeddingProvider({ apiKey: "test", fetch }).embed(["Opening hours"]);
+  await createEmbeddingProvider({ apiKey: "test", fetch, inputType: "query" }).embed([
+    "when are you open",
+  ]);
+  assert.deepEqual(bodies, [
+    {
+      requests: [
+        {
+          content: { parts: [{ text: "title: none | text: Opening hours" }] },
+          model: "models/gemini-embedding-2",
+          outputDimensionality: 1536,
+        },
+      ],
+    },
+    {
+      requests: [
+        {
+          content: { parts: [{ text: "task: search result | query: when are you open" }] },
+          model: "models/gemini-embedding-2",
+          outputDimensionality: 1536,
+        },
+      ],
+    },
+  ]);
+});
+
 test("Ollama truncates then normalizes, without silently truncating text", async () => {
   const raw = [...vector(1536, 2), ...vector(1024, 100)];
   const result = await createEmbeddingProvider({
@@ -150,6 +188,7 @@ test("large batches are bounded and empty input makes no HTTP request", async ()
       sizes.push(input.length);
       return Response.json(openai(input.map(() => vector())));
     }),
+    modelRef: OPENAI_MODEL,
   });
   assert.deepEqual(await provider.embed([]), []);
   assert.deepEqual(sizes, []);
@@ -181,6 +220,7 @@ test("rejects short, zero, non-finite, malformed and mismatched responses", asyn
         createEmbeddingProvider({
           apiKey: "test",
           fetch: mockFetch(() => Response.json(payload)),
+          modelRef: OPENAI_MODEL,
         }).embed(["text"])
       )
     )

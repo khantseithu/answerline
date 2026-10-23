@@ -55,4 +55,4 @@ def build_llm_chain(models: Models) -> llm.LLM:
 
 
 def build_embedder(client: httpx.AsyncClient) -> EmbeddingProvider:
-    return EmbeddingSettings().create_provider(client=client)
+    return EmbeddingSettings().create_provider(client=client, input_type="query")

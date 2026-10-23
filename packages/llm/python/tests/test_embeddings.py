@@ -12,6 +12,8 @@ from answerline_llm import (
     parse_embedding_model_ref,
 )
 
+OPENAI_MODEL = "openai/text-embedding-3-small"
+
 
 def vector(size=1536, value=1.0):
     return [value] * size
@@ -21,7 +23,7 @@ def openai_payload(vectors):
     return {"data": [{"index": i, "embedding": v} for i, v in enumerate(vectors)]}
 
 
-def run_embed(handler, *, model=DEFAULT_EMBEDDING_MODEL, texts=None, **options):
+def run_embed(handler, *, model=OPENAI_MODEL, texts=None, **options):
     async def run():
         async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
             provider = create_embedding_provider(model, api_key="test", client=client, **options)
@@ -42,16 +44,16 @@ def test_model_refs_and_env(monkeypatch):
     for name in ("EMBEDDING_MODEL", "OPENAI_API_KEY", "GOOGLE_API_KEY", "OLLAMA_BASE_URL"):
         monkeypatch.delenv(name, raising=False)
     settings = EmbeddingSettings()
-    assert settings.embedding_model == DEFAULT_EMBEDDING_MODEL
+    assert settings.embedding_model == DEFAULT_EMBEDDING_MODEL == "google/gemini-embedding-2"
+    monkeypatch.setenv("OPENAI_API_KEY", "openai-test")
     with pytest.raises(ValueError, match="Missing API key"):
         settings.create_provider()
-    monkeypatch.setenv("OPENAI_API_KEY", "test-secret")
+    monkeypatch.setenv("GOOGLE_API_KEY", "test-secret")
     assert EmbeddingSettings().create_provider().model_ref == DEFAULT_EMBEDDING_MODEL
     assert "test-secret" not in repr(EmbeddingSettings())
     assert "test-secret" not in repr(EmbeddingSettings().create_provider())
-    monkeypatch.setenv("EMBEDDING_MODEL", "google/gemini-embedding-001")
-    monkeypatch.setenv("GOOGLE_API_KEY", "google-test")
-    assert EmbeddingSettings().create_provider().model_ref == "google/gemini-embedding-001"
+    monkeypatch.setenv("EMBEDDING_MODEL", OPENAI_MODEL)
+    assert EmbeddingSettings().create_provider().model_ref == OPENAI_MODEL
     monkeypatch.setenv("EMBEDDING_MODEL", "ollama/qwen3-embedding:4b")
     monkeypatch.setenv("OLLAMA_BASE_URL", "http://local:11434")
     ollama = EmbeddingSettings().create_provider()
@@ -125,6 +127,34 @@ def test_gemini_native_dimensions():
         )
 
     assert_unit_vectors(run_embed(handler, model="google/gemini-embedding-001", texts=["a", "b"]))
+
+
+@pytest.mark.parametrize(
+    "input_type,text",
+    [
+        ("document", "title: none | text: Opening hours"),
+        ("query", "task: search result | query: Opening hours"),
+    ],
+)
+def test_gemini_embedding_2_puts_the_task_in_the_input(input_type, text):
+    def handler(request):
+        assert json.loads(request.content) == {
+            "requests": [
+                {
+                    "model": "models/gemini-embedding-2",
+                    "content": {"parts": [{"text": text}]},
+                    "outputDimensionality": 1536,
+                }
+            ]
+        }
+        return httpx.Response(200, json={"embeddings": [{"values": vector()}]})
+
+    run_embed(
+        handler,
+        model="google/gemini-embedding-2",
+        texts=["Opening hours"],
+        input_type=input_type,
+    )
 
 
 def test_ollama_truncates_then_normalizes():

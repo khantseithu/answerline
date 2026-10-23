@@ -23,7 +23,7 @@ const SEARCH_NINE = /nine/;
 const PROVIDER_UNAVAILABLE = /provider unavailable/;
 const SOURCE_NOT_FOUND = /not found for tenant/;
 const EMBEDDER_NOT_CONFIGURED =
-  /Knowledge embedding provider is not configured: Missing API key for embedding provider openai/;
+  /Knowledge embedding provider is not configured: Missing API key for embedding provider google/;
 
 const skip = process.env.DATABASE_URL ? false : "DATABASE_URL not set";
 const queueSkip =

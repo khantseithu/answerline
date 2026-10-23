@@ -2,7 +2,7 @@ import { z } from "zod";
 import { parseModelRef } from "./index.ts";
 
 export const EMBEDDING_DIMENSIONS = 1536;
-export const DEFAULT_EMBEDDING_MODEL = "openai/text-embedding-3-small";
+export const DEFAULT_EMBEDDING_MODEL = "google/gemini-embedding-2";
 export const EMBEDDING_PROVIDERS = ["openai", "google", "ollama"] as const;
 
 const WHITESPACE = /\s/;
@@ -48,10 +48,13 @@ export function embeddingConfigFromEnv(source: NodeJS.ProcessEnv) {
   };
 }
 
+export type EmbeddingInputType = "document" | "query";
+
 export interface EmbeddingOptions {
   apiKey?: string;
   baseUrl?: string;
   fetch?: typeof globalThis.fetch;
+  inputType?: EmbeddingInputType;
   modelRef?: string;
   timeoutMs?: number;
 }
@@ -81,6 +84,15 @@ function normalize(vector: number[]) {
   return reduced.map((value) => value / norm);
 }
 
+function formatInput(model: string, inputType: EmbeddingInputType, text: string) {
+  if (!model.startsWith("gemini-embedding-2")) {
+    return text;
+  }
+  return inputType === "query"
+    ? `task: search result | query: ${text}`
+    : `title: none | text: ${text}`;
+}
+
 export function createEmbeddingProvider(options: EmbeddingOptions = {}): EmbeddingProvider {
   const modelRef = options.modelRef ?? DEFAULT_EMBEDDING_MODEL;
   const { model, provider } = parseEmbeddingModelRef(modelRef);
@@ -102,6 +114,7 @@ export function createEmbeddingProvider(options: EmbeddingOptions = {}): Embeddi
     .parse(options.baseUrl ?? defaultUrl[provider])
     .replace(TRAILING_SLASH, "");
   const request = options.fetch ?? globalThis.fetch;
+  const inputType = options.inputType ?? "document";
 
   async function embedBatch(texts: readonly string[]) {
     let path: string;
@@ -121,7 +134,7 @@ export function createEmbeddingProvider(options: EmbeddingOptions = {}): Embeddi
       headers["x-goog-api-key"] = options.apiKey ?? "";
       body = {
         requests: texts.map((text) => ({
-          content: { parts: [{ text }] },
+          content: { parts: [{ text: formatInput(model, inputType, text) }] },
           model: `models/${model}`,
           outputDimensionality: EMBEDDING_DIMENSIONS,
         })),

@@ -10,6 +10,7 @@ from collections.abc import Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 import asyncpg
 import pytest
@@ -74,12 +75,14 @@ def hashed_embedding(text: str) -> list[float]:
     return [v / norm for v in vector]
 
 
-async def embed(texts: Sequence[str]) -> list[list[float]]:
+async def embed(
+    texts: Sequence[str], input_type: Literal["document", "query"]
+) -> list[list[float]]:
     if not LIVE:
         return [hashed_embedding(t) for t in texts]
     from answerline_llm.embeddings import EmbeddingSettings
 
-    return await EmbeddingSettings().create_provider().embed(list(texts))
+    return await EmbeddingSettings().create_provider(input_type=input_type).embed(list(texts))
 
 
 @dataclass(frozen=True)
@@ -208,7 +211,7 @@ async def seeded_faq():
     faq = load_faq()
     texts = [chunk_text(entry) for entry in faq]
     assert all(len(text) < WORKER_MAX_CHARS for text in texts)
-    embeddings = await embed(texts)
+    embeddings = await embed(texts, "document")
     conn = await asyncpg.connect(DATABASE_URL)
     tenant_id = await conn.fetchval(
         "insert into tenants (slug, name) values ($1, $1) returning id", f"test-{uuid.uuid4()}"
@@ -243,7 +246,7 @@ async def seeded_faq():
 
 async def evaluate(min_similarity: float | None = None) -> list[QueryResult]:
     queries = load_queries()
-    query_embeddings = await embed([q["query"] for q in queries])
+    query_embeddings = await embed([q["query"] for q in queries], "query")
     results = []
     async with seeded_faq() as (conn, tenant_id, faq_ids):
         for spec, embedding in zip(queries, query_embeddings, strict=True):

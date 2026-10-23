@@ -1,4 +1,5 @@
 import asyncio
+import json
 
 import httpx
 import openai
@@ -81,3 +82,22 @@ def test_build_embedder_reuses_the_given_client(monkeypatch):
     vectors = asyncio.run(scenario())
     assert len(requests) == 2
     assert len(vectors[0]) == 1536
+
+
+def test_build_embedder_embeds_gemini_embedding_2_input_as_a_query(monkeypatch):
+    monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
+    monkeypatch.setenv("EMBEDDING_MODEL", "google/gemini-embedding-2")
+    texts = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        texts.extend(
+            r["content"]["parts"][0]["text"] for r in json.loads(request.content)["requests"]
+        )
+        return httpx.Response(200, json={"embeddings": [{"values": [1.0] * 1536}]})
+
+    async def scenario():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            await build_embedder(client).embed(["hours"])
+
+    asyncio.run(scenario())
+    assert texts == ["task: search result | query: hours"]
