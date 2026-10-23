@@ -178,6 +178,16 @@ requires-dist = [
 name = "answerline-llm"
 version = "0.0.0"
 source = { editable = "packages/llm/python" }
+dependencies = [
+    { name = "httpx" },
+    { name = "pydantic-settings" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "pydantic-settings", specifier = ">=2.16.1" },
+]
 
 [[package]]
 name = "anthropic"

@@ -1,6 +1,7 @@
+import { embeddingEnvSchema } from "@answerline/llm";
 import { z } from "zod";
 
-const envSchema = z.object({
+const envSchema = embeddingEnvSchema.extend({
   DATABASE_URL: z.url().optional(),
   REDIS_PREFIX: z.string().min(1).default("bull"),
   REDIS_URL: z.url().default("redis://localhost:6379"),

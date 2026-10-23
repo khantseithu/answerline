@@ -1,6 +1,6 @@
 # Architecture
 
-How Answerline is put together today, component by component. This describes the code on `main` at milestone M1 (web voice calls). Anything not built yet is marked **Planned** with a link to its roadmap issue. The roadmap is in [`tasks.md`](../tasks.md) and the product vision is in the [README](../README.md).
+How Answerline is put together today, component by component. This describes milestone M1 (web voice calls) and the implemented M2 embedding providers. Anything not built yet is marked **Planned** with a link to its roadmap issue. The roadmap is in [`tasks.md`](../tasks.md) and the product vision is in the [README](../README.md).
 
 - [Overview](#overview)
 - [Lifecycle of a call](#lifecycle-of-a-call)
@@ -211,9 +211,37 @@ Generated JSON Schemas live in [`schema/`](../packages/shared/schema) and fixtur
 
 Drizzle ORM with postgres.js ([#127](https://github.com/khantseithu/answerline/issues/127)). [`src/schema.ts`](../packages/db/src/schema.ts) is the schema, [`migrations/`](../packages/db/migrations) holds generated SQL (`0000` enables `vector`), [`src/seed.ts`](../packages/db/src/seed.ts) upserts the `default` tenant and every `agents/*.yaml`. Commands: `pnpm db:generate`, `pnpm db:migrate`, `pnpm db:seed`, `pnpm db:studio`. The agent reads Postgres with plain asyncpg queries; there is no second migration system.
 
-### Model refs (`packages/llm`)
+### Model refs and embeddings (`packages/llm`)
 
-`parseModelRef` / `parse_model_ref` validate `provider/model` against the supported LLM providers, and `withFallback` / `with_fallback` try refs in order. The TypeScript and Python versions behave the same way. The live agent uses the Python parser and LiveKit's `FallbackAdapter` for the call itself. The TypeScript side is for upcoming worker jobs (evals, post-call). Provider adapters and routing beyond ordered fallback are **Planned**.
+`parseModelRef` / `parse_model_ref` validate `provider/model` against the supported LLM providers, and `withFallback` / `with_fallback` try refs in order. The TypeScript and Python versions behave the same way. The live agent uses the Python parser and LiveKit's `FallbackAdapter` for the call itself. The TypeScript side is also available to worker jobs.
+
+**Embeddings** ([#34](https://github.com/khantseithu/answerline/issues/34)). [`embeddings.ts`](../packages/llm/src/embeddings.ts) and [`embeddings.py`](../packages/llm/python/src/answerline_llm/embeddings.py) expose matching asynchronous batch providers. The public provider has `modelRef` / `model_ref`, `dimensions: 1536`, and `embed(texts)`, returning one vector per input in input order. Empty input returns an empty list without HTTP. Requests are split into sequential batches of at most 100, with a 10 s per-request timeout (overridable in the factory). No automatic embedding fallback: different models produce incompatible vector spaces.
+
+| Setting | Default | Purpose |
+|---|---|---|
+| `EMBEDDING_MODEL` | `openai/text-embedding-3-small` | Full model ref; supported providers are `openai`, `google` (Gemini), and `ollama` |
+| `OPENAI_API_KEY` | unset | Required when constructing an OpenAI embedding provider |
+| `GOOGLE_API_KEY` | unset | Required when constructing a Gemini embedding provider |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama server; no key required |
+
+The worker's Zod env schema includes these settings; the Python side reads them through `EmbeddingSettings`. The voice agent does not load embedding settings yet; query embedding for `search_knowledge` is **Planned**. Keys are checked when the provider is constructed, not at application startup. Explicit factory options can override the model, key, base URL, and timeout without reading environment variables.
+
+```ts
+import { createEmbeddingProvider, embeddingConfigFromEnv } from "@answerline/llm";
+
+const embeddings = createEmbeddingProvider(embeddingConfigFromEnv(process.env));
+const vectors = await embeddings.embed(["Opening hours", "Dental services"]);
+```
+
+```python
+from answerline_llm import EmbeddingSettings, create_embedding_provider
+
+embeddings = EmbeddingSettings().create_provider()
+vectors = await embeddings.embed(["Opening hours"])
+local = create_embedding_provider("ollama/qwen3-embedding:4b")
+```
+
+OpenAI `text-embedding-3-*` requests native `dimensions: 1536`; legacy OpenAI models omit that parameter. Gemini requests native `outputDimensionality: 1536`. Ollama requests native `dimensions: 1536` through [`/api/embed`](https://docs.ollama.com/api/embed), without silently truncating input text. Older servers that ignore the dimension parameter are handled by local reduction. Larger output vectors are reduced to their first 1536 components; every provider's result is L2-normalized after reduction and validated as finite and nonzero. Models returning fewer than 1536 dimensions fail clearly rather than being padded. For local reduction, choose a model with at least 1536 output dimensions and Matryoshka-compatible embeddings (for example, `ollama/qwen3-embedding:4b`); 768/1024-dimensional models cannot fit this contract. These vectors fit `knowledge_chunks.embedding vector(1536)`. Ingestion and query embedding must use the same model and reduction; changing models requires re-ingestion. Ingestion wiring and query retrieval remain **Planned**.
 
 ### Infrastructure (`docker-compose.yml`)
 
@@ -328,7 +356,7 @@ The agent name keeps dispatch separate: a slot's web app issues tokens for `answ
 | Voice loop | STT, LLM fallback, TTS, local turn detection, interruption tuning, call limits | Noise cancellation, multilingual model choice (M11) |
 | Call log | Calls and turns with latency and usage in Postgres | Calls UI, call detail, post-call summary and cost (M5) |
 | Recording | Opt-in egress to S3-compatible storage, URL on the call | Playback in the dashboard, replacement for MinIO ([#153](https://github.com/khantseithu/answerline/issues/153)) |
-| Knowledge base | Tables and indexes | Ingestion, hybrid search, `search_knowledge` tool (M2) |
+| Knowledge base | Tables, indexes, OpenAI/Gemini/Ollama embedding providers (TS + Python) | Ingestion, hybrid search, `search_knowledge` tool (M2) |
 | Tools | Config schema | Tool framework, booking, transfer, hours, HTTP, MCP (M3) |
 | Evals | Suite schema, CLI stub, tables | Runner, assertions, dashboard (M6) |
 | Dashboard | App shell, design system, empty pages | Auth ([#128](https://github.com/khantseithu/answerline/issues/128)), data-backed pages (M5) |

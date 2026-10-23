@@ -1,6 +1,31 @@
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
+from .embeddings import (
+    DEFAULT_EMBEDDING_MODEL,
+    EMBEDDING_DIMENSIONS,
+    EMBEDDING_PROVIDERS,
+    EmbeddingProvider,
+    EmbeddingSettings,
+    create_embedding_provider,
+    parse_embedding_model_ref,
+)
+
+__all__ = [
+    "DEFAULT_EMBEDDING_MODEL",
+    "EMBEDDING_DIMENSIONS",
+    "EMBEDDING_PROVIDERS",
+    "EmbeddingProvider",
+    "EmbeddingSettings",
+    "create_embedding_provider",
+    "parse_embedding_model_ref",
+    "PROVIDERS",
+    "ModelRef",
+    "parse_model_ref",
+    "AllProvidersFailedError",
+    "with_fallback",
+]
+
 PROVIDERS = ("anthropic", "openai", "google", "deepseek", "ollama")
 
 
