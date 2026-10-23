@@ -15,7 +15,7 @@ install_dependencies() {
 }
 
 bootstrap() {
-  local root step="checking prerequisites" tool python_found=false python version key value service container health attempt
+  local root step="checking prerequisites" tool node_major key value service container health attempt
   trap 'echo "bootstrap: failed while ${step}; fix the error above and rerun pnpm bootstrap." >&2' ERR
   root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
   cd "$root"
@@ -31,21 +31,15 @@ bootstrap() {
       return 1
     fi
   done
-  if [[ "$(node --version)" != v24.* ]]; then
-    echo "bootstrap: Node 24 is required; install or select it: https://nodejs.org/" >&2
+  node_major="$(node --version)"
+  node_major="${node_major#v}"
+  node_major="${node_major%%.*}"
+  if (( node_major < 24 )); then
+    echo "bootstrap: Node 24 or newer is required; install or select it: https://nodejs.org/" >&2
     return 1
   fi
-  for python in python3.13 python3 python; do
-    if command -v "$python" >/dev/null 2>&1; then
-      version="$("$python" --version 2>&1)"
-      if [[ "$version" == 'Python 3.13.'* ]]; then
-        python_found=true
-        break
-      fi
-    fi
-  done
-  if [[ "$python_found" != true ]]; then
-    echo "bootstrap: Python 3.13 is required; run 'uv python install 3.13' and add its bin directory to PATH." >&2
+  if ! uv python find 3.13 >/dev/null 2>&1; then
+    echo "bootstrap: Python 3.13 is required; run 'uv python install 3.13'." >&2
     return 1
   fi
   if ! docker compose version >/dev/null 2>&1; then
