@@ -28,7 +28,7 @@ flowchart LR
 
     Agent -->|"call-events jobs"| Redis[(Redis, BullMQ)]
     Redis --> Worker["Worker<br/>Node.js, BullMQ"]
-    Worker -->|"calls, call_turns, tool_calls"| DB
+    Worker -->|"calls, call_turns, tool_calls, leads"| DB
 
     Agent -->|"start room composite"| Egress["LiveKit Egress"]
     Egress -->|"Ogg/Opus"| S3[(MinIO, S3 API)]
@@ -195,7 +195,9 @@ Citations: each call also attaches a structured result to the `call.tool` event,
 
 Latency: with an instant local embedder and a 5,000-chunk corpus on a local Postgres, the tool measured p50 41 ms and p95 44 ms; at 20,000 chunks of synthetic text where every chunk matches the keyword query, p50 108 ms and p95 126 ms. The real embedding API round trip is added on top and usually dominates, so it is the number to watch with `embed_ms`.
 
-**Configured tools.** `tools.py` maps enabled `tools:` entries to LiveKit function tools and combines them with the knowledge tool at session startup. The first supported builtin is `business_hours`; add `- builtin: business_hours` to `tools:` and provide an `hours` configuration. It reports whether the business is open now in its configured timezone, the regular weekday/weekend schedules, and the configured after-hours policy. Opening times are inclusive and closing times exclusive; overnight schedules carry into the following day. Missing weekend hours mean no weekend openings. Equal opening and closing times are rejected as ambiguous, as are invalid timezone names and clock values when the tool is built. Unimplemented builtin, HTTP, and MCP entries are logged and omitted, preserving existing sample configs without exposing nonfunctional tools.
+**Configured tools.** `tools.py` maps enabled `tools:` entries to LiveKit function tools and combines them with the knowledge tool at session startup. Supported builtins are `business_hours` and `capture_lead`. For business hours, add `- builtin: business_hours` to `tools:` and provide an `hours` configuration. It reports whether the business is open now in its configured timezone, the regular weekday/weekend schedules, and the configured after-hours policy. Opening times are inclusive and closing times exclusive; overnight schedules carry into the following day. Missing weekend hours mean no weekend openings. Equal opening and closing times are rejected as ambiguous, as are invalid timezone names and clock values when the tool is built. Unimplemented builtin, HTTP, and MCP entries are logged and omitted, preserving existing sample configs without exposing nonfunctional tools.
+
+**Lead capture.** Add `- builtin: capture_lead` to `tools:` to collect a caller's name, callback number, and reason for follow-up. The tool normalizes surrounding whitespace using the contract's explicit Unicode whitespace set, validates bounded inputs, and awaits Redis acknowledgement before returning `status: queued`. It never reports that a lead was saved when enqueueing failed. Each invocation uses a UUID derived from the tenant, room, and LiveKit tool-call ID, so safe retries or replaying the same invocation cannot create duplicate leads. The agent only enqueues a `lead.created` event; the worker writes Postgres. Success means accepted for follow-up, not that a callback or booking has happened. Jobs have three worker attempts with exponential backoff starting at 500 ms; exhausted jobs remain failed for inspection. External webhook delivery is still planned for M10.
 
 **Tool execution policy.** Configured tools run under a total `TOOL_TIMEOUT_SECONDS` budget (default 10 seconds). Transport failures and connection loss are retried up to `TOOL_RETRIES` times (default 1, maximum 3) only when the implementation explicitly marks the operation safe to retry. Backoff is inside the total budget; validation/programming errors and unsafe writes are not automatically retried. Cancellation propagates. Failures become a sanitized LiveKit `ToolError` so the model cannot claim success. `search_knowledge` keeps its tighter `KNOWLEDGE_SEARCH_TIMEOUT_SECONDS` budget, including safe read retries, and its structured citation results. Both tool paths use LiveKit’s `RunContext.with_filler` with a single “One moment, please.” after `TOOL_FILLER_DELAY_SECONDS` (default 0.8) of continuous idle time; completion/cancellation closes the scheduler. Filler waits while the caller or agent speaks.
 
@@ -207,7 +209,7 @@ Node.js with BullMQ, run with `tsx`. [`src/index.ts`](../apps/worker/src/index.t
 
 | Queue | Handler |
 |---|---|
-| `call-events` | [`call-events.ts`](../apps/worker/src/call-events.ts): persists calls and transcripts |
+| `call-events` | [`call-events.ts`](../apps/worker/src/call-events.ts): persists calls, transcripts, tool calls, and leads |
 | `ingestion` | [`ingestion.ts`](../apps/worker/src/ingestion.ts): loads, chunks, embeds through an injected function, and replaces changed sources |
 | `post-call` | Logs the job. **Planned** ([#78](https://github.com/khantseithu/answerline/issues/78)) |
 | `evals` | Logs the job. **Planned** ([#88](https://github.com/khantseithu/answerline/issues/88)) |
@@ -229,6 +231,7 @@ Chunks are at most 1600 characters with 240-character overlap, preferring word b
 - `call.started` upserts `calls` by its unique `room_name`;
 - `call.turn` makes sure the call row exists, then inserts into `call_turns`, ignoring duplicates on `(call_id, seq)`;
 - `call.tool` makes sure the call row exists, then inserts into `tool_calls`, ignoring duplicates on `(call_id, seq)`;
+- `lead.created` makes sure the call row exists, verifies its tenant/agent match, and inserts into `leads`, ignoring duplicate lead IDs; a later `call.started` fills in a placeholder call;
 - `call.ended` upserts status, `ended_at`, `duration_ms`, `usage`, and `recording_url`.
 
 Every write is an upsert or insert-if-absent, so the handler tolerates retries and events arriving out of order (a turn, tool, or end event before `call.started` still creates the call).
@@ -321,6 +324,7 @@ erDiagram
 | `agents` | `(tenant_id, slug)` unique, `config` jsonb (agent config schema) | seed, worker (YAML import) |
 | `calls` | `room_name` (unique), channel, direction, numbers, status (`in_progress`, `completed`, `failed`), timestamps, `duration_ms`, `usage` jsonb, `recording_url`; `summary`, `outcome`, `cost_usd` reserved for post-call | worker |
 | `call_turns` | `(call_id, seq)` unique, role, text, timestamps, `interrupted`, `latency` jsonb | worker |
+| `leads` | UUID primary key, tenant/agent/call references, name, callback phone, reason, creation time; tenant/time index | worker |
 | `tool_calls` | `(call_id, seq)` unique, name, `args` jsonb, `result` jsonb, status (`ok`, `error`, `timeout`), `error`, `latency_ms` | worker |
 | `knowledge_sources` | type, uri, inline `content` jsonb (text or Q&A), status, error, `content_hash`, `updated_at`, `ingested_at` | worker ingestion (source creation by callers) |
 | `knowledge_chunks` | source, seq, content, citation metadata; `embedding vector(1536)` with an HNSW cosine index, `search` tsvector generated from `content` with a GIN index | worker ingestion |
@@ -339,7 +343,7 @@ There are two cross-language contracts: the agent config (TypeScript web, worker
 4. Shared fixtures under [`fixtures/agent-config`](../packages/shared/fixtures/agent-config) and [`fixtures/call-event`](../packages/shared/fixtures/call-event) (`valid/` and `invalid/`) run through Zod in TS tests, and through both the JSON Schema and Pydantic in [`test_config_parity.py`](../apps/agent/tests/test_config_parity.py) and [`test_call_events_parity.py`](../apps/agent/tests/test_call_events_parity.py).
 5. The Python parity tests also compare the full set of property paths between the Pydantic model and the JSON Schema, and check that job ids and the queue name match.
 
-Call event jobs: queue `call-events`, job name = event `type`, job id `<room>_<type>`, or `<room>_call.turn_<seq>` and `<room>_call.tool_<seq>` for per-call sequences. BullMQ ignores a job whose id already exists, so the agent can re-publish safely. Ids avoid `:`, because BullMQ rejects most custom ids that contain it. An end-to-end test ([`call-events.queue.test.ts`](../apps/worker/src/call-events.queue.test.ts)) pushes fixtures through a real queue into Postgres when `DATABASE_URL` and `REDIS_URL` are set, as they are in CI.
+Call event jobs: queue `call-events`, job name = event `type`, job id `<room>_<type>`, or `<room>_call.turn_<seq>` and `<room>_call.tool_<seq>` for per-call sequences; lead jobs use `<room>_lead.created_<lead_id>`. BullMQ ignores a job whose id already exists, so the agent can re-publish safely. Ids avoid `:`, because BullMQ rejects most custom ids that contain it. An end-to-end test ([`call-events.queue.test.ts`](../apps/worker/src/call-events.queue.test.ts)) pushes fixtures through a real queue into Postgres when `DATABASE_URL` and `REDIS_URL` are set, as they are in CI.
 
 ## Multi-tenancy
 
@@ -399,7 +403,7 @@ The agent name keeps dispatch separate: a slot's web app issues tokens for `answ
 | Call log | Calls and turns with latency and usage in Postgres | Calls UI, call detail, post-call summary and cost (M5) |
 | Recording | Opt-in egress to local MinIO via the S3 API, URL on the call | Cloudflare R2 primary storage and an adapter for other S3-compatible providers ([#153](https://github.com/khantseithu/answerline/issues/153)); playback in the dashboard |
 | Knowledge base | Loaders, chunking, model-aware hash-based ingestion, env-configured embedding providers, atomic chunk/vector replacement, persisted status/errors, dashboard knowledge page, agent-side hybrid search (vector + full-text, RRF), `search_knowledge` tool with a timeout budget, citations in the tool call log | Relevance threshold for out-of-scope queries ([#180](https://github.com/khantseithu/answerline/issues/180)), reranking (M2) |
-| Tools | Config-to-LiveKit registration, opt-in business-hours lookup, tool-call logging, timeouts/safe retries/idle-aware filler | Booking, transfer, holiday overrides and after-hours routing, HTTP, MCP (M3) |
+| Tools | Config-to-LiveKit registration, opt-in business-hours lookup and lead capture, tool-call logging, timeouts/safe retries/idle-aware filler | Booking, transfer, holiday overrides and after-hours routing, HTTP, MCP (M3) |
 | Evals | Suite schema, CLI stub, tables | Runner, assertions, dashboard (M6) |
 | Dashboard | App shell, design system, empty pages | Auth ([#128](https://github.com/khantseithu/answerline/issues/128)), data-backed pages (M5) |
 | API and webhooks | `POST /api/v1/token`, `GET /api/health` | REST v1, OpenAPI, webhooks, outbound calls (M9, M10) |
