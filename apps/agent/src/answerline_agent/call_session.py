@@ -6,7 +6,12 @@ from typing import Protocol
 
 from livekit import rtc
 from livekit.agents import AgentSession, JobContext
-from livekit.agents.voice.events import CloseEvent, CloseReason, ConversationItemAddedEvent
+from livekit.agents.voice.events import (
+    CloseEvent,
+    CloseReason,
+    ConversationItemAddedEvent,
+    FunctionToolsExecutedEvent,
+)
 
 from .call_events import CallEventModel, CallRecorder, summarize_usage
 
@@ -52,6 +57,7 @@ class CallSessionEvents:
         self._started = False
         self._ended = False
         session.on("conversation_item_added", self._on_item)
+        session.on("function_tools_executed", self._on_tools)
         session.on("close", self._on_close)
 
     def started(self, participant: rtc.RemoteParticipant | None) -> None:
@@ -83,6 +89,22 @@ class CallSessionEvents:
                 self._publisher.publish(event)
         except Exception:
             logger.warning("failed to build call.turn event", exc_info=True)
+
+    def _on_tools(self, ev: FunctionToolsExecutedEvent) -> None:
+        for call, output in ev.zipped():
+            try:
+                self._publisher.publish(
+                    self._recorder.tool(
+                        name=call.name,
+                        arguments=call.arguments,
+                        output=output.output,
+                        is_error=output.is_error,
+                        started_at=call.created_at,
+                        finished_at=output.created_at,
+                    )
+                )
+            except Exception:
+                logger.warning("failed to build call.tool event", exc_info=True)
 
     def _on_close(self, ev: CloseEvent) -> None:
         self._failed = ev.error is not None or ev.reason == CloseReason.ERROR

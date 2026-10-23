@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
-import { calls, callTurns, createDb, tenants } from "@answerline/db";
+import { calls, callTurns, createDb, tenants, toolCalls } from "@answerline/db";
 import { type CallEventJob, callEventJob, callEventJobId, QUEUES } from "@answerline/shared";
 import { Queue, Worker } from "bullmq";
 import { eq } from "drizzle-orm";
@@ -27,9 +27,14 @@ test("processes call events end to end through bullmq", { skip, timeout: 30_000 
   const queue = new Queue(QUEUES.callEvents, { connection, prefix });
 
   const events: CallEventJob[] = await Promise.all(
-    ["started-sip.json", "turn-agent.json", "turn-caller.json", "ended.json"].map((name) =>
-      loadFixture(name, room, tenant)
-    )
+    [
+      "started-sip.json",
+      "turn-agent.json",
+      "tool-ok.json",
+      "tool-error.json",
+      "turn-caller.json",
+      "ended.json",
+    ].map((name) => loadFixture(name, room, tenant))
   );
 
   const processor = createCallEventProcessor(db);
@@ -65,6 +70,11 @@ test("processes call events end to end through bullmq", { skip, timeout: 30_000 
     assert.equal(call.durationMs, 180_000);
     const turns = await db.select().from(callTurns).where(eq(callTurns.callId, call.id));
     assert.deepEqual(turns.map((t) => t.seq).sort(), [0, 1]);
+    const tools = await db.select().from(toolCalls).where(eq(toolCalls.callId, call.id));
+    assert.deepEqual(tools.map((t) => [t.seq, t.status]).sort(), [
+      [0, "ok"],
+      [2, "error"],
+    ]);
   } finally {
     await worker?.close();
     await queue.obliterate({ force: true });

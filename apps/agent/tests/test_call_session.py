@@ -4,9 +4,14 @@ from types import SimpleNamespace
 from answerline_agent import call_session
 from answerline_agent.call_session import CallSessionEvents
 from livekit import rtc
-from livekit.agents.llm import AgentHandoff, ChatMessage
+from livekit.agents.llm import AgentHandoff, ChatMessage, FunctionCall, FunctionCallOutput
 from livekit.agents.metrics import STTModelUsage
-from livekit.agents.voice.events import CloseEvent, CloseReason, ConversationItemAddedEvent
+from livekit.agents.voice.events import (
+    CloseEvent,
+    CloseReason,
+    ConversationItemAddedEvent,
+    FunctionToolsExecutedEvent,
+)
 
 
 class FakeSession:
@@ -89,6 +94,55 @@ def test_committed_messages_become_ordered_turns():
     assert [(t.seq, t.role, t.text) for t in turns] == [(0, "agent", "Hello!"), (1, "caller", "Hi")]
     assert turns[1].interrupted is True
     assert turns[1].latency.stt_ms == 200
+
+
+def _tools_executed(*pairs):
+    calls, outputs = [], []
+    for index, (name, arguments, output, is_error, started, finished) in enumerate(pairs):
+        call_id = f"call_{index}"
+        calls.append(
+            FunctionCall(call_id=call_id, name=name, arguments=arguments, created_at=started)
+        )
+        outputs.append(
+            FunctionCallOutput(
+                call_id=call_id,
+                name=name,
+                output=output,
+                is_error=is_error,
+                created_at=finished,
+            )
+        )
+    return FunctionToolsExecutedEvent(function_calls=calls, function_call_outputs=outputs)
+
+
+def test_executed_tools_become_ordered_tool_events():
+    _, session, publisher = _events()
+    session.handlers["function_tools_executed"](
+        _tools_executed(
+            ("search_knowledge", '{"query": "hours"}', "Open 9 to 5", False, 100.0, 100.25),
+            ("book_appointment", "{}", "slot taken", True, 100.0, 100.5),
+        )
+    )
+    session.handlers["function_tools_executed"](
+        _tools_executed(("search_knowledge", '{"query": "price"}', "$50", False, 110.0, 110.1))
+    )
+    first, second, third = publisher.events
+    assert [e.type for e in publisher.events] == ["call.tool"] * 3
+    assert [e.seq for e in publisher.events] == [0, 1, 2]
+    assert (first.name, first.args, first.result, first.status) == (
+        "search_knowledge",
+        {"query": "hours"},
+        "Open 9 to 5",
+        "ok",
+    )
+    assert first.latency_ms == 250
+    assert (second.status, second.error, second.result, second.latency_ms) == (
+        "error",
+        "slot taken",
+        None,
+        500,
+    )
+    assert third.args == {"query": "price"}
 
 
 def test_close_publishes_completed_with_usage_without_waiting_for_shutdown():

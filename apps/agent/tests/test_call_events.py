@@ -1,4 +1,11 @@
-from answerline_agent.call_events import CallRecorder, call_event_payload, summarize_usage
+from answerline_agent.call_events import (
+    MAX_TOOL_RESULT_CHARS,
+    CallRecorder,
+    bound_result,
+    call_event_payload,
+    parse_tool_args,
+    summarize_usage,
+)
 from livekit.agents.metrics import LLMModelUsage, STTModelUsage, TTSModelUsage
 
 START = 1_792_677_600.0
@@ -136,3 +143,67 @@ def test_summarize_usage_sums_models():
 
 def test_summarize_usage_empty_is_none():
     assert summarize_usage([]) is None
+
+
+def _tool(recorder, **overrides):
+    fields = {
+        "name": "search_knowledge",
+        "arguments": '{"query": "hours"}',
+        "output": "Open 9 to 5",
+        "is_error": False,
+        "started_at": START,
+        "finished_at": START + 0.1846,
+    }
+    return recorder.tool(**{**fields, **overrides})
+
+
+def test_tool_events_increment_their_own_seq():
+    recorder = _recorder()
+    recorder.turn(role="user", text="hi", created_at=START)
+    first = _tool(recorder)
+    second = _tool(recorder)
+    assert (first.seq, second.seq) == (0, 1)
+    turn = recorder.turn(role="assistant", text="ok", created_at=START)
+    assert turn is not None
+    assert turn.seq == 1
+
+
+def test_tool_success_carries_args_result_and_latency():
+    event = _tool(_recorder())
+    assert event.name == "search_knowledge"
+    assert event.args == {"query": "hours"}
+    assert event.result == "Open 9 to 5"
+    assert event.status == "ok"
+    assert event.error is None
+    assert event.latency_ms == 185
+    assert event.started_at == "2026-10-22T14:00:00.000+00:00"
+
+
+def test_tool_error_has_error_text_and_no_result():
+    event = _tool(_recorder(), output="An internal error occurred", is_error=True)
+    payload = call_event_payload(event)
+    assert payload["status"] == "error"
+    assert payload["error"] == "An internal error occurred"
+    assert "result" not in payload
+
+
+def test_tool_latency_is_never_negative():
+    assert _tool(_recorder(), finished_at=START - 1).latency_ms == 0
+
+
+def test_tool_arguments_are_always_an_object():
+    assert parse_tool_args(None) == {}
+    assert parse_tool_args("") == {}
+    assert parse_tool_args("[1, 2]") == {"value": [1, 2]}
+    assert parse_tool_args("not json") == {"raw": "not json"}
+
+
+def test_tool_result_is_bounded():
+    long = "x" * (MAX_TOOL_RESULT_CHARS * 2)
+    bounded = bound_result(long)
+    assert len(bounded) == MAX_TOOL_RESULT_CHARS
+    assert bounded.endswith("...[truncated]")
+    assert bound_result({"text": "short"}) == {"text": "short"}
+    huge = bound_result({"text": long})
+    assert isinstance(huge, str)
+    assert len(huge) == MAX_TOOL_RESULT_CHARS

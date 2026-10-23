@@ -45,6 +45,17 @@ test("job ids are stable per room, type, and turn", () => {
     started_at: "2026-10-22T14:00:00.000Z",
     type: "call.started",
   });
+  const tool = callEventJob.parse({
+    ...base,
+    args: {},
+    latency_ms: 5,
+    name: "search_knowledge",
+    seq: 2,
+    started_at: "2026-10-22T14:00:00.000Z",
+    status: "ok",
+    type: "call.tool",
+  });
+  assert.equal(callEventJobId(tool), "call-1_call.tool_2");
   assert.equal(callEventJobId(turn), "call-1_call.turn_3");
   assert.equal(callEventJobId(started), "call-1_call.started");
 });

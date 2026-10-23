@@ -89,7 +89,7 @@ Roadmap: *Built-in tools: booking, transfer, business hours*
 
 - [ ] Tool framework
   - [ ] Map `tools:` config to LiveKit function tools
-  - [ ] Log every tool call (args, result, latency, error) to `tool_calls`
+  - [x] Log every tool call (args, result, latency, error) to `tool_calls` (#47, pulled forward for #42)
   - [ ] Timeouts, retries, and spoken filler while a tool runs
 - [ ] `business_hours`: timezone-aware open/closed, holidays, `after_hours` behavior (voicemail / transfer / answer)
 - [ ] `book_appointment`

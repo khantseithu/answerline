@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { agents, calls, callTurns, createDb, tenants } from "@answerline/db";
+import { agents, calls, callTurns, createDb, tenants, toolCalls } from "@answerline/db";
 import type { CallEventJob } from "@answerline/shared";
 import { asc, eq } from "drizzle-orm";
 import { persistCallEvent } from "./call-events.ts";
@@ -39,6 +39,21 @@ function context() {
     text: `turn ${seq}`,
     type: "call.turn",
   });
+  const tool = (
+    seq: number,
+    overrides: Partial<EventOf<"call.tool">> = {}
+  ): EventOf<"call.tool"> => ({
+    ...base,
+    args: { query: `question ${seq}` },
+    latency_ms: 150,
+    name: "search_knowledge",
+    result: `answer ${seq}`,
+    seq,
+    started_at: `2026-10-22T14:00:1${seq}.000Z`,
+    status: "ok",
+    type: "call.tool",
+    ...overrides,
+  });
   const ended: EventOf<"call.ended"> = {
     ...base,
     duration_ms: 180_000,
@@ -47,7 +62,7 @@ function context() {
     type: "call.ended",
     usage: { stt_seconds: 92.5 },
   };
-  return { base, ended, id, started, turn };
+  return { base, ended, id, started, tool, turn };
 }
 
 async function withTenant(
@@ -116,6 +131,62 @@ test("call.turn stores latency in the schema shape", { skip }, () =>
   })
 );
 
+async function getToolCalls(db: ReturnType<typeof createDb>, callId: string) {
+  return await db
+    .select()
+    .from(toolCalls)
+    .where(eq(toolCalls.callId, callId))
+    .orderBy(asc(toolCalls.seq));
+}
+
+test("call.tool stores args, result, status, and latency", { skip }, () =>
+  withTenant(async ({ base, started, tool }, db) => {
+    await persistCallEvent(db, started);
+    await persistCallEvent(db, tool(0));
+    await persistCallEvent(
+      db,
+      tool(1, {
+        args: { slot: { day: "mon" } },
+        error: "boom",
+        result: { citations: [{ page: 2 }], text: "x" },
+        status: "error",
+      })
+    );
+    await persistCallEvent(db, tool(2, { result: undefined, status: "timeout" }));
+
+    const call = await getCall(db, base.room_name);
+    const rows = await getToolCalls(db, call.id);
+    assert.equal(rows.length, 3);
+    const [first, second, third] = rows;
+    assert.equal(first?.name, "search_knowledge");
+    assert.deepEqual(first?.args, { query: "question 0" });
+    assert.equal(first?.result, "answer 0");
+    assert.equal(first?.status, "ok");
+    assert.equal(first?.error, null);
+    assert.equal(first?.latencyMs, 150);
+    assert.equal(first?.createdAt.toISOString(), "2026-10-22T14:00:10.000Z");
+    assert.deepEqual(second?.args, { slot: { day: "mon" } });
+    assert.deepEqual(second?.result, { citations: [{ page: 2 }], text: "x" });
+    assert.equal(second?.status, "error");
+    assert.equal(second?.error, "boom");
+    assert.equal(third?.result, null);
+    assert.equal(third?.status, "timeout");
+  })
+);
+
+test("a tool call before call.started is filled in by the later start", { skip }, () =>
+  withTenant(async ({ base, started, tool }, db) => {
+    await persistCallEvent(db, tool(0));
+    const placeholder = await getCall(db, base.room_name);
+
+    await persistCallEvent(db, started);
+    const call = await getCall(db, base.room_name);
+    assert.equal(call.id, placeholder.id);
+    assert.equal(call.channel, "sip");
+    assert.equal((await getToolCalls(db, call.id)).length, 1);
+  })
+);
+
 test("call.ended records status, duration, and usage", { skip }, () =>
   withTenant(async ({ base, ended, started }, db) => {
     await persistCallEvent(db, started);
@@ -173,14 +244,15 @@ test("call.ended before call.started keeps the end state", { skip }, () =>
 );
 
 test("duplicate delivery is idempotent", { skip }, () =>
-  withTenant(async ({ base, ended, started, turn }, db) => {
-    const events = [started, turn(0), turn(1, "agent"), ended];
+  withTenant(async ({ base, ended, started, tool, turn }, db) => {
+    const events = [started, turn(0), tool(0), tool(1), turn(1, "agent"), ended];
     await persistInOrder(db, [...events, ...events]);
 
     const rows = await db.select().from(calls).where(eq(calls.roomName, base.room_name));
     assert.equal(rows.length, 1);
     const call = await getCall(db, base.room_name);
     assert.equal((await getTurns(db, call.id)).length, 2);
+    assert.equal((await getToolCalls(db, call.id)).length, 2);
     assert.equal(call.status, "completed");
     const tenantAgents = await db.select().from(agents).where(eq(agents.tenantId, call.tenantId));
     assert.equal(tenantAgents.length, 1);

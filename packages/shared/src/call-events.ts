@@ -36,6 +36,19 @@ export const callTurnJob = z.object({
   type: z.literal("call.turn"),
 });
 
+export const callToolJob = z.object({
+  ...callRef,
+  args: z.record(z.string(), z.unknown()),
+  error: z.string().optional(),
+  latency_ms: z.number().int().nonnegative(),
+  name: z.string().min(1),
+  result: z.unknown().optional(),
+  seq: z.number().int().nonnegative(),
+  started_at: z.iso.datetime({ offset: true }),
+  status: z.enum(["ok", "error", "timeout"]),
+  type: z.literal("call.tool"),
+});
+
 export const callEndedJob = z.object({
   ...callRef,
   duration_ms: z.number().int().nonnegative(),
@@ -49,13 +62,14 @@ export const callEndedJob = z.object({
 export const callEventJob = z.discriminatedUnion("type", [
   callStartedJob,
   callTurnJob,
+  callToolJob,
   callEndedJob,
 ]);
 
 export type CallEventJob = z.infer<typeof callEventJob>;
 
 export function callEventJobId(event: CallEventJob): string {
-  return event.type === "call.turn"
+  return event.type === "call.turn" || event.type === "call.tool"
     ? `${event.room_name}_${event.type}_${event.seq}`
     : `${event.room_name}_${event.type}`;
 }

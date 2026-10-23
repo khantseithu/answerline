@@ -28,7 +28,7 @@ flowchart LR
 
     Agent -->|"call-events jobs"| Redis[(Redis, BullMQ)]
     Redis --> Worker["Worker<br/>Node.js, BullMQ"]
-    Worker -->|"calls, call_turns"| DB
+    Worker -->|"calls, call_turns, tool_calls"| DB
 
     Agent -->|"start room composite"| Egress["LiveKit Egress"]
     Egress -->|"Ogg/Opus"| S3[(MinIO, S3 API)]
@@ -77,12 +77,15 @@ sequenceDiagram
         B->>A: caller audio via LiveKit
         A->>B: agent audio via LiveKit
         A->>Q: call.turn with seq
+        opt LLM calls a tool
+            A->>Q: call.tool with args, result, latency
+        end
     end
     Note over B,A: caller hangs up, max duration, or idle timeout
     A->>L: close session and delete room
     A->>Q: call.ended with usage and recording_url
     Q->>K: jobs in order
-    K->>P: upsert calls, insert call_turns
+    K->>P: upsert calls, insert call_turns and tool_calls
 ```
 
 1. The **Talk to agent** button ([`talk-to-agent-button.tsx`](../apps/web/src/components/call/talk-to-agent-button.tsx), [`call-app.tsx`](../apps/web/src/components/call/call-app.tsx)) calls `POST /api/v1/token?agent=<slug>` through `TokenSource.endpoint`.
@@ -91,8 +94,9 @@ sequenceDiagram
 4. The agent's [`entrypoint`](../apps/agent/src/answerline_agent/main.py) resolves the config ([`resolve.py`](../apps/agent/src/answerline_agent/resolve.py)), builds the session, waits up to 30 s for the caller, and publishes `call.started`.
 5. If the agent has `recording.enabled`, it starts egress, then speaks the notice, then the greeting. Otherwise it speaks the greeting.
 6. Every caller and agent message added to the conversation becomes a `call.turn` event with a sequence number, timestamps, an interrupted flag, and per-turn latency.
-7. The call ends when the caller leaves, the max duration is reached, or the caller stays idle. The agent closes the session, flushes events, deletes the room, and shuts the job down. `call.ended` carries status, duration, usage totals, and the recording URL.
-8. The worker validates each job and writes `calls` and `call_turns`. Writes are idempotent, so BullMQ retries are safe.
+7. Every function tool the LLM runs becomes a `call.tool` event with the tool name, arguments, result or error, status, and latency.
+8. The call ends when the caller leaves, the max duration is reached, or the caller stays idle. The agent closes the session, flushes events, deletes the room, and shuts the job down. `call.ended` carries status, duration, usage totals, and the recording URL.
+9. The worker validates each job and writes `calls`, `call_turns`, and `tool_calls`. Writes are idempotent, so BullMQ retries are safe.
 
 ## Components
 
@@ -156,10 +160,11 @@ Interruptions need at least 0.6 s and one word of caller speech. A false interru
 
 Ending closes the session (5 s bound), flushes call events, deletes the room (5 s bound), and shuts the job down. `0` disables either limit. For deploys, the server's drain timeout defaults to max duration plus 120 s (or `DRAIN_TIMEOUT_SECONDS`), so live calls finish before a worker exits.
 
-**Call events.** `CallSessionEvents` listens to `conversation_item_added` and `close` on the `AgentSession`:
+**Call events.** `CallSessionEvents` listens to `conversation_item_added`, `function_tools_executed`, and `close` on the `AgentSession`:
 
 - `call.started` after the caller joins, with channel `sip` or `web` from the participant kind, and caller and trunk numbers from SIP attributes;
 - `call.turn` for each caller or agent message with text, numbered by `seq`, with STT delay, LLM time to first token, and TTS time to first byte when LiveKit reports them;
+- `call.tool` for every function tool the LLM ran, from `function_tools_executed`, numbered by its own `seq`. It carries the tool `name`, parsed `args` (always an object), `status` (`ok`, `error`, or `timeout`), `latency_ms`, and `started_at`. A successful tool's output string goes in `result`; a failed tool's message goes in `error`. LiveKit gives no separate start time, so latency is the gap between the LLM emitting the call and the tool output being recorded. `result` is any JSON value (string results are truncated at 8 KB, oversized structures are serialized and truncated), so a tool can later log structured data such as citations ([#42](https://github.com/khantseithu/answerline/issues/42));
 - `call.ended` once, with `completed` or `failed`, duration, usage totals (STT seconds, LLM tokens, TTS characters and seconds), and `recording_url`.
 
 `CallEventPublisher` enqueues each event as a BullMQ job from Python on a background task, with a 5 s timeout. Publish failures are logged and never raised into the call. Pending publishes are flushed for up to 5 s at shutdown ([#129](https://github.com/khantseithu/answerline/issues/129)).
@@ -216,9 +221,10 @@ Chunks are at most 1600 characters with 240-character overlap, preferring word b
 - resolves the agent by `(tenant, slug)`, importing `agents/<slug>.yaml` if the row is missing;
 - `call.started` upserts `calls` by its unique `room_name`;
 - `call.turn` makes sure the call row exists, then inserts into `call_turns`, ignoring duplicates on `(call_id, seq)`;
+- `call.tool` makes sure the call row exists, then inserts into `tool_calls`, ignoring duplicates on `(call_id, seq)`;
 - `call.ended` upserts status, `ended_at`, `duration_ms`, `usage`, and `recording_url`.
 
-Every write is an upsert or insert-if-absent, so the handler tolerates retries and events arriving out of order (a turn or end event before `call.started` still creates the call).
+Every write is an upsert or insert-if-absent, so the handler tolerates retries and events arriving out of order (a turn, tool, or end event before `call.started` still creates the call).
 
 [`src/cli.ts`](../apps/worker/src/cli.ts) is the `eval` CLI stub: `pnpm eval agents/<name>.yaml` parses the agent and its suite in `evals/`, lists the cases, and exits 1. The runner is **Planned** ([#83](https://github.com/khantseithu/answerline/issues/83), [#87](https://github.com/khantseithu/answerline/issues/87)).
 
@@ -308,7 +314,7 @@ erDiagram
 | `agents` | `(tenant_id, slug)` unique, `config` jsonb (agent config schema) | seed, worker (YAML import) |
 | `calls` | `room_name` (unique), channel, direction, numbers, status (`in_progress`, `completed`, `failed`), timestamps, `duration_ms`, `usage` jsonb, `recording_url`; `summary`, `outcome`, `cost_usd` reserved for post-call | worker |
 | `call_turns` | `(call_id, seq)` unique, role, text, timestamps, `interrupted`, `latency` jsonb | worker |
-| `tool_calls` | name, args, result, status, latency | nothing yet ([#47](https://github.com/khantseithu/answerline/issues/47)) |
+| `tool_calls` | `(call_id, seq)` unique, name, `args` jsonb, `result` jsonb, status (`ok`, `error`, `timeout`), `error`, `latency_ms` | worker |
 | `knowledge_sources` | type, uri, inline `content` jsonb (text or Q&A), status, error, `content_hash`, `updated_at`, `ingested_at` | worker ingestion (source creation by callers) |
 | `knowledge_chunks` | source, seq, content, citation metadata; `embedding vector(1536)` with an HNSW cosine index, `search` tsvector generated from `content` with a GIN index | worker ingestion |
 | `bookings` | provider, `external_id`, `starts_at`, status | nothing yet ([#50](https://github.com/khantseithu/answerline/issues/50)) |
@@ -326,7 +332,7 @@ There are two cross-language contracts: the agent config (TypeScript web, worker
 4. Shared fixtures under [`fixtures/agent-config`](../packages/shared/fixtures/agent-config) and [`fixtures/call-event`](../packages/shared/fixtures/call-event) (`valid/` and `invalid/`) run through Zod in TS tests, and through both the JSON Schema and Pydantic in [`test_config_parity.py`](../apps/agent/tests/test_config_parity.py) and [`test_call_events_parity.py`](../apps/agent/tests/test_call_events_parity.py).
 5. The Python parity tests also compare the full set of property paths between the Pydantic model and the JSON Schema, and check that job ids and the queue name match.
 
-Call event jobs: queue `call-events`, job name = event `type`, job id `<room>_<type>` or `<room>_call.turn_<seq>`. BullMQ ignores a job whose id already exists, so the agent can re-publish safely. Ids avoid `:`, because BullMQ rejects most custom ids that contain it. An end-to-end test ([`call-events.queue.test.ts`](../apps/worker/src/call-events.queue.test.ts)) pushes fixtures through a real queue into Postgres when `DATABASE_URL` and `REDIS_URL` are set, as they are in CI.
+Call event jobs: queue `call-events`, job name = event `type`, job id `<room>_<type>`, or `<room>_call.turn_<seq>` and `<room>_call.tool_<seq>` for per-call sequences. BullMQ ignores a job whose id already exists, so the agent can re-publish safely. Ids avoid `:`, because BullMQ rejects most custom ids that contain it. An end-to-end test ([`call-events.queue.test.ts`](../apps/worker/src/call-events.queue.test.ts)) pushes fixtures through a real queue into Postgres when `DATABASE_URL` and `REDIS_URL` are set, as they are in CI.
 
 ## Multi-tenancy
 

@@ -1,7 +1,8 @@
+import json
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import AfterValidator, BaseModel, Field, StringConstraints
 
@@ -10,6 +11,8 @@ CALL_EVENTS_QUEUE = "call-events"
 Slug = Annotated[str, StringConstraints(pattern=r"^[a-z0-9][a-z0-9-]{0,62}$")]
 NonEmpty = Annotated[str, StringConstraints(min_length=1)]
 MAX_SEQ = 2**53 - 1
+MAX_TOOL_RESULT_CHARS = 8192
+TRUNCATION_MARKER = "...[truncated]"
 TIMESTAMP_PATTERN = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$"
 
 
@@ -57,6 +60,18 @@ class CallTurn(CallRef):
     latency: TurnLatency | None = None
 
 
+class CallTool(CallRef):
+    type: Literal["call.tool"] = "call.tool"
+    seq: Annotated[int, Field(ge=0, le=MAX_SEQ)]
+    name: NonEmpty
+    args: dict[str, Any]
+    result: Any = None
+    status: Literal["ok", "error", "timeout"]
+    error: str | None = None
+    latency_ms: Annotated[int, Field(ge=0)]
+    started_at: Timestamp
+
+
 class CallEnded(CallRef):
     type: Literal["call.ended"] = "call.ended"
     status: Literal["completed", "failed"]
@@ -66,14 +81,14 @@ class CallEnded(CallRef):
     recording_url: NonEmpty | None = None
 
 
-CallEventModel = CallStarted | CallTurn | CallEnded
+CallEventModel = CallStarted | CallTurn | CallTool | CallEnded
 CallEvent = Annotated[CallEventModel, Field(discriminator="type")]
 
 ROLE_MAP: dict[str, Literal["caller", "agent"]] = {"user": "caller", "assistant": "agent"}
 
 
 def call_event_job_id(event: CallEventModel) -> str:
-    if isinstance(event, CallTurn):
+    if isinstance(event, CallTurn | CallTool):
         return f"{event.room_name}_{event.type}_{event.seq}"
     return f"{event.room_name}_{event.type}"
 
@@ -84,6 +99,32 @@ def call_event_payload(event: CallEventModel) -> dict:
 
 def iso_timestamp(epoch_seconds: float) -> str:
     return datetime.fromtimestamp(epoch_seconds, tz=UTC).isoformat(timespec="milliseconds")
+
+
+def bound_text(text: str, limit: int = MAX_TOOL_RESULT_CHARS) -> str:
+    if len(text) <= limit:
+        return text
+    return text[: max(limit - len(TRUNCATION_MARKER), 0)] + TRUNCATION_MARKER
+
+
+def bound_result(value: Any, limit: int = MAX_TOOL_RESULT_CHARS) -> Any:
+    if isinstance(value, str):
+        return bound_text(value, limit)
+    try:
+        encoded = json.dumps(value, ensure_ascii=False)
+    except (TypeError, ValueError):
+        return bound_text(str(value), limit)
+    return value if len(encoded) <= limit else bound_text(encoded, limit)
+
+
+def parse_tool_args(arguments: str | None) -> dict[str, Any]:
+    if not arguments:
+        return {}
+    try:
+        parsed = json.loads(arguments)
+    except ValueError:
+        return {"raw": bound_text(arguments)}
+    return parsed if isinstance(parsed, dict) else {"value": parsed}
 
 
 def turn_latency(metrics: dict) -> TurnLatency | None:
@@ -128,6 +169,7 @@ class CallRecorder:
     agent: str
     started_at: float | None = None
     next_seq: int = field(default=0, init=False)
+    next_tool_seq: int = field(default=0, init=False)
 
     def _ref(self) -> dict[str, str]:
         return {"room_name": self.room_name, "tenant": self.tenant, "agent": self.agent}
@@ -175,6 +217,30 @@ class CallRecorder:
             latency=turn_latency(metrics),
         )
         self.next_seq += 1
+        return event
+
+    def tool(
+        self,
+        *,
+        name: str,
+        arguments: str | None,
+        output: Any,
+        is_error: bool,
+        started_at: float,
+        finished_at: float,
+    ) -> CallTool:
+        event = CallTool(
+            **self._ref(),
+            seq=self.next_tool_seq,
+            name=name,
+            args=parse_tool_args(arguments),
+            result=None if is_error else bound_result(output),
+            status="error" if is_error else "ok",
+            error=bound_text(str(output)) if is_error else None,
+            latency_ms=max(round((finished_at - started_at) * 1000), 0),
+            started_at=iso_timestamp(started_at),
+        )
+        self.next_tool_seq += 1
         return event
 
     def end(
