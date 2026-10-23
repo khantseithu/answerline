@@ -117,3 +117,34 @@ async def hybrid_search(
         )
         for row in rows
     ]
+
+
+KNOWLEDGE_SCOPE_SQL = """
+select
+  t.id as tenant_id,
+  coalesce(array_agg(s.id order by s.id) filter (where s.id is not null), '{}') as source_ids
+from tenants t
+left join agents a on a.tenant_id = t.id and a.slug = $2
+left join knowledge_sources s
+  on s.tenant_id = t.id
+  and s.status = 'ready'
+  and (s.agent_id is null or s.agent_id = a.id)
+where t.slug = $1
+group by t.id
+"""
+
+
+class KnowledgeScope(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    tenant_id: UUID
+    source_ids: tuple[UUID, ...]
+
+
+async def fetch_knowledge_scope(
+    conn: asyncpg.Connection | asyncpg.Pool, *, tenant_slug: str, agent_slug: str
+) -> KnowledgeScope | None:
+    row = await conn.fetchrow(KNOWLEDGE_SCOPE_SQL, tenant_slug, agent_slug)
+    if row is None:
+        return None
+    return KnowledgeScope(tenant_id=row["tenant_id"], source_ids=tuple(row["source_ids"]))

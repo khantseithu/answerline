@@ -1,6 +1,7 @@
 import logging
 
-from answerline_llm import parse_model_ref
+import httpx
+from answerline_llm import EmbeddingProvider, EmbeddingSettings, parse_model_ref
 from livekit.agents import llm, stt, tts
 from livekit.plugins import anthropic, cartesia, deepgram, google, openai
 
@@ -49,3 +50,7 @@ def build_llm_chain(models: Models) -> llm.LLM:
     if len(chain) == 1:
         return chain[0]
     return llm.FallbackAdapter(chain)
+
+
+def build_embedder(client: httpx.AsyncClient) -> EmbeddingProvider:
+    return EmbeddingSettings().create_provider(client=client)

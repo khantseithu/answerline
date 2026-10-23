@@ -4,6 +4,7 @@ from livekit.plugins import silero
 
 from .call_limits import SHUTDOWN_PROCESS_TIMEOUT, CallLifecycle, drain_timeout
 from .call_session import CallSessionEvents, wait_for_caller
+from .knowledge_tool import open_knowledge_tools
 from .prompts import compose_instructions
 from .providers import build_llm_chain, build_stt, build_tts
 from .publisher import CallEventPublisher
@@ -41,6 +42,9 @@ async def entrypoint(ctx: JobContext) -> None:
         turn_handling=build_turn_handling(settings),
         user_away_timeout=settings.idle_timeout_seconds or None,
     )
+    knowledge = await open_knowledge_tools(settings, resolved.slug)
+    if knowledge:
+        ctx.add_shutdown_callback(lambda _reason: knowledge.close())
     recording = build_call_recording(ctx, config, settings.tenant)
     events = CallSessionEvents(
         session=session,
@@ -52,7 +56,10 @@ async def entrypoint(ctx: JobContext) -> None:
     )
     await session.start(
         room=ctx.room,
-        agent=Agent(instructions=compose_instructions(config.instructions)),
+        agent=Agent(
+            instructions=compose_instructions(config.instructions),
+            tools=knowledge.tools if knowledge else [],
+        ),
     )
     lifecycle = CallLifecycle(session=session, events=events, job=ctx, settings=settings)
     caller = await wait_for_caller(ctx)

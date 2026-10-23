@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     max_call_duration_seconds: int = Field(default=900, ge=0)
     idle_timeout_seconds: int = Field(default=60, ge=0)
     drain_timeout_seconds: int | None = Field(default=None, ge=0)
+    knowledge_search_timeout_seconds: float = Field(default=1.5, gt=0)
+    knowledge_search_top_k: int = Field(default=4, ge=1, le=10)
     call_wrap_up_message: str = (
         "I'm sorry, we've reached the time limit for this call. Thank you for calling, and goodbye."
     )
