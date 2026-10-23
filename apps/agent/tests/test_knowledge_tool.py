@@ -3,7 +3,7 @@ import json
 import logging
 import os
 import uuid
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, nullcontext
 from types import SimpleNamespace
 
 import asyncpg
@@ -131,7 +131,10 @@ def search_with(embedder, pool=None, timeout: float = 0.2) -> KnowledgeSearch:
 
 
 def run_context(call_id: str):
-    return SimpleNamespace(function_call=SimpleNamespace(call_id=call_id))
+    return SimpleNamespace(
+        function_call=SimpleNamespace(call_id=call_id),
+        with_filler=lambda *args, **kwargs: nullcontext(),
+    )
 
 
 class StubSearch:

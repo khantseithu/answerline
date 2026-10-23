@@ -1,9 +1,11 @@
 from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
-from livekit.agents import llm
+from livekit.agents import RunContext, llm
 
 from .config import Hours
+from .settings import Settings
+from .tool_policy import execute_tool
 
 
 def parse_window(value: str) -> tuple[time, time]:
@@ -35,12 +37,13 @@ def is_open_at(
     return False
 
 
-def build_business_hours_tool(hours: Hours) -> llm.FunctionTool:
+def build_business_hours_tool(hours: Hours, settings: Settings | None = None) -> llm.FunctionTool:
+    settings = settings or Settings()
     zone = ZoneInfo(hours.timezone)
     weekdays = parse_window(hours.weekdays)
     weekends = parse_window(hours.weekends) if hours.weekends else None
 
-    async def business_hours() -> dict[str, object]:
+    async def lookup() -> dict[str, object]:
         local = datetime.now(zone)
         return {
             "is_open": is_open_at(local, weekdays, weekends),
@@ -50,6 +53,16 @@ def build_business_hours_tool(hours: Hours) -> llm.FunctionTool:
             "weekends": hours.weekends,
             "after_hours": hours.after_hours,
         }
+
+    async def business_hours(context: RunContext) -> dict[str, object]:
+        return await execute_tool(
+            lookup,
+            context=context,
+            timeout=settings.tool_timeout_seconds,
+            retry_safe=True,
+            retries=settings.tool_retries,
+            filler_delay=settings.tool_filler_delay_seconds,
+        )
 
     return llm.function_tool(
         business_hours,
