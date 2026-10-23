@@ -68,13 +68,13 @@ Roadmap: *Knowledge base ingestion and hybrid search*
   - [x] Embeddings via pluggable provider (OpenAI, Gemini, Ollama) (#34)
   - [x] Store chunks + embeddings + `tsvector` in Postgres
   - [x] Re-ingest on change (content hash), delete stale chunks
-  - [x] Job status and errors visible to the dashboard (persisted fields; UI remains #43)
+  - [x] Job status and errors visible to the dashboard
 - [ ] Retrieval
   - [ ] Hybrid search: pgvector cosine + Postgres full-text, merged with reciprocal rank fusion
   - [ ] Optional reranker (Cohere, Jina, or local cross-encoder)
   - [ ] Agent tool `search_knowledge` with a strict latency budget (target p95 < 300 ms)
   - [ ] Cite source in transcript/tool call log
-- [ ] Dashboard: knowledge page (add URL, upload file, add Q&A, status, re-sync, delete)
+- [x] Dashboard: knowledge page (add URL, upload file, add Q&A, status, re-sync, delete)
 - [ ] Tests: retrieval quality fixtures for the dental FAQ
 
 **Done when:** upload the sample FAQ PDF, ask the agent about opening hours/services, and get correct answers grounded in the KB.
