@@ -1,0 +1,152 @@
+[
+  {
+    "id": "hours",
+    "question": "What are your opening hours?",
+    "answer": "We are open Monday through Friday from 9:00 AM to 6:00 PM. We are closed on Sundays and on major public holidays."
+  },
+  {
+    "id": "saturday",
+    "question": "Are you open on weekends?",
+    "answer": "We offer limited Saturday appointments from 9:00 AM to 1:00 PM on the first and third Saturday of every month. The office is closed on Sundays."
+  },
+  {
+    "id": "location",
+    "question": "Where is the clinic located?",
+    "answer": "Bright Smile Dental is at 214 Maple Avenue, Suite 3, in downtown Springfield, directly across from the public library and next to the pharmacy."
+  },
+  {
+    "id": "parking",
+    "question": "Is there parking available?",
+    "answer": "Yes. Free parking is available in the lot behind the building, with accessible spaces next to the back entrance. Street parking on Maple Avenue is metered."
+  },
+  {
+    "id": "transit",
+    "question": "Can I get to the clinic by bus or train?",
+    "answer": "The Number 12 and Number 40 buses stop right outside our front door. The nearest subway station is Central Square, a five minute walk away."
+  },
+  {
+    "id": "services",
+    "question": "What services do you offer?",
+    "answer": "We provide general dentistry including checkups, cleanings, fillings, crowns, bridges, root canals, extractions, teeth whitening, clear aligners, dental implants, dentures and emergency care."
+  },
+  {
+    "id": "cleaning",
+    "question": "How often should I get a teeth cleaning and how long does it take?",
+    "answer": "We recommend a professional cleaning and exam every six months. A routine visit takes about 60 minutes, including a hygiene cleaning and a checkup with the dentist."
+  },
+  {
+    "id": "whitening",
+    "question": "Do you offer teeth whitening?",
+    "answer": "Yes. In-office whitening takes about 90 minutes and brightens teeth several shades in one visit. We also provide custom take-home whitening trays."
+  },
+  {
+    "id": "braces",
+    "question": "Do you do braces or clear aligners?",
+    "answer": "We offer clear aligners for straightening teeth in teens and adults. Traditional metal braces are handled by our partner orthodontist, who sees patients here on Thursdays."
+  },
+  {
+    "id": "implants",
+    "question": "Can you replace a missing tooth with an implant?",
+    "answer": "Yes. Dr. Patel places dental implants on site. Replacing a missing tooth usually takes two or three visits over several months while the implant heals."
+  },
+  {
+    "id": "root-canal",
+    "question": "Do you perform root canals?",
+    "answer": "Yes. Root canal treatment is done in our office with local anesthesia so you stay comfortable. Most root canals take one or two visits."
+  },
+  {
+    "id": "wisdom",
+    "question": "Do you remove wisdom teeth?",
+    "answer": "We remove most wisdom teeth in the office. Complicated cases, such as teeth deeply impacted in the jawbone, are referred to an oral surgeon."
+  },
+  {
+    "id": "dentures",
+    "question": "Do you make dentures?",
+    "answer": "Yes. We make full and partial dentures, and we also repair broken dentures. Many repairs can be completed within a day."
+  },
+  {
+    "id": "emergency",
+    "question": "What should I do in a dental emergency?",
+    "answer": "For severe pain, swelling, a knocked-out tooth or a broken tooth, call us right away and we will see you the same day. After hours, we transfer your call to the on-call dentist."
+  },
+  {
+    "id": "insurance",
+    "question": "Which insurance plans do you accept?",
+    "answer": "We accept most major PPO plans, including Delta Dental, Cigna, Aetna, MetLife and Guardian. We also accept Medicaid for children. We submit claims to your insurance for you."
+  },
+  {
+    "id": "no-insurance",
+    "question": "What if I do not have dental insurance?",
+    "answer": "No problem. Our in-house membership plan costs 25 dollars a month and includes two cleanings, exams and X-rays each year, plus 20 percent off other treatment."
+  },
+  {
+    "id": "pricing",
+    "question": "How much does a checkup and cleaning cost?",
+    "answer": "A new patient exam with X-rays and a cleaning is 189 dollars without insurance. A regular six month cleaning and exam is 135 dollars. A filling starts at 150 dollars per tooth."
+  },
+  {
+    "id": "payment",
+    "question": "Do you offer payment plans or financing?",
+    "answer": "Yes. We offer interest-free payment plans for up to 12 months through CareCredit and in-house financing. We accept cash, all major credit cards, and HSA or FSA cards."
+  },
+  {
+    "id": "cancellation",
+    "question": "What is your cancellation policy?",
+    "answer": "Please give us at least 24 hours notice to cancel or reschedule an appointment. Cancellations with less notice and missed visits may be charged a 50 dollar fee."
+  },
+  {
+    "id": "late",
+    "question": "What happens if I am running late?",
+    "answer": "Please call us as soon as you know. If you are more than 15 minutes late, we may need to shorten your treatment or move you to another day."
+  },
+  {
+    "id": "new-patient",
+    "question": "What should I bring to my first appointment?",
+    "answer": "Bring a photo ID, your insurance card, a list of your current medications and any recent dental X-rays. Please arrive 15 minutes early to fill out new patient forms, or complete them online beforehand."
+  },
+  {
+    "id": "xrays",
+    "question": "Are dental X-rays safe?",
+    "answer": "Yes. We use low-radiation digital X-rays, which expose you to far less radiation than traditional film. We take them about once a year, or when needed for a specific problem."
+  },
+  {
+    "id": "kids",
+    "question": "Do you see children, and from what age?",
+    "answer": "Yes. We welcome children of all ages. We recommend a first visit by the child's first birthday or when the first tooth appears. Our kids visits include a fun tour and no-pressure cleaning."
+  },
+  {
+    "id": "anxiety",
+    "question": "I am nervous about the dentist. Can you help?",
+    "answer": "Absolutely. We offer nitrous oxide laughing gas, noise-cancelling headphones and breaks whenever you need them. Let us know about your anxiety when you book and we will plan a gentle visit."
+  },
+  {
+    "id": "pain",
+    "question": "Will my treatment hurt?",
+    "answer": "We use topical numbing gel and local anesthesia, so most patients feel only pressure. If you have discomfort during treatment, raise your hand and we will stop."
+  },
+  {
+    "id": "accessibility",
+    "question": "Is the office wheelchair accessible?",
+    "answer": "Yes. The building has a step-free entrance, an elevator to Suite 3, wide treatment rooms and an accessible restroom."
+  },
+  {
+    "id": "languages",
+    "question": "Do you have staff who speak other languages?",
+    "answer": "Yes. Our team speaks English, Spanish and Mandarin. We can arrange a phone interpreter for other languages if you let us know in advance."
+  },
+  {
+    "id": "records",
+    "question": "How do I transfer my dental records or get a copy of my X-rays?",
+    "answer": "Sign a records release form at the front desk or online and we will request your records from your previous dentist. We can also email you a copy of your X-rays within two business days."
+  },
+  {
+    "id": "second-opinion",
+    "question": "Can I get a second opinion on a treatment plan?",
+    "answer": "Yes. Bring your X-rays and treatment plan and Dr. Patel will review them. A second opinion consultation is 60 dollars, which is credited toward treatment if you choose to proceed."
+  },
+  {
+    "id": "booking",
+    "question": "How do I book an appointment?",
+    "answer": "You can book by calling this number, using the online scheduler on our website, or asking our receptionist. New patient appointments are usually available within one week."
+  }
+]
