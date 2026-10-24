@@ -129,11 +129,11 @@ Roadmap: *Built-in tools: booking, transfer, business hours*
 Roadmap: *Phone calls over SIP*
 
 - [x] Add LiveKit SIP service to docker compose (with Redis) (#63)
-- [ ] Inbound trunk + dispatch rule per phone number → agent
+- [x] Inbound trunk + dispatch rule per phone number → agent (#64)
 - [ ] Twilio guide and setup script
 - [ ] Telnyx guide and setup script
 - [ ] Generic SIP trunk guide
-- [ ] Caller ID captured on call record
+- [x] Caller ID captured on call record (#68)
 - [ ] DTMF handling (optional menu, extension entry)
 - [ ] Phone numbers page in dashboard (assign number to agent)
 - [ ] `docs/telephony.md` ("Connect a phone number")
@@ -287,6 +287,7 @@ Roadmap: *Multilingual agents*
 - After-hours routing: decided at call start from `hours` plus `hours.holidays` (`{date, hours?, name?}`; no `hours` means closed all day). Closed with `voicemail` takes a message; `transfer` transfers immediately (web calls fall back to voicemail); `answer` answers normally with the agent told it is closed (#49)
 - Transfer: the MVP ships cold transfer only, via LiveKit `transfer_sip_participant` (SIP REFER) to `transfer_call.to` (E.164 or `sip:` URI); web calls fall back to voicemail. Warm transfer is #226 (#58)
 - Voicemail: the agent takes the message and the STT transcript is stored in `voicemails` via a `voicemail.created` event, linked to the call. Audio is the call recording when recording is enabled; no per-voicemail clip (#59)
+- Phone number routing: LiveKit is the only store. Each number gets one inbound trunk and one dispatch rule (individual room per call, `call-` prefix) whose agent dispatch carries `{"agent": "<slug>"}` metadata; no `phone_numbers` table. The dashboard and `pnpm sip` read and write LiveKit's SIP API, so `lk sip` stays compatible. Numbers sharing a trunk or rule (made outside Answerline) are listed but not changed (#64, #70)
 
 ## Open decisions
 

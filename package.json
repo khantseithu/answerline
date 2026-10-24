@@ -18,6 +18,7 @@
     "prepare": "lefthook install",
     "py:lint": "uv run ruff check . && uv run ruff format --check .",
     "py:test": "uv run pytest",
+    "sip": "pnpm --filter @answerline/worker sip",
     "test": "node --test scripts/*.test.mjs && turbo run test",
     "typecheck": "turbo run typecheck",
     "wt": "treehouse get",
