@@ -152,7 +152,7 @@ Roadmap: *Dashboard: calls, transcripts, cost per call*
     - [x] Persistence schema: users, sessions, accounts, verifications (#244)
   - [x] First-run admin provisioning during bootstrap; generated credentials stored locally (#74)
 - [x] App shell: sidebar (Calls, Agents, Knowledge, Evals, Phone numbers, Settings), dark mode
-- [ ] Calls list: filters (agent, date, channel, outcome), search transcripts, pagination
+- [x] Calls list: filters (agent, date, channel, outcome), search transcripts, pagination (#76)
 - [ ] Call detail: transcript with timestamps, audio player synced to transcript, tool calls timeline, latency per turn (STT / LLM TTFT / TTS TTFB), cost breakdown
 - [ ] Post-call job (worker, `post-call` queue): summary, outcome tag, sentiment, cost calculation
 - [x] Cost tracking: price table per provider/model (STT per min, LLM per token, TTS per char), usage captured from LiveKit metrics (#79)
