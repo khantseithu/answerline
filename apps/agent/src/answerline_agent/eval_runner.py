@@ -11,6 +11,7 @@ from jsonschema import Draft202012Validator, FormatChecker
 from livekit import rtc
 from livekit.agents import Agent, AgentSession, RunContext, io, llm, tts
 from livekit.agents.metrics import ModelUsageCollector
+from livekit.agents.utils import http_context
 from pydantic import Field
 
 from .after_hours import AfterHours
@@ -512,40 +513,41 @@ async def run_case(
 
 
 async def run_suite(payload: dict[str, Any]) -> dict[str, Any]:
-    _validate_wire_payload(payload, "eval-execution-input.schema.json")
-    if payload.get("liveTools") and payload.get("context") is None:
-        raise ValueError("liveTools requires agentSlug and tenantSlug context")
-    names = [case["name"] for case in payload["suite"]]
-    if len(set(names)) != len(names):
-        raise ValueError("eval case names must be unique")
-    config = AgentConfig.model_validate(payload["agent"])
-    results = [
-        await run_case(
-            config,
-            case,
-            model_override=payload.get("modelOverride"),
-            settings=Settings(),
-            mode=payload.get("mode", "text"),
-            live_tools=payload.get("liveTools", False),
-            context=payload.get("context"),
-        )
-        for case in payload["suite"]
-    ]
-    total = len(results)
-    latencies = [result["latencyMs"] for result in results if result["latencyMs"] is not None]
-    costs = [result["costUsd"] for result in results if result["costUsd"] is not None]
-    passed = sum(result["passed"] for result in results)
-    output = {
-        "results": results,
-        "aggregate": {
-            "passed": passed,
-            "total": total,
-            "avgLatencyMs": round(sum(latencies) / len(latencies)) if latencies else None,
-            "costUsd": sum(costs) if len(costs) == total else None,
-        },
-    }
-    _validate_wire_payload(output, "eval-execution-output.schema.json")
-    return output
+    async with http_context.open():
+        _validate_wire_payload(payload, "eval-execution-input.schema.json")
+        if payload.get("liveTools") and payload.get("context") is None:
+            raise ValueError("liveTools requires agentSlug and tenantSlug context")
+        names = [case["name"] for case in payload["suite"]]
+        if len(set(names)) != len(names):
+            raise ValueError("eval case names must be unique")
+        config = AgentConfig.model_validate(payload["agent"])
+        results = [
+            await run_case(
+                config,
+                case,
+                model_override=payload.get("modelOverride"),
+                settings=Settings(),
+                mode=payload.get("mode", "text"),
+                live_tools=payload.get("liveTools", False),
+                context=payload.get("context"),
+            )
+            for case in payload["suite"]
+        ]
+        total = len(results)
+        latencies = [result["latencyMs"] for result in results if result["latencyMs"] is not None]
+        costs = [result["costUsd"] for result in results if result["costUsd"] is not None]
+        passed = sum(result["passed"] for result in results)
+        output = {
+            "results": results,
+            "aggregate": {
+                "passed": passed,
+                "total": total,
+                "avgLatencyMs": round(sum(latencies) / len(latencies)) if latencies else None,
+                "costUsd": sum(costs) if len(costs) == total else None,
+            },
+        }
+        _validate_wire_payload(output, "eval-execution-output.schema.json")
+        return output
 
 
 async def main() -> None:

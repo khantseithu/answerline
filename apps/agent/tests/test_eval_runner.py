@@ -506,6 +506,35 @@ def test_run_suite_validates_output_and_keeps_mock_tools_off_database(monkeypatc
     assert greeting["text"]
 
 
+def test_run_suite_opens_http_context_for_provider_execution(monkeypatch):
+    payload = {
+        "agent": CONFIG,
+        "suite": [{"name": "http context", "caller": "Hi", "expect": {}}],
+    }
+    sessions = []
+
+    async def run_case_with_http_context(*_args, **_kwargs):
+        session = eval_runner.http_context.http_session()
+        assert not session.closed
+        sessions.append(session)
+        return {
+            "caseName": "http context",
+            "passed": True,
+            "failures": [],
+            "transcript": [],
+            "latencyMs": 1,
+            "costUsd": None,
+            "modelUsage": [],
+        }
+
+    monkeypatch.setattr(eval_runner, "run_case", run_case_with_http_context)
+    output = asyncio.run(run_suite(payload))
+    assert output["aggregate"]["passed"] == 1
+    assert sessions[0].closed
+    with pytest.raises(RuntimeError, match="outside of a job context"):
+        eval_runner.http_context.http_session()
+
+
 def test_live_tools_use_the_supplied_tenant_and_agent_slugs(monkeypatch):
     received = {}
 
