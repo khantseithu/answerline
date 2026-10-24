@@ -7,6 +7,9 @@ export const EMBEDDING_PROVIDERS = ["openai", "google", "ollama"] as const;
 
 const WHITESPACE = /\s/;
 const TRAILING_SLASH = /\/$/;
+const GOOGLE_RETRY_DELAY = /^(\d+(?:\.\d+)?)s$/;
+const RETRYABLE_STATUSES = new Set([429, 503]);
+const MAX_BACKOFF_MS = 60_000;
 
 export function parseEmbeddingModelRef(ref: string) {
   const parsed = parseModelRef(ref);
@@ -55,6 +58,7 @@ export interface EmbeddingOptions {
   baseUrl?: string;
   fetch?: typeof globalThis.fetch;
   inputType?: EmbeddingInputType;
+  maxRetryWaitMs?: number;
   modelRef?: string;
   timeoutMs?: number;
 }
@@ -71,6 +75,30 @@ const openaiSchema = z.object({
 });
 const googleSchema = z.object({ embeddings: z.array(z.object({ values: vectorSchema })) });
 const ollamaSchema = z.object({ embeddings: z.array(vectorSchema) });
+const googleErrorSchema = z.object({
+  error: z.object({ details: z.array(z.object({ retryDelay: z.string().optional() })) }),
+});
+
+async function retryDelayMs(response: Response, attempt: number) {
+  const header = response.headers.get("retry-after")?.trim();
+  if (header) {
+    const seconds = Number(header);
+    if (Number.isFinite(seconds) && seconds >= 0) {
+      return seconds * 1000;
+    }
+    const date = Date.parse(header);
+    if (!Number.isNaN(date)) {
+      return Math.max(0, date - Date.now());
+    }
+  }
+  const body = googleErrorSchema.safeParse(await response.json().catch(() => null));
+  const retryDelay = body.data?.error.details
+    .map((detail) => detail.retryDelay?.match(GOOGLE_RETRY_DELAY)?.[1])
+    .find((seconds) => seconds !== undefined);
+  return retryDelay === undefined
+    ? Math.min(1000 * 2 ** attempt, MAX_BACKOFF_MS)
+    : Number(retryDelay) * 1000;
+}
 
 function normalize(vector: number[]) {
   if (vector.length < EMBEDDING_DIMENSIONS) {
@@ -104,6 +132,11 @@ export function createEmbeddingProvider(options: EmbeddingOptions = {}): Embeddi
     .int()
     .positive()
     .parse(options.timeoutMs ?? 10_000);
+  const maxRetryWaitMs = z
+    .number()
+    .int()
+    .nonnegative()
+    .parse(options.maxRetryWaitMs ?? 0);
   const defaultUrl = {
     google: "https://generativelanguage.googleapis.com/v1beta",
     ollama: "http://localhost:11434",
@@ -116,7 +149,7 @@ export function createEmbeddingProvider(options: EmbeddingOptions = {}): Embeddi
   const request = options.fetch ?? globalThis.fetch;
   const inputType = options.inputType ?? "document";
 
-  async function embedBatch(texts: readonly string[]) {
+  function sendBatch(texts: readonly string[]) {
     let path: string;
     let body: unknown;
     const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -143,16 +176,15 @@ export function createEmbeddingProvider(options: EmbeddingOptions = {}): Embeddi
       path = "/api/embed";
       body = { dimensions: EMBEDDING_DIMENSIONS, input: texts, model, truncate: false };
     }
-    const response = await request(`${baseUrl}${path}`, {
+    return request(`${baseUrl}${path}`, {
       body: JSON.stringify(body),
       headers,
       method: "POST",
       signal: AbortSignal.timeout(timeoutMs),
     });
-    if (!response.ok) {
-      throw new Error(`Embedding request failed (${modelRef}; HTTP ${response.status})`);
-    }
-    const payload: unknown = await response.json();
+  }
+
+  function parseBatch(payload: unknown, texts: readonly string[]) {
     let vectors: number[][];
     if (provider === "openai") {
       const { data } = openaiSchema.parse(payload);
@@ -172,6 +204,30 @@ export function createEmbeddingProvider(options: EmbeddingOptions = {}): Embeddi
       );
     }
     return vectors.map(normalize);
+  }
+
+  async function embedBatch(
+    texts: readonly string[],
+    attempt = 0,
+    waitedMs = 0
+  ): Promise<number[][]> {
+    const response = await sendBatch(texts);
+    if (RETRYABLE_STATUSES.has(response.status)) {
+      const delayMs = await retryDelayMs(response, attempt);
+      if (waitedMs + delayMs <= maxRetryWaitMs) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        if (response.status === 429 && texts.length > 1) {
+          const half = Math.ceil(texts.length / 2);
+          const first = await embedBatch(texts.slice(0, half), attempt + 1, waitedMs + delayMs);
+          return first.concat(await embedBatch(texts.slice(half)));
+        }
+        return await embedBatch(texts, attempt + 1, waitedMs + delayMs);
+      }
+    }
+    if (!response.ok) {
+      throw new Error(`Embedding request failed (${modelRef}; HTTP ${response.status})`);
+    }
+    return parseBatch(await response.json(), texts);
   }
 
   return {

@@ -17,6 +17,7 @@ export interface EmbedKnowledge {
   (texts: string[]): Promise<number[][]>;
 }
 
+const EMBEDDING_RETRY_WAIT_MS = 120_000;
 const vectorSchema = z
   .array(z.number().finite())
   .length(EMBEDDING_DIMENSIONS)
@@ -143,7 +144,7 @@ export async function enqueueIngestion(
   try {
     return await queue.add("ingest-source", input, {
       attempts: 3,
-      backoff: { delay: 1000, type: "exponential" },
+      backoff: { delay: 30_000, type: "exponential" },
       removeOnComplete: 1000,
       removeOnFail: 1000,
     });
@@ -161,7 +162,11 @@ export function createKnowledgeEmbedder(
   fetch?: typeof globalThis.fetch
 ): EmbedKnowledge {
   try {
-    const provider = createEmbeddingProvider({ ...embeddingConfigFromEnv(source), fetch });
+    const provider = createEmbeddingProvider({
+      ...embeddingConfigFromEnv(source),
+      fetch,
+      maxRetryWaitMs: EMBEDDING_RETRY_WAIT_MS,
+    });
     return Object.assign((texts: string[]) => provider.embed(texts), {
       modelRef: provider.modelRef,
     });

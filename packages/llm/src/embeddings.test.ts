@@ -271,3 +271,83 @@ test("fails clearly for missing credentials, HTTP failures, transport failures a
     { name: "TimeoutError" }
   );
 });
+
+test("rate limits retry after the provider's delay and split large batches", async () => {
+  const batches: number[] = [];
+  let limited = true;
+  const fetch = mockFetch((_url, init) => {
+    const { requests } = JSON.parse(String(init.body)) as { requests: unknown[] };
+    batches.push(requests.length);
+    if (limited) {
+      limited = false;
+      return Response.json(
+        {
+          error: {
+            code: 429,
+            details: [
+              { "@type": "type.googleapis.com/google.rpc.QuotaFailure" },
+              { "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay: "0.01s" },
+            ],
+          },
+        },
+        { status: 429 }
+      );
+    }
+    return Response.json({ embeddings: requests.map(() => ({ values: vector() })) });
+  });
+  const texts = Array.from({ length: 5 }, (_, index) => `chunk ${index}`);
+  const result = await createEmbeddingProvider({
+    apiKey: "test",
+    fetch,
+    maxRetryWaitMs: 1000,
+  }).embed(texts);
+  assert.equal(result.length, 5);
+  assert.deepEqual(batches, [5, 3, 2]);
+
+  const statuses = [503, 200];
+  const retried = await createEmbeddingProvider({
+    apiKey: "test",
+    fetch: mockFetch(() => {
+      const status = statuses.shift();
+      return status === 200
+        ? Response.json({ embeddings: [{ values: vector() }] })
+        : new Response(null, { headers: { "Retry-After": "0" }, status });
+    }),
+    maxRetryWaitMs: 1000,
+  }).embed(["text"]);
+  assert.equal(retried.length, 1);
+  assert.deepEqual(statuses, []);
+});
+
+test("rate limits give up once the retry budget is spent, or by default", async () => {
+  let calls = 0;
+  const limited = mockFetch(() => {
+    calls += 1;
+    return new Response(null, { headers: { "Retry-After": "0.02" }, status: 429 });
+  });
+  await assert.rejects(
+    createEmbeddingProvider({ apiKey: "test", fetch: limited, maxRetryWaitMs: 50 }).embed(["text"]),
+    HTTP_ERROR
+  );
+  assert.equal(calls, 3);
+  calls = 0;
+  await assert.rejects(
+    createEmbeddingProvider({ apiKey: "test", fetch: limited }).embed(["text"]),
+    HTTP_ERROR
+  );
+  assert.equal(calls, 1);
+  calls = 0;
+  await assert.rejects(
+    createEmbeddingProvider({
+      apiKey: "test",
+      fetch: mockFetch(() => {
+        calls += 1;
+        return new Response(null, { headers: { "Retry-After": "120" }, status: 429 });
+      }),
+      maxRetryWaitMs: 60_000,
+    }).embed(["text"]),
+    HTTP_ERROR
+  );
+  assert.equal(calls, 1);
+  assert.throws(() => createEmbeddingProvider({ apiKey: "test", maxRetryWaitMs: -1 }));
+});
