@@ -14,6 +14,7 @@ import {
   removePhoneNumber,
   sipEnvSchema,
 } from "./phone-numbers.ts";
+import { setupTelnyxConnection, telnyxEnvSchema } from "./telnyx.ts";
 import { setupTwilioTrunk, twilioEnvSchema } from "./twilio.ts";
 
 const SIP_USAGE = `usage:
@@ -21,7 +22,8 @@ const SIP_USAGE = `usage:
   worker sip add <+15551234567> <agent> [--allowed-address <ip-or-cidr>]... [--auth-username <user> --auth-password <pass>]
   worker sip assign <+15551234567> <agent>
   worker sip remove <+15551234567>
-  worker sip twilio <+15551234567> <agent> [--sip-host <host>]   (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN; host defaults to SIP_PUBLIC_IP)`;
+  worker sip twilio <+15551234567> <agent> [--sip-host <host>]   (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN; host defaults to SIP_PUBLIC_IP)
+  worker sip telnyx <+15551234567> <agent> --sip-host <hostname>   (TELNYX_API_KEY)`;
 
 function fail(message: string): never {
   console.error(message);
@@ -95,6 +97,19 @@ async function runSip(args: string[]) {
       sipHost,
     });
     console.log(`twilio trunk ${trunk.trunkSid} -> ${trunk.originationUrl}, transfers enabled`);
+    printNumber(await connectPhoneNumber(client, env.AGENT_NAME, { agent, number }));
+  } else if (action === "telnyx" && number && agent) {
+    const sipHost = values["sip-host"] ?? process.env.SIP_PUBLIC_IP;
+    if (!sipHost) {
+      fail("--sip-host is required: the public hostname of your SIP service");
+    }
+    const telnyx = telnyxEnvSchema.parse(process.env);
+    const result = await setupTelnyxConnection({
+      apiKey: telnyx.TELNYX_API_KEY,
+      number: phoneNumberSchema.parse(number),
+      sipHost,
+    });
+    console.log(`telnyx connection ${result.connectionId} -> sip:${sipHost}:5060 (TCP)`);
     printNumber(await connectPhoneNumber(client, env.AGENT_NAME, { agent, number }));
   } else if (action === "remove" && number) {
     await removePhoneNumber(client, number);
