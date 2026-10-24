@@ -5,6 +5,7 @@ from livekit.plugins import silero
 from .call_limits import SHUTDOWN_PROCESS_TIMEOUT, CallLifecycle, drain_timeout
 from .call_session import CallSessionEvents, wait_for_caller
 from .capture_lead import LeadCaptureContext
+from .config import TransferCallTool
 from .knowledge_tool import open_knowledge_tools
 from .native_booking import open_booking_provider
 from .prompts import compose_instructions
@@ -15,6 +16,7 @@ from .resolve import resolve_agent
 from .settings import Settings
 from .tool_log import ToolLog
 from .tools import build_configured_tools
+from .transfer import CallTransfer
 from .turns import build_turn_handling
 
 settings = Settings()
@@ -42,6 +44,10 @@ async def entrypoint(ctx: JobContext) -> None:
     booking = await open_booking_provider(config, settings, resolved.slug, ctx.room.name)
     if booking:
         ctx.add_shutdown_callback(lambda _reason: booking.close())
+    transfer_spec = next(
+        (spec for spec in config.tools if isinstance(spec, TransferCallTool)), None
+    )
+    transfer = CallTransfer(ctx, transfer_spec.to) if transfer_spec else None
     tools = build_configured_tools(
         config,
         settings,
@@ -52,6 +58,7 @@ async def entrypoint(ctx: JobContext) -> None:
             room_name=ctx.room.name,
         ),
         booking=booking,
+        transfer=transfer,
     )
     session = AgentSession(
         stt=build_stt(config.models.stt),
@@ -84,6 +91,8 @@ async def entrypoint(ctx: JobContext) -> None:
     )
     lifecycle = CallLifecycle(session=session, events=events, job=ctx, settings=settings)
     caller = await wait_for_caller(ctx)
+    if transfer:
+        transfer.set_caller(caller)
     events.started(caller)
     ctx.add_shutdown_callback(events.on_shutdown)
     lifecycle.watch_caller(ctx.room, caller)
