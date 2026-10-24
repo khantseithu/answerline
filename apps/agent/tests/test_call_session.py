@@ -6,7 +6,7 @@ from answerline_agent.call_session import CallSessionEvents
 from answerline_agent.tool_log import ToolLog
 from livekit import rtc
 from livekit.agents.llm import AgentHandoff, ChatMessage, FunctionCall, FunctionCallOutput
-from livekit.agents.metrics import STTModelUsage
+from livekit.agents.metrics import LLMModelUsage, STTModelUsage
 from livekit.agents.voice.events import (
     CloseEvent,
     CloseReason,
@@ -184,7 +184,29 @@ def test_close_publishes_completed_with_usage_without_waiting_for_shutdown():
     assert ended.type == "call.ended"
     assert ended.status == "completed"
     assert ended.usage["stt_seconds"] == 4
+    assert ended.model_usage[0].model == "nova"
+    assert ended.model_usage[0].provider == "deepgram"
+    assert ended.model_usage[0].quantity == 4
     assert not publisher.flushed
+
+
+def test_close_publishes_ended_when_model_attribution_is_empty(monkeypatch):
+    usage = [LLMModelUsage(provider="", model="", input_tokens=12, output_tokens=3)]
+    events, session, publisher = _events(FakeSession(usage=usage))
+    timestamps = iter((100.0, 103.0))
+    monkeypatch.setattr(call_session.time, "time", lambda: next(timestamps))
+
+    events.started(None)
+    session.handlers["close"](CloseEvent(reason=CloseReason.PARTICIPANT_DISCONNECTED))
+
+    ended = publisher.events[-1]
+    assert ended.type == "call.ended"
+    assert ended.status == "completed"
+    assert ended.duration_ms == 3000
+    assert ended.usage["llm_input_tokens"] == 12
+    assert ended.usage["llm_output_tokens"] == 3
+    assert ended.model_usage[0].provider == "unknown"
+    assert ended.model_usage[0].model == "unknown"
 
 
 def test_close_reports_recording_url_when_available():

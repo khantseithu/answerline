@@ -23,6 +23,10 @@ Collectors must normalize provider-specific token totals before producing these 
 
 `calls.model_usage` stores these rows. `calls.cost_breakdown` adds `unitPriceUsd` and `costUsd` for each row. Rates are normalized to the row's unit. Unknown rates and costs are nullable. Missing usage or a positive quantity with an unknown rate must not produce a falsely complete zero-dollar total. Pricing estimates and their source dates belong to the cost calculator, not the call path.
 
+The initial defaults were checked on 2026-10-24: Deepgram Nova-3 monolingual streaming uses the listed $0.0048/minute promotional price ($0.00008/second); OpenAI GPT-4.1 mini uses $0.40/$0.10/$1.60 per million uncached input/cached input/output tokens; Google Gemini 2.5 Flash uses $0.30/$0.03/$2.50 per million input/cached input/output tokens; Cartesia Sonic-3 uses $65 per million characters as the Pro-tier overage rate. These are estimates: provider promotions, plan tiers, audio options, cache writes, and vendor billing adjustments can change actual invoices. Cartesia's rate is specifically a plan overage rate. Cache creation has no default rate and leaves a positive-usage call total unknown until overridden.
+
+Sources: [Deepgram pricing](https://deepgram.com/pricing), [OpenAI API pricing](https://developers.openai.com/api/docs/pricing), [Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing), and [Cartesia pricing](https://www.cartesia.ai/pricing). `COST_PRICES_JSON` accepts a JSON array of `{stage, provider, model, unit, unitPriceUsd}` overrides in `.env`; an explicit zero rate is supported for a verified free model or a user-selected billing rate. Overrides match the exact stage, provider, model, and unit.
+
 ## Call review and processing
 
 `postCallJobSchema` requires both tenant and call IDs. Consumers must scope database reads and writes to both. `postCallAnalysisSchema` validates a bounded summary, an outcome tag, and sentiment before persistence.

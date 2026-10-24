@@ -12,6 +12,7 @@ import {
 import { type CallEventJob, callEventJob, parseAgentConfig } from "@answerline/shared";
 import type { Job } from "bullmq";
 import { and, eq } from "drizzle-orm";
+import { calculateCallCost, parseCostPrices } from "./costs.ts";
 
 const defaultAgentsDir = new URL("../../../agents/", import.meta.url);
 
@@ -171,9 +172,16 @@ async function handleEnded(
   ref: Ref
 ) {
   const endedAt = new Date(event.ended_at);
+  const { costUsd, costBreakdown } = calculateCallCost(
+    event.model_usage,
+    parseCostPrices(process.env.COST_PRICES_JSON)
+  );
   const fields = {
+    costBreakdown,
+    costUsd: costUsd?.toFixed(6) ?? null,
     durationMs: event.duration_ms,
     endedAt,
+    modelUsage: event.model_usage ?? null,
     recordingUrl: event.recording_url,
     status: event.status,
     usage: event.usage,

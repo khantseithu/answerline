@@ -13,7 +13,7 @@ from livekit.agents.voice.events import (
     FunctionToolsExecutedEvent,
 )
 
-from .call_events import CallEventModel, CallRecorder, summarize_usage
+from .call_events import CallEventModel, CallRecorder, model_usage_lines, summarize_usage
 from .tool_log import ToolLog
 
 logger = logging.getLogger("answerline.agent")
@@ -122,15 +122,23 @@ class CallSessionEvents:
         self._ended = True
         try:
             try:
-                usage = summarize_usage(self._session.usage.model_usage)
+                model_metrics = self._session.usage.model_usage
+                usage = summarize_usage(model_metrics)
             except Exception:
                 logger.warning("failed to read session usage", exc_info=True)
                 usage = None
+                model_metrics = []
+            try:
+                model_usage = model_usage_lines(model_metrics)
+            except Exception:
+                logger.warning("failed to normalize model usage", exc_info=True)
+                model_usage = None
             self._publisher.publish(
                 self._recorder.end(
                     ended_at=time.time(),
                     failed=self._failed,
                     usage=usage,
+                    model_usage=model_usage,
                     recording_url=self._recording_url() if self._recording_url else None,
                 )
             )
