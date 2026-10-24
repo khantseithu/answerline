@@ -62,6 +62,68 @@ export const tenants = pgTable("tenants", {
   updatedAt: updatedAt(),
 });
 
+export const users = pgTable("users", {
+  createdAt: createdAt(),
+  email: text().notNull().unique(),
+  emailVerified: boolean().notNull().default(false),
+  id: id(),
+  image: text(),
+  name: text().notNull(),
+  updatedAt: updatedAt(),
+});
+
+export const sessions = pgTable(
+  "sessions",
+  {
+    createdAt: createdAt(),
+    expiresAt: timestamp({ withTimezone: true }).notNull(),
+    id: id(),
+    ipAddress: text(),
+    token: text().notNull().unique(),
+    updatedAt: updatedAt(),
+    userAgent: text(),
+    userId: uuid()
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+  },
+  (t) => [index().on(t.userId)]
+);
+
+export const accounts = pgTable(
+  "accounts",
+  {
+    accessToken: text(),
+    accessTokenExpiresAt: timestamp({ withTimezone: true }),
+    accountId: text().notNull(),
+    createdAt: createdAt(),
+    id: id(),
+    idToken: text(),
+    password: text(),
+    providerId: text().notNull(),
+    refreshToken: text(),
+    refreshTokenExpiresAt: timestamp({ withTimezone: true }),
+    scope: text(),
+    updatedAt: updatedAt(),
+    userId: uuid()
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+  },
+  (t) => [index().on(t.userId), uniqueIndex().on(t.providerId, t.accountId)]
+);
+
+export const verifications = pgTable(
+  "verifications",
+  {
+    createdAt: createdAt(),
+    expiresAt: timestamp({ withTimezone: true }).notNull(),
+    id: id(),
+    identifier: text().notNull(),
+    updatedAt: updatedAt(),
+    value: text().notNull(),
+  },
+  (t) => [index().on(t.identifier)]
+);
+
 export const agents = pgTable(
   "agents",
   {
