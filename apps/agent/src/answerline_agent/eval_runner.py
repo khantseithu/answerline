@@ -240,6 +240,12 @@ def _evaluate_assertions(
     return failures
 
 
+def _speech_failure_summary(stage: str, error: BaseException) -> str:
+    status_code = getattr(error, "status_code", None)
+    status = f" (status {status_code})" if isinstance(status_code, int) else ""
+    return f"{stage} failed: {type(error).__name__}{status}"[:120]
+
+
 async def _judge(
     provider: llm.LLM,
     rubric: str,
@@ -445,7 +451,7 @@ async def run_case(
         else:
             await greeting.wait_for_playout()
         if error := greeting.exception():
-            speech_failures.append(f"agent greeting failed: {type(error).__name__}: {error}")
+            speech_failures.append(_speech_failure_summary("agent greeting", error))
         transcript.append({"role": "agent", "text": greeting_text})
         for turn in turns:
             start = len(responses)
@@ -470,7 +476,7 @@ async def run_case(
                 handle = await session.generate_reply(user_input=turn, input_modality="text")
                 await handle.wait_for_playout()
             if error := handle.exception():
-                speech_failures.append(f"agent response failed: {type(error).__name__}: {error}")
+                speech_failures.append(_speech_failure_summary("agent response", error))
             response = "\n".join(responses[start:]).strip()
             if response:
                 transcript.append({"role": "agent", "text": response})

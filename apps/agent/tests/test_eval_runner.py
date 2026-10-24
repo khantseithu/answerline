@@ -13,7 +13,7 @@ from answerline_agent.eval_runner import (
     run_suite,
 )
 from livekit import rtc
-from livekit.agents import llm, stt, tts
+from livekit.agents import APIStatusError, llm, stt, tts
 from livekit.agents.metrics import LLMMetrics, TTSMetrics
 from livekit.agents.metrics.base import Metadata
 from livekit.agents.types import DEFAULT_API_CONNECT_OPTIONS
@@ -269,6 +269,42 @@ def test_run_case_executes_mock_tool_and_checks_its_arguments():
     )
     assert result["passed"] is True
     assert result["transcript"][-1] == {"role": "agent", "text": "Your request was saved."}
+
+
+def test_speech_failures_exclude_provider_error_body(monkeypatch):
+    error = APIStatusError(
+        "secret-like provider message",
+        status_code=402,
+        body={"user_id": "private-user", "api_key": "private-key"},
+    )
+
+    class FailedSpeech:
+        async def wait_for_playout(self):
+            return None
+
+        def exception(self):
+            return error
+
+    async def failed_reply(*_args, **_kwargs):
+        return FailedSpeech()
+
+    monkeypatch.setattr(
+        eval_runner.AgentSession,
+        "generate_reply",
+        failed_reply,
+    )
+    result = asyncio.run(
+        run_case(
+            _config(),
+            {"name": "provider failure", "caller": "Hello", "expect": {}},
+            llm_provider=_TextLLM(),
+        )
+    )
+    assert result["passed"] is False
+    assert result["failures"] == ["agent response failed: APIStatusError (status 402)"]
+    assert "private-user" not in json.dumps(result)
+    assert "private-key" not in json.dumps(result)
+    assert "secret-like provider message" not in json.dumps(result)
 
 
 def test_audio_eval_runs_stt_tools_llm_and_tts_without_rtc(monkeypatch):
