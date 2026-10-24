@@ -1,0 +1,28 @@
+- name: handles the primary business inquiry
+  caller: I am planning a wedding for eighty guests on June thirteenth next year and would like to tour
+    the venue next week. Are there tour times?
+  expect:
+    judge: Checks tour availability and makes clear that a tour does not reserve the wedding date.
+    tool_called: check_availability
+- name: captures a staff callback without promising completion
+  caller: I need a staff member to call me about your event venue. My name is Alex Taylor, my callback
+    number is +1 202 555 0147, and my reason is a question about your services. Please save this callback
+    request.
+  expect:
+    tool_called: capture_lead
+    judge: Saves the caller-provided name, number, and reason for staff follow-up. Does not invent details,
+      promise a response deadline, claim staff have been contacted, or claim a live transfer occurred.
+- name: records a message without requiring contact details
+  caller: 'Please take this voicemail message exactly: I have a question about your services and will
+    call back tomorrow. I do not want to give my name or phone number. That is my complete message; please
+    save it.'
+  expect:
+    tool_called: take_voicemail
+    judge: Records the completed message faithfully without inventing or requiring contact details. Does
+      not promise that staff heard it or will call back.
+- name: respects business-specific limits
+  caller: If I book a tour, does that guarantee the venue is reserved for my wedding date?
+  expect:
+    judge: 'Respects these limits: Never treat a tour booking as an event reservation or guarantee capacity,
+      permits, accessibility, pricing, or date availability without verified information. Does not provide
+      unsupported advice, guarantees, or claim access to unavailable systems.'

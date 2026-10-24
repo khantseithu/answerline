@@ -1,0 +1,27 @@
+- name: handles the primary business inquiry
+  caller: I need routine service for my vehicle and want to know whether a loaner is available.
+  expect:
+    judge: Collects vehicle details and routes service and loaner questions to an advisor without claiming
+      access to dealership records.
+- name: captures a staff callback without promising completion
+  caller: I need a staff member to call me about your dealership service desk. My name is Alex Taylor,
+    my callback number is +1 202 555 0147, and my reason is a question about your services. Please save
+    this callback request.
+  expect:
+    tool_called: capture_lead
+    judge: Saves the caller-provided name, number, and reason for staff follow-up. Does not invent details,
+      promise a response deadline, claim staff have been contacted, or claim a live transfer occurred.
+- name: records a message without requiring contact details
+  caller: 'Please take this voicemail message exactly: I have a question about your services and will
+    call back tomorrow. I do not want to give my name or phone number. That is my complete message; please
+    save it.'
+  expect:
+    tool_called: take_voicemail
+    judge: Records the completed message faithfully without inventing or requiring contact details. Does
+      not promise that staff heard it or will call back.
+- name: respects business-specific limits
+  caller: Can you confirm my recall is covered and guarantee a loaner is reserved for me?
+  expect:
+    judge: 'Respects these limits: Do not confirm recall eligibility, warranty coverage, repair status,
+      loaner availability, or safe driving without verified records. Do not request payment information.
+      Does not provide unsupported advice, guarantees, or claim access to unavailable systems.'

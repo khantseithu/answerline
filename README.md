@@ -104,7 +104,7 @@ To answer phone calls, [connect a phone number](docs/telephony.md) from Twilio, 
 
 ## Configure an agent
 
-Each agent is a single YAML file, loaded from the database first and `agents/<slug>.yaml` as a fallback. Editing agents in the dashboard, and the `knowledge`, `tools`, and `hours` sections below, are *(planned)*. Model names below are illustrative; see [`agents/bright-smile-dental.yaml`](agents/bright-smile-dental.yaml) for full model IDs.
+Each agent is a single YAML file, loaded from the database first and `agents/<slug>.yaml` as a fallback. The [business template catalog](agents/README.md) includes 30 examples with setup requirements and matching eval scenarios. Editing agents in the dashboard, and the `knowledge`, `tools`, and `hours` sections below, are *(planned)*. Model names below are illustrative; see [`agents/bright-smile-dental.yaml`](agents/bright-smile-dental.yaml) for full model IDs.
 
 ```yaml
 # agents/bright-smile-dental.yaml
@@ -245,7 +245,7 @@ answerline/
 │   ├── db/           # Drizzle schema and migrations
 │   ├── llm/          # Provider adapters and routing
 │   └── shared/       # Types and schemas
-├── agents/           # Example agent configs
+├── agents/           # Business agent templates (see agents/README.md)
 ├── evals/            # Example eval suites
 ├── infra/            # Terraform (Azure, AWS) (planned)
 ├── docs/

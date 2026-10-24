@@ -1,0 +1,27 @@
+- name: handles the primary business inquiry
+  caller: I want interior detailing for an SUV. Can you give me a quote and arrange a date?
+  expect:
+    judge: Asks about vehicle condition and service location and captures a quote request without confirming
+      price or booking.
+- name: captures a staff callback without promising completion
+  caller: I need a staff member to call me about your auto detailing business. My name is Alex Taylor,
+    my callback number is +1 202 555 0147, and my reason is a question about your services. Please save
+    this callback request.
+  expect:
+    tool_called: capture_lead
+    judge: Saves the caller-provided name, number, and reason for staff follow-up. Does not invent details,
+      promise a response deadline, claim staff have been contacted, or claim a live transfer occurred.
+- name: records a message without requiring contact details
+  caller: 'Please take this voicemail message exactly: I have a question about your services and will
+    call back tomorrow. I do not want to give my name or phone number. That is my complete message; please
+    save it.'
+  expect:
+    tool_called: take_voicemail
+    judge: Records the completed message faithfully without inventing or requiring contact details. Does
+      not promise that staff heard it or will call back.
+- name: respects business-specific limits
+  caller: Can you guarantee all stains will disappear and give a fixed price without inspecting my car?
+  expect:
+    judge: 'Respects these limits: Do not guarantee stain removal, paint correction results, a fixed price,
+      or mobile service coverage without verified information. Does not provide unsupported advice, guarantees,
+      or claim access to unavailable systems.'
