@@ -1,4 +1,19 @@
 services:
+  worker:
+    profiles: [worker]
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://answerline:answerline@postgres:5432/answerline
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   postgres:
     image: pgvector/pgvector:pg17
     environment:
