@@ -1,5 +1,14 @@
 import { readFile } from "node:fs/promises";
-import { agents, calls, callTurns, type Database, leads, tenants, toolCalls } from "@answerline/db";
+import {
+  agents,
+  calls,
+  callTurns,
+  type Database,
+  leads,
+  tenants,
+  toolCalls,
+  voicemails,
+} from "@answerline/db";
 import { type CallEventJob, callEventJob, parseAgentConfig } from "@answerline/shared";
 import type { Job } from "bullmq";
 import { and, eq } from "drizzle-orm";
@@ -181,20 +190,52 @@ async function handleEnded(
     .onConflictDoUpdate({ set: fields, target: calls.roomName });
 }
 
-async function handleLead(
+async function ensureScopedCallId(
   db: Database,
-  event: Extract<CallEventJob, { type: "lead.created" }>,
-  ref: Ref
+  event: CallEventJob,
+  ref: Ref,
+  createdAt: Date,
+  label: string
 ) {
-  const createdAt = new Date(event.created_at);
   const callId = await ensureCallId(db, event, ref, createdAt);
   const [call] = await db
     .select({ agentId: calls.agentId, tenantId: calls.tenantId })
     .from(calls)
     .where(eq(calls.id, callId));
   if (call?.agentId !== ref.agentId || call.tenantId !== ref.tenantId) {
-    throw new Error("lead call reference does not match the tenant and agent");
+    throw new Error(`${label} call reference does not match the tenant and agent`);
   }
+  return callId;
+}
+
+async function handleVoicemail(
+  db: Database,
+  event: Extract<CallEventJob, { type: "voicemail.created" }>,
+  ref: Ref
+) {
+  const createdAt = new Date(event.created_at);
+  const callId = await ensureScopedCallId(db, event, ref, createdAt, "voicemail");
+  await db
+    .insert(voicemails)
+    .values({
+      ...ref,
+      callId,
+      createdAt,
+      id: event.voicemail_id,
+      message: event.message,
+      name: event.name,
+      phone: event.phone,
+    })
+    .onConflictDoNothing({ target: voicemails.id });
+}
+
+async function handleLead(
+  db: Database,
+  event: Extract<CallEventJob, { type: "lead.created" }>,
+  ref: Ref
+) {
+  const createdAt = new Date(event.created_at);
+  const callId = await ensureScopedCallId(db, event, ref, createdAt, "lead");
   await db
     .insert(leads)
     .values({
@@ -227,6 +268,9 @@ export async function persistCallEvent(
       break;
     case "lead.created":
       await handleLead(db, event, ref);
+      break;
+    case "voicemail.created":
+      await handleVoicemail(db, event, ref);
       break;
     case "call.ended":
       await handleEnded(db, event, ref);

@@ -8,6 +8,7 @@ from .capture_lead import LeadCaptureContext, build_capture_lead_tool
 from .config import AgentConfig, BookAppointmentTool, BuiltinTool, TransferCallTool
 from .settings import Settings
 from .transfer import CallTransfer, build_transfer_call_tool
+from .voicemail import build_voicemail_tool
 
 logger = logging.getLogger("answerline.agent")
 
@@ -34,6 +35,12 @@ def build_configured_tools(
             if lead_context is None:
                 raise ValueError("capture_lead requires a per-call lead context")
             tools.append(build_capture_lead_tool(lead_context, settings))
+        elif isinstance(spec, BuiltinTool) and spec.builtin == "voicemail":
+            if any(tool.id == "take_voicemail" for tool in tools):
+                continue
+            if lead_context is None:
+                raise ValueError("voicemail requires a per-call lead context")
+            tools.append(build_voicemail_tool(lead_context, settings))
         elif isinstance(spec, BookAppointmentTool):
             if any(tool.id == spec.builtin for tool in tools):
                 continue
