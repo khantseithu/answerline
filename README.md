@@ -186,7 +186,7 @@ The diagram shows the target architecture; parts of it are still *(planned)*. De
 
 ## Evals
 
-Write test calls as scripts, then run them against an agent. Each run stores per-case transcripts, pass results, latency, and cost in Postgres so you can compare prompts and models before going live. Tools are mocked by default; model cost is shown as unavailable when the runner does not report usage.
+Write test calls as scripts, then run them against an agent. Each run stores per-case transcripts, pass results, latency, and cost in Postgres so you can compare prompts and models before going live. Tools are mocked by default; model cost is shown as unavailable when usage or model pricing is unavailable.
 
 ```yaml
 # evals/bright-smile-dental.yaml
@@ -210,7 +210,23 @@ pnpm eval agents/bright-smile-dental.yaml --model openai/gpt-4.1-mini
 pnpm eval agents/bright-smile-dental.yaml --live-tools --audio
 ```
 
-The eval command exits `0` when all cases pass, `1` when a case fails, and `2` when setup or execution fails. Runs use the repository's `evals/<agent>.yaml` suite and the seeded `default` tenant agent; options and the parsed inputs are saved with each run.
+The eval command exits `0` when all cases pass, `1` for failed cases (including model-generation failures), and `2` for setup failures or runner crashes. Runs use the repository's `evals/<agent>.yaml` suite and the seeded `default` tenant agent; options and the parsed inputs are saved with each run.
+
+Audio mode synthesizes caller turns, transcribes each complete audio buffer with batch STT, and evaluates the recognized text through the agent and TTS. Its case latency includes caller synthesis, batch recognition, agent processing, and captured output completion. It excludes RTC transport, VAD, and real-time playback duration. Caller synthesis usage is included in the run cost.
+
+To run the same CLI in Docker, put your model provider keys in `.env`, then build the worker and prepare the Compose database:
+
+```bash
+docker compose build worker
+docker compose run --rm worker pnpm db:migrate
+docker compose run --rm worker pnpm db:seed
+docker compose run --rm worker eval agents/bright-smile-dental.yaml
+```
+
+The worker profile starts Postgres and Redis as needed. Container runs use the Compose database; point the dashboard at that database to view the same history. Full production deployment remains planned under M7. `--live-tools` can create real bookings and save messages in configured services.
+
+To run text evals on pull requests, enable the [opt-in GitHub Action](docs/evals-ci.md).
+
 
 ## Deployment *(planned)*
 
