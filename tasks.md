@@ -148,7 +148,7 @@ Roadmap: *Dashboard: calls, transcripts, cost per call*
 
 - [x] Shared dashboard and post-call data contracts (#246)
 - [ ] Auth
-  - [ ] Better Auth: email/password + optional OAuth (#73; decision #128)
+  - [x] Better Auth: email/password + optional OAuth (#73; decision #128)
     - [x] Persistence schema: users, sessions, accounts, verifications (#244)
   - [x] First-run admin provisioning during bootstrap; generated credentials stored locally (#74)
 - [x] App shell: sidebar (Calls, Agents, Knowledge, Evals, Phone numbers, Settings), dark mode

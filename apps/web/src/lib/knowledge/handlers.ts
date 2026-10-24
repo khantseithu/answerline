@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DashboardAuthError, dashboardErrorResponse } from "@/lib/dashboard/errors";
 import { MAX_KNOWLEDGE_FILE_BYTES } from "./file-rules";
 import { KnowledgeFileError } from "./files";
 import { createKnowledgeSource as createKnowledgeSourceInput, knowledgeSourceId } from "./schemas";
@@ -20,6 +21,9 @@ export class KnowledgeBadRequestError extends Error {}
 const noStore = { "Cache-Control": "no-store" };
 
 export function knowledgeErrorResponse(error: unknown) {
+  if (error instanceof DashboardAuthError) {
+    return dashboardErrorResponse(error);
+  }
   if (error instanceof z.ZodError) {
     return Response.json(
       { error: error.issues[0]?.message ?? "Invalid request", issues: error.issues },

@@ -1,5 +1,6 @@
 import { phoneNumberSchema } from "@answerline/worker/phone-numbers";
 import { z } from "zod";
+import { DashboardAuthError, dashboardErrorResponse } from "@/lib/dashboard/errors";
 import { assignPhoneNumber, createPhoneNumber } from "./schemas";
 import {
   connectPhoneNumber,
@@ -16,6 +17,9 @@ import {
 const noStore = { "Cache-Control": "no-store" };
 
 export function phoneNumberErrorResponse(error: unknown) {
+  if (error instanceof DashboardAuthError) {
+    return dashboardErrorResponse(error);
+  }
   if (error instanceof z.ZodError) {
     return Response.json(
       { error: error.issues[0]?.message ?? "Invalid request", issues: error.issues },

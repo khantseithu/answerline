@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SignOutButton } from "@/components/auth/sign-out-button";
 import { LogoMark } from "@/components/brand/logo";
 import { TalkToAgentButton } from "@/components/call/talk-to-agent-button";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
@@ -17,6 +18,7 @@ export function SiteHeader() {
       </Link>
       <div className="ml-auto flex items-center gap-1.5">
         <ThemeToggle />
+        <SignOutButton />
         <TalkToAgentButton className="h-9 px-3" />
       </div>
     </header>
