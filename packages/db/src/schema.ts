@@ -1,4 +1,10 @@
-import type { AgentConfig, CostLine, ModelUsage, QuestionAnswerPairs } from "@answerline/shared";
+import type {
+  AgentConfig,
+  CostLine,
+  EvalExecutionInput,
+  ModelUsage,
+  QuestionAnswerPairs,
+} from "@answerline/shared";
 import { sql } from "drizzle-orm";
 import {
   boolean,
@@ -333,6 +339,8 @@ export const evalRuns = pgTable(
     avgLatencyMs: integer(),
     costUsd: numeric({ precision: 12, scale: 6 }),
     createdAt: createdAt(),
+    error: text(),
+    executionInput: jsonb().$type<EvalExecutionInput>(),
     finishedAt: timestamp({ withTimezone: true }),
     id: id(),
     modelOverride: text(),

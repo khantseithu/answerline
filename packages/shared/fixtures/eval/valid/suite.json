@@ -1,0 +1,19 @@
+[
+  {
+    "caller": ["Hi", "Can I book tomorrow?"],
+    "expect": {
+      "tool_args": {
+        "book_appointment": {
+          "date": "tomorrow"
+        }
+      },
+      "tool_called": "book_appointment"
+    },
+    "mocks": {
+      "book_appointment": {
+        "confirmation": "bk-123"
+      }
+    },
+    "name": "books tomorrow"
+  }
+]

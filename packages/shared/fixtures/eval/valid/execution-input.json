@@ -1,0 +1,21 @@
+{
+  "agent": {
+    "greeting": "Hello",
+    "instructions": "Be helpful.",
+    "models": {
+      "llm": {
+        "primary": "openai/gpt-4.1-mini"
+      },
+      "stt": "deepgram/nova-3",
+      "tts": "cartesia/sonic-3"
+    },
+    "name": "Test agent"
+  },
+  "suite": [
+    {
+      "caller": "Hi",
+      "expect": {},
+      "name": "hello"
+    }
+  ]
+}
