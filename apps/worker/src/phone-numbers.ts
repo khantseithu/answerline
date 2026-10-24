@@ -176,6 +176,17 @@ export async function assignPhoneNumber(
   return { ...found, agent: slug };
 }
 
+export async function connectPhoneNumber(
+  client: PhoneNumberClient,
+  agentName: string,
+  input: AddPhoneNumberInput
+): Promise<PhoneNumber> {
+  const numbers = await listPhoneNumbers(client);
+  return numbers.some((n) => n.number === input.number)
+    ? assignPhoneNumber(client, agentName, input.number, input.agent)
+    : addPhoneNumber(client, agentName, input);
+}
+
 export async function removePhoneNumber(client: PhoneNumberClient, number: string) {
   const found = await findPhoneNumber(client, phoneNumberSchema.parse(number));
   if (found.dispatchRuleId) {
