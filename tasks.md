@@ -110,7 +110,7 @@ Roadmap: *Built-in tools: booking, transfer, business hours*
   - [x] Capture tool and worker persistence (#57)
 - [ ] `transfer_call`: cold transfer (SIP REFER) and warm transfer (agent briefs human, then bridges); web calls fall back to message capture
   - [x] `transfer_call` config contract with a validated `to` target (#229)
-  - [ ] Cold transfer via SIP REFER; web calls fall back to voicemail (#58)
+  - [x] Cold transfer via SIP REFER; web calls fall back to voicemail (#58)
   - [ ] Warm transfer (#226)
 - [ ] Voicemail: record message, transcribe, attach to call
   - [x] `voicemails` storage and validated `voicemail.created` queue contract (#229)

@@ -5,8 +5,9 @@ from livekit.agents import llm
 from .booking import BookingProvider, build_booking_tools
 from .business_hours import build_business_hours_tool
 from .capture_lead import LeadCaptureContext, build_capture_lead_tool
-from .config import AgentConfig, BookAppointmentTool, BuiltinTool
+from .config import AgentConfig, BookAppointmentTool, BuiltinTool, TransferCallTool
 from .settings import Settings
+from .transfer import CallTransfer, build_transfer_call_tool
 
 logger = logging.getLogger("answerline.agent")
 
@@ -17,6 +18,7 @@ def build_configured_tools(
     *,
     lead_context: LeadCaptureContext | None = None,
     booking: BookingProvider | None = None,
+    transfer: CallTransfer | None = None,
 ) -> list[llm.FunctionTool]:
     tools: list[llm.FunctionTool] = []
     for spec in config.tools:
@@ -44,6 +46,13 @@ def build_configured_tools(
                 )
                 continue
             tools.extend(build_booking_tools(booking, config.hours.timezone, settings))
+        elif isinstance(spec, TransferCallTool):
+            if any(tool.id == spec.builtin for tool in tools):
+                continue
+            if transfer is None:
+                logger.warning("Configured tool transfer_call has no transfer target available")
+                continue
+            tools.append(build_transfer_call_tool(transfer, settings))
         else:
             name = getattr(spec, "builtin", type(spec).__name__)
             logger.warning("Configured tool %s is not implemented and will not be available", name)

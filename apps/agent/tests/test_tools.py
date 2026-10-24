@@ -7,9 +7,11 @@ from answerline_agent.config import (
     Hours,
     HttpTool,
     McpTool,
+    TransferCallTool,
     load_agent_config,
 )
 from answerline_agent.tools import build_configured_tools
+from answerline_agent.transfer import CallTransfer
 from livekit.agents import Agent
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -34,7 +36,7 @@ def test_only_configured_supported_tools_are_registered_once(caplog):
     assert [tool.id for tool in tools] == ["business_hours"]
     assert Agent(instructions="Be brief.", tools=tools).tools == tools
     assert "book_appointment provider 'answerline' is not available" in caplog.text
-    assert "transfer_call is not implemented" in caplog.text
+    assert "transfer_call has no transfer target available" in caplog.text
     assert "HttpTool is not implemented" in caplog.text
 
 
@@ -146,6 +148,23 @@ def test_book_appointment_uses_opened_provider_once():
         "confirm_booking",
         "cancel_appointment",
     ]
+
+
+def test_transfer_call_registers_once_with_transfer():
+    agent = config()
+    agent.tools = [
+        TransferCallTool(builtin="transfer_call", to="+15555550100"),
+        TransferCallTool(builtin="transfer_call", to="+15555550101"),
+    ]
+    tools = build_configured_tools(agent, transfer=CallTransfer(object(), "+15555550100"))
+    assert [tool.id for tool in tools] == ["transfer_call"]
+
+
+def test_transfer_call_is_skipped_without_transfer(caplog):
+    agent = config()
+    agent.tools = [TransferCallTool(builtin="transfer_call", to="+15555550100")]
+    assert build_configured_tools(agent) == []
+    assert "transfer_call has no transfer target available" in caplog.text
 
 
 def test_book_appointment_requires_hours():
