@@ -100,7 +100,7 @@ export async function listEvalRuns(deps: EvalDeps): Promise<EvalRunView[]> {
 export async function listEvalOptions(deps: EvalDeps) {
   const [agentOptions, suites] = await Promise.all([
     deps.db
-      .select({ id: agents.id, name: agents.name })
+      .select({ id: agents.id, name: agents.name, slug: agents.slug })
       .from(agents)
       .where(eq(agents.tenantId, deps.tenantId))
       .orderBy(asc(agents.name), asc(agents.id)),

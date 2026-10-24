@@ -1,7 +1,7 @@
 "use client";
 
 import { PlayIcon, TriangleAlertIcon } from "lucide-react";
-import { type FormEvent, useCallback, useState } from "react";
+import { type ChangeEvent, type FormEvent, useCallback, useState } from "react";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -25,10 +25,11 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { startEvalRun } from "@/lib/evals/client";
+import { defaultSuiteFor } from "@/lib/evals/default-suite";
 import type { EvalRunView } from "@/lib/evals/types";
 
 export interface EvalRunOptions {
-  agents: { id: string; name: string }[];
+  agents: { id: string; name: string; slug: string }[];
   suites: string[];
 }
 
@@ -42,11 +43,36 @@ export function NewRunDialog({
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [liveTools, setLiveTools] = useState(false);
+  const [agentId, setAgentId] = useState(options.agents[0]?.id ?? "");
+  const [suite, setSuite] = useState(
+    defaultSuiteFor(options.agents[0]?.slug, options.suites) ?? ""
+  );
+  const [suiteChosen, setSuiteChosen] = useState(false);
   const disabled = options.agents.length === 0 || options.suites.length === 0;
 
   const openDialog = useCallback(() => {
+    const [agent] = options.agents;
     setLiveTools(false);
+    setAgentId(agent?.id ?? "");
+    setSuite(defaultSuiteFor(agent?.slug, options.suites) ?? "");
+    setSuiteChosen(false);
     setOpen(true);
+  }, [options]);
+
+  const handleAgentChange = useCallback(
+    (event: ChangeEvent<HTMLSelectElement>) => {
+      const agent = options.agents.find((item) => item.id === event.target.value);
+      setAgentId(event.target.value);
+      if (!suiteChosen) {
+        setSuite(defaultSuiteFor(agent?.slug, options.suites) ?? "");
+      }
+    },
+    [options, suiteChosen]
+  );
+
+  const handleSuiteChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
+    setSuite(event.target.value);
+    setSuiteChosen(true);
   }, []);
 
   const handleSubmit = useCallback(
@@ -57,11 +83,11 @@ export function NewRunDialog({
       setPending(true);
       try {
         const run = await startEvalRun({
-          agentId: String(form.get("agentId") ?? ""),
+          agentId,
           liveTools,
           mode: form.get("mode") === "audio" ? "audio" : "text",
           modelOverride: modelOverride || undefined,
-          suite: String(form.get("suite") ?? ""),
+          suite,
         });
         setOpen(false);
         toast.success("Eval run queued");
@@ -74,7 +100,7 @@ export function NewRunDialog({
         setPending(false);
       }
     },
-    [liveTools, onCreated]
+    [agentId, liveTools, onCreated, suite]
   );
 
   return (
@@ -97,10 +123,11 @@ export function NewRunDialog({
               <Field>
                 <FieldLabel htmlFor="eval-agent">Agent</FieldLabel>
                 <NativeSelect
-                  defaultValue={options.agents[0]?.id}
                   id="eval-agent"
                   name="agentId"
+                  onChange={handleAgentChange}
                   required
+                  value={agentId}
                 >
                   {options.agents.map((agent) => (
                     <NativeSelectOption key={agent.id} value={agent.id}>
@@ -112,19 +139,21 @@ export function NewRunDialog({
               <Field>
                 <FieldLabel htmlFor="eval-suite">Suite</FieldLabel>
                 <NativeSelect
-                  defaultValue={options.suites[0]}
                   id="eval-suite"
                   name="suite"
+                  onChange={handleSuiteChange}
                   required
+                  value={suite}
                 >
-                  {options.suites.map((suite) => (
-                    <NativeSelectOption key={suite} value={suite}>
-                      {suite}
+                  {options.suites.map((name) => (
+                    <NativeSelectOption key={name} value={name}>
+                      {name}
                     </NativeSelectOption>
                   ))}
                 </NativeSelect>
                 <FieldDescription>
-                  Suites are read from the repository evals folder.
+                  Defaults to the suite named after the agent’s slug, when one exists in the
+                  repository evals folder.
                 </FieldDescription>
               </Field>
               <Field>
@@ -140,11 +169,14 @@ export function NewRunDialog({
               <Field>
                 <FieldLabel htmlFor="eval-mode">Mode</FieldLabel>
                 <NativeSelect defaultValue="text" id="eval-mode" name="mode">
-                  <NativeSelectOption value="text">Text</NativeSelectOption>
-                  <NativeSelectOption value="audio">Audio</NativeSelectOption>
+                  <NativeSelectOption value="text">Text: scripted caller turns</NativeSelectOption>
+                  <NativeSelectOption value="audio">
+                    Audio: spoken caller through the full voice pipeline
+                  </NativeSelectOption>
                 </NativeSelect>
                 <FieldDescription>
-                  Audio runs speech-to-text and text-to-speech, so they are slower and cost more.
+                  Text is fast and cheap. Audio adds speech-to-text and text-to-speech, so it is
+                  slower and costs more.
                 </FieldDescription>
               </Field>
               <Field orientation="horizontal">

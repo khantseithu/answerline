@@ -7,7 +7,13 @@ import { agents, createDb, evalResults, evalRuns, tenants } from "@answerline/db
 import { type EvalJob, evalExecutionInputSchema, parseAgentConfig } from "@answerline/shared";
 import { eq } from "drizzle-orm";
 import { createEvalHandlers } from "./handlers.ts";
-import { compareEvalRuns, type EvalDeps, evalJobId, getEvalRun } from "./service.ts";
+import {
+  compareEvalRuns,
+  type EvalDeps,
+  evalJobId,
+  getEvalRun,
+  listEvalOptions,
+} from "./service.ts";
 import type { EvalRunView } from "./types.ts";
 
 const skip = process.env.DATABASE_URL ? false : "DATABASE_URL not set";
@@ -185,6 +191,15 @@ test("rejects unsafe or unknown suites and invalid bodies", { skip }, () =>
       .from(evalRuns)
       .where(eq(evalRuns.tenantId, harness.deps.tenantId));
     assert.equal(rows.length, 0);
+  })
+);
+
+test("lists the tenant's agents with their persisted slugs", { skip }, () =>
+  withHarness(async (harness) => {
+    assert.deepEqual(await listEvalOptions(harness.deps), {
+      agents: [{ id: harness.agentId, name: "Bright Smile Dental", slug: "primary" }],
+      suites: ["dental"],
+    });
   })
 );
 
