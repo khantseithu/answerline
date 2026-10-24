@@ -4,6 +4,7 @@ import { TalkToAgentButton } from "@/components/call/talk-to-agent-button";
 import { EmptyPanel } from "@/components/shell/empty-panel";
 import { PageContainer, PageHeader } from "@/components/shell/page-header";
 
+export const instant = false;
 export const metadata: Metadata = { title: "Calls" };
 
 export default function CallsPage() {

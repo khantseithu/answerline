@@ -1,6 +1,8 @@
-# Authentication persistence
+# Authentication
 
-M5 uses Better Auth, as decided in #128. The database foundation is tracked in #244 under #73. First-run administrator provisioning is tracked in #74. Sign-in endpoints, dashboard protection, and optional OAuth configuration remain planned.
+Answerline uses Better Auth with database-backed sessions. Dashboard pages and `/api/v1/*` require a signed-in operator. The landing page, health check, and sign-in page remain public. Public registration is disabled for both email/password and GitHub OAuth.
+
+All provisioned operators can manage the configured `TENANT`. Workspace membership and roles remain M9 work. A session does not select a tenant from a request parameter.
 
 ## First administrator
 
@@ -8,11 +10,33 @@ M5 uses Better Auth, as decided in #128. The database foundation is tracked in #
 
 The initializer sets `BETTER_AUTH_SECRET` and `BETTER_AUTH_URL` in the root `.env` when they are missing, preserving existing settings. The URL defaults to `http://localhost:$PORT`. It marks the initial email verified only when `ADMIN_EMAIL_VERIFIED=true` is explicitly set by the operator. This setting attests that the operator controls the configured email; it does not send a verification email.
 
-Initialization is safe to rerun. It will not create another user or change credentials once any user exists. It provisions the Better Auth user and credential account directly in Postgres; interactive sign-in is delivered by the web auth implementation.
+Initialization is safe to rerun. It will not create another user or change credentials once any user exists. It provisions the Better Auth user and credential account directly in Postgres.
 
-## Tables
+## Configure sign-in
 
-The schema in `packages/db/src/schema.ts` defines Better Auth's four core records:
+Set `DATABASE_URL`, apply migrations with `pnpm db:migrate`, and seed the configured tenant with `pnpm db:seed`.
+
+Set `BETTER_AUTH_URL` to the exact origin where operators open the dashboard, including the port in development. Set `BETTER_AUTH_SECRET` to a persistent random value of at least 32 characters. For example, generate a value with `openssl rand -base64 48` and save it in your deployment environment. Restart the web process after changing its configuration.
+
+Open `/login` and use an operator account provisioned by the administrator. This auth implementation does not expose an account-registration endpoint to create operators.
+
+The sign-out control in the dashboard header revokes the database session. Revoked and expired sessions cannot access the dashboard APIs. Cookie caching is disabled, so authorization checks read the current database session.
+
+## Enable optional GitHub sign-in
+
+Email/password works without a GitHub application. To add GitHub sign-in:
+
+1. Create a GitHub OAuth application and set its callback URL to `<BETTER_AUTH_URL>/api/auth/callback/github`.
+2. Set both `AUTH_GITHUB_CLIENT_ID` and `AUTH_GITHUB_CLIENT_SECRET`, then restart the web process.
+3. Provision the operator locally first and verify their email ownership before marking the local account verified. Use the same email address on GitHub. GitHub must report that address as verified.
+
+GitHub sign-in links only to an existing verified local account with a matching verified provider email. It cannot create a new user, even when the caller explicitly requests signup. An unverified local account or GitHub address cannot be linked implicitly. The provider uses the `user:email` scope to check email ownership.
+
+Live GitHub callbacks require your own OAuth credentials. Automated tests simulate the provider responses while running the actual Better Auth callback and database flow.
+
+## Database records
+
+The schema in `packages/db/src/schema.ts` stores the four core Better Auth records:
 
 | Export | SQL table | Purpose |
 | --- | --- | --- |
@@ -21,42 +45,22 @@ The schema in `packages/db/src/schema.ts` defines Better Auth's four core record
 | `accounts` | `accounts` | Credential password hash or OAuth provider identity and optional tokens |
 | `verifications` | `verifications` | Identifier, value, expiry, and timestamps for verification flows |
 
-All IDs are UUIDs. SQL column names use snake_case; TypeScript properties retain Better Auth's names. Timestamps include a timezone. Accounts and sessions reference users and cascade on user deletion. Provider/account pairs are unique. Verification records have no user reference because verification can precede user creation; multiple records may share an identifier.
+All IDs are UUIDs. SQL column names use snake_case; TypeScript properties retain Better Auth's names. Accounts and sessions cascade on user deletion. Provider/account pairs are unique. Verification records are independent of users and may share an identifier.
 
-Users are independent of tenant membership. M9 will define workspace membership and permissions. These tables alone do not authorize access to a tenant.
+`apps/web/src/lib/auth/config.ts` maps these exports to Better Auth and enables UUID generation. `apps/web/src/lib/auth/server.ts` creates the runtime lazily. Operator provisioning can use `hashPassword` from `better-auth/crypto` to create a credential account directly without opening public registration.
 
-## Adapter configuration for the auth implementation
+## Authorization boundaries
 
-The follow-up web auth implementation must map the plural exports to Better Auth's model names and generate UUIDs:
+The Next.js proxy validates database sessions for every `/api/v1/*` request and protected dashboard page. It returns 401 for signed-out API requests and redirects signed-out page requests to `/login`. It rejects cross-origin mutations. Non-browser clients may send a valid session cookie without an Origin header. Browser clients must use the configured origin. Auth endpoints retain Better Auth's own origin and OAuth state checks.
 
-```ts
-import { accounts, sessions, users, verifications } from "@answerline/db";
-import { drizzleAdapter } from "@better-auth/drizzle-adapter";
-import { betterAuth } from "better-auth";
+Server data access uses `getDashboardContext()` from `@/lib/dashboard/context`, returning the authenticated user, database, and configured tenant ID. Request handlers can use `DashboardAuthError` and `dashboardErrorResponse` from `@/lib/dashboard/errors` to return a 401 for signed-out callers. Sensitive reads are not placed in a shared cache.
 
-const auth = betterAuth({
-	advanced: { database: { generateId: "uuid" } },
-	database: drizzleAdapter(db, {
-		provider: "pg",
-		schema: {
-			account: accounts,
-			session: sessions,
-			user: users,
-			verification: verifications,
-		},
-		transaction: true,
-	}),
-});
-```
-
-This fragment assumes the caller supplies `db` and the remaining auth configuration, including the secret and application URL. It does not create an active auth service. Password hashing, email normalization, session expiry enforcement, token handling, and verification policy belong to Better Auth and its configuration.
-
-The database package includes Better Auth and its Drizzle adapter for compatibility testing and initial administrator password hashing.
+Server Component session reads do not refresh session expiry. The proxy handles refreshes for full document requests and forwards the updated cookie; API requests use the same proxy path. This keeps the database expiry and browser cookie expiry aligned.
 
 ## Verification
 
-With `DATABASE_URL` set and migrations applied, `pnpm --filter @answerline/db test` exercises the real adapter through credential sign-up, failed and successful sign-in, session lookup, and sign-out. Database tests also cover identity uniqueness, OAuth fields, verification records, foreign keys, and deletion cascades.
+With `DATABASE_URL` set and migrations applied, `pnpm --filter @answerline/web test` checks closed registration, provisioned credential sign-in, revoked and expired sessions, cross-origin mutations, session renewal, and allowed or rejected GitHub account linking. `pnpm --filter @answerline/db test` checks persistence, uniqueness, foreign keys, and cascades.
 
 Apply the schema with `pnpm db:migrate`. The migration adds tables without creating users. Run `pnpm admin:init` after migrations to provision the first administrator.
 
-References: [Better Auth core schema](https://better-auth.com/docs/concepts/database) and [Drizzle adapter](https://better-auth.com/docs/adapters/drizzle).
+References: [Better Auth core schema](https://better-auth.com/docs/concepts/database), [Drizzle adapter](https://better-auth.com/docs/adapters/drizzle), and [GitHub provider setup](https://better-auth.com/docs/authentication/github).

@@ -41,6 +41,7 @@ const AGENT_STATE_LABELS: Partial<Record<AgentState, string>> = {
 
 interface CallContextValue {
   agentName: string;
+  canCall: boolean;
   isConnecting: boolean;
   startCall: () => void;
 }
@@ -104,10 +105,12 @@ function CallHeader({ agentName }: { agentName: string }) {
 export function CallApp({
   agentName,
   agentSlug,
+  canCall = true,
   children,
 }: {
   agentName: string;
   agentSlug: string;
+  canCall?: boolean;
   children: ReactNode;
 }) {
   const tokenSource = useMemo(
@@ -128,10 +131,11 @@ export function CallApp({
   const value = useMemo(
     () => ({
       agentName,
+      canCall,
       isConnecting: session.connectionState === ConnectionState.Connecting,
       startCall,
     }),
-    [agentName, session.connectionState, startCall]
+    [agentName, canCall, session.connectionState, startCall]
   );
 
   return (

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { PageContainer, PageHeader } from "@/components/shell/page-header";
 import { ThemeSelect } from "@/components/theme/theme-toggle";
 
+export const instant = false;
 export const metadata: Metadata = { title: "Settings" };
 
 const PROVIDER_KEYS = [
