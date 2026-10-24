@@ -184,9 +184,9 @@ flowchart LR
 
 The diagram shows the target architecture; parts of it are still *(planned)*. Design notes for what exists today are in [docs/architecture.md](docs/architecture.md).
 
-## Evals *(planned)*
+## Evals
 
-Write test calls as scripts, then run them against any agent. Each run reports the pass rate, latency, and cost, so you can compare prompts and models before going live.
+Write test calls as scripts, then run them against an agent. Each run stores per-case transcripts, pass results, latency, and cost in Postgres so you can compare prompts and models before going live. Tools are mocked by default; model cost is shown as unavailable when the runner does not report usage.
 
 ```yaml
 # evals/bright-smile-dental.yaml
@@ -204,8 +204,13 @@ Write test calls as scripts, then run them against any agent. Each run reports t
 ```
 
 ```bash
-docker compose run --rm worker eval agents/bright-smile-dental.yaml
+pnpm db:seed
+pnpm eval agents/bright-smile-dental.yaml
+pnpm eval agents/bright-smile-dental.yaml --model openai/gpt-4.1-mini
+pnpm eval agents/bright-smile-dental.yaml --live-tools --audio
 ```
+
+The eval command exits `0` when all cases pass, `1` when a case fails, and `2` when setup or execution fails. Runs use the repository's `evals/<agent>.yaml` suite and the seeded `default` tenant agent; options and the parsed inputs are saved with each run.
 
 ## Deployment *(planned)*
 

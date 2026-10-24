@@ -173,8 +173,8 @@ Roadmap: *Evals runner*
 - [x] Shared eval execution contracts and run input snapshots for CLI, worker, harness, and dashboard (#260)
 - [ ] Multi-turn scripts (array of caller turns), mocked tools by default with opt-in live tools
 - [ ] Assertions: `tool_called`, `tool_args`, `mentions`, `not_mentions`, `judge` (LLM-as-judge with rubric)
-- [ ] Metrics per run: pass rate, latency, cost; per-case result with transcript
-- [ ] CLI: `worker eval agents/<name>.yaml` (current stub) with exit code for CI, `--model` override for comparisons
+- [x] Metrics per run: pass rate, latency, cost; per-case result with transcript (#86)
+- [x] CLI: `worker eval agents/<name>.yaml` with exit code for CI, `--model` override for comparisons (#87)
 - [ ] Queue-backed runs from dashboard; Evals page with run history and diff between runs
 - [ ] Optional audio-mode evals (TTS caller → full pipeline) for latency realism
 - [ ] GitHub Action example: run evals on PRs that change `agents/` or `evals/`
