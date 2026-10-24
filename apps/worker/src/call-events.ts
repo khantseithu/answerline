@@ -9,8 +9,14 @@ import {
   toolCalls,
   voicemails,
 } from "@answerline/db";
-import { type CallEventJob, callEventJob, parseAgentConfig } from "@answerline/shared";
-import type { Job } from "bullmq";
+import {
+  type CallEventJob,
+  callEventJob,
+  type PostCallJob,
+  parseAgentConfig,
+  postCallJobSchema,
+} from "@answerline/shared";
+import type { Job, Queue } from "bullmq";
 import { and, eq } from "drizzle-orm";
 import { calculateCallCost, parseCostPrices } from "./costs.ts";
 
@@ -18,7 +24,11 @@ const defaultAgentsDir = new URL("../../../agents/", import.meta.url);
 
 export interface PersistOptions {
   agentsDir?: URL;
+  postCallDelayMs?: number;
+  postCallQueue?: Queue<PostCallJob>;
 }
+
+const POST_CALL_DELAY_MS = 5000;
 
 interface Ref {
   agentId: string;
@@ -169,7 +179,8 @@ async function handleTool(
 async function handleEnded(
   db: Database,
   event: Extract<CallEventJob, { type: "call.ended" }>,
-  ref: Ref
+  ref: Ref,
+  options: PersistOptions
 ) {
   const endedAt = new Date(event.ended_at);
   const { costUsd, costBreakdown } = calculateCallCost(
@@ -186,7 +197,7 @@ async function handleEnded(
     status: event.status,
     usage: event.usage,
   };
-  await db
+  const [call] = await db
     .insert(calls)
     .values({
       ...ref,
@@ -195,7 +206,25 @@ async function handleEnded(
       roomName: event.room_name,
       startedAt: new Date(endedAt.getTime() - event.duration_ms),
     })
-    .onConflictDoUpdate({ set: fields, target: calls.roomName });
+    .onConflictDoUpdate({ set: fields, target: calls.roomName })
+    .returning({ id: calls.id });
+  if (!call) {
+    throw new Error(`call "${event.room_name}" could not be resolved`);
+  }
+  if (options.postCallQueue) {
+    await options.postCallQueue.add(
+      "analyze",
+      postCallJobSchema.parse({ callId: call.id, tenantId: ref.tenantId }),
+      {
+        attempts: 3,
+        backoff: { delay: 1000, type: "exponential" },
+        delay: options.postCallDelayMs ?? POST_CALL_DELAY_MS,
+        jobId: `postcall_${call.id}`,
+        removeOnComplete: 1000,
+        removeOnFail: 1000,
+      }
+    );
+  }
 }
 
 async function ensureScopedCallId(
@@ -281,7 +310,7 @@ export async function persistCallEvent(
       await handleVoicemail(db, event, ref);
       break;
     case "call.ended":
-      await handleEnded(db, event, ref);
+      await handleEnded(db, event, ref, options);
       break;
     default:
       break;
