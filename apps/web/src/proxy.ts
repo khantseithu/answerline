@@ -6,22 +6,38 @@ import { dashboardErrorResponse } from "@/lib/dashboard/errors";
 
 export async function proxy(request: Request) {
   try {
-    let authResponseHeaders: Headers | undefined;
-    const denied = await guardApiRequest(
-      request,
-      async (headers) => {
-        const session = await getAuth().api.getSession({ headers, returnHeaders: true });
-        authResponseHeaders = session.headers;
-        return session.response;
-      },
-      new URL(env.BETTER_AUTH_URL).origin
-    );
+    const session = request.headers.get("cookie")
+      ? await getAuth().api.getSession({ headers: request.headers, returnHeaders: true })
+      : undefined;
+    const { pathname } = new URL(request.url);
+    const isApiRequest = pathname.startsWith("/api/v1/");
+    let denied: Response | undefined;
+    if (isApiRequest) {
+      denied = await guardApiRequest(
+        request,
+        async () => session?.response,
+        new URL(env.BETTER_AUTH_URL).origin
+      );
+    } else if (!session?.response) {
+      denied = NextResponse.redirect(new URL("/login", request.url));
+    }
     const response = denied ?? NextResponse.next();
-    appendAuthCookies(authResponseHeaders, response.headers);
+    appendAuthCookies(session?.headers, response.headers);
     return response;
   } catch (error) {
     return dashboardErrorResponse(error);
   }
 }
 
-export const config = { matcher: "/api/v1/:path*" };
+export const config = {
+  matcher: [
+    "/api/v1/:path*",
+    "/overview/:path*",
+    "/calls/:path*",
+    "/agents/:path*",
+    "/evals/:path*",
+    "/knowledge/:path*",
+    "/phone-numbers/:path*",
+    "/settings/:path*",
+  ],
+};

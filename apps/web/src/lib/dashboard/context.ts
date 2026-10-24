@@ -12,7 +12,10 @@ export const getDashboardContext = cache(async () => {
     throw new DashboardAuthError();
   }
   const { auth, db } = getAuthRuntime();
-  const session = await auth.api.getSession({ headers: requestHeaders });
+  const session = await auth.api.getSession({
+    headers: requestHeaders,
+    query: { disableRefresh: true },
+  });
   if (!session) {
     throw new DashboardAuthError();
   }

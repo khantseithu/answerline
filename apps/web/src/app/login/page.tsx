@@ -13,7 +13,13 @@ export const metadata: Metadata = { title: "Sign in" };
 
 async function LoginView({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const ready = Boolean(env.DATABASE_URL && env.BETTER_AUTH_SECRET);
-  if (ready && (await getAuth().api.getSession({ headers: await headers() }))) {
+  if (
+    ready &&
+    (await getAuth().api.getSession({
+      headers: await headers(),
+      query: { disableRefresh: true },
+    }))
+  ) {
     redirect("/overview");
   }
   const params = await searchParams;
