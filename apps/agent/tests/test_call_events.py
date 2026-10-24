@@ -5,6 +5,7 @@ from answerline_agent.call_events import (
     CallRecorder,
     bound_result,
     call_event_payload,
+    model_usage_lines,
     parse_tool_args,
     summarize_usage,
 )
@@ -145,6 +146,83 @@ def test_summarize_usage_sums_models():
 
 def test_summarize_usage_empty_is_none():
     assert summarize_usage([]) is None
+
+
+def test_model_usage_records_actual_fallback_models_and_separates_cached_tokens():
+    usage = [
+        LLMModelUsage(
+            provider="openai",
+            model="gpt-4.1-mini",
+            input_tokens=100,
+            input_cached_tokens=20,
+            input_cache_creation_tokens=10,
+            output_tokens=8,
+        ),
+        LLMModelUsage(provider="google", model="gemini-2.5-flash", input_tokens=50),
+    ]
+    assert model_usage_lines(usage) == [
+        {
+            "stage": "llm",
+            "provider": "openai",
+            "model": "gpt-4.1-mini",
+            "quantity": 70,
+            "unit": "input_tokens",
+        },
+        {
+            "stage": "llm",
+            "provider": "openai",
+            "model": "gpt-4.1-mini",
+            "quantity": 20,
+            "unit": "cached_input_tokens",
+        },
+        {
+            "stage": "llm",
+            "provider": "openai",
+            "model": "gpt-4.1-mini",
+            "quantity": 10,
+            "unit": "cache_creation_tokens",
+        },
+        {
+            "stage": "llm",
+            "provider": "openai",
+            "model": "gpt-4.1-mini",
+            "quantity": 8,
+            "unit": "output_tokens",
+        },
+        {
+            "stage": "llm",
+            "provider": "google",
+            "model": "gemini-2.5-flash",
+            "quantity": 50,
+            "unit": "input_tokens",
+        },
+    ]
+
+
+def test_model_usage_keeps_unknown_providers_and_normalizes_supported_endpoint_hosts():
+    lines = model_usage_lines(
+        [
+            STTModelUsage(provider="deepgram", model="nova-3", audio_duration=3),
+            TTSModelUsage(provider="cartesia", model="sonic-3", characters_count=20),
+            LLMModelUsage(
+                provider="https://openrouter.ai/api/v1", model="custom/model", input_tokens=1
+            ),
+            LLMModelUsage(provider="custom-provider", model="opaque", input_tokens=2),
+            LLMModelUsage(
+                provider="https://api.deepseek.com/v1", model="deepseek-chat", input_tokens=3
+            ),
+            LLMModelUsage(provider="http://localhost:11434/v1", model="qwen3", input_tokens=4),
+        ]
+    )
+    assert lines is not None
+    assert [line["provider"] for line in lines] == [
+        "deepgram",
+        "cartesia",
+        "openrouter",
+        "custom-provider",
+        "deepseek",
+        "ollama",
+    ]
 
 
 def _tool(recorder, **overrides):

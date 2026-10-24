@@ -3,6 +3,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Annotated, Any, Literal
+from urllib.parse import urlparse
 from uuid import UUID
 
 from pydantic import AfterValidator, BaseModel, Field, StringConstraints
@@ -253,6 +254,75 @@ def summarize_usage(model_usage: Iterable) -> dict[str, float] | None:
     return totals if seen else None
 
 
+def _usage_provider(provider: str) -> str:
+    host = urlparse(provider).hostname or provider
+    normalized = host.lower().removeprefix("www.")
+    if normalized in {"deepgram", "api.deepgram.com"}:
+        return "deepgram"
+    if normalized in {"cartesia", "api.cartesia.ai"}:
+        return "cartesia"
+    if normalized in {"google", "gemini", "generativelanguage.googleapis.com"}:
+        return "google"
+    if normalized in {"openai", "api.openai.com"}:
+        return "openai"
+    if normalized in {"openrouter", "openrouter.ai"}:
+        return "openrouter"
+    if normalized in {"deepseek", "api.deepseek.com"}:
+        return "deepseek"
+    if normalized in {"localhost", "127.0.0.1", "::1"}:
+        return "ollama"
+    return provider
+
+
+def model_usage_lines(model_usage: Iterable) -> list[dict] | None:
+    lines = []
+    for usage in model_usage:
+        provider = _usage_provider(usage.provider)
+        if usage.type == "stt_usage":
+            lines.append(
+                {
+                    "stage": "stt",
+                    "provider": provider,
+                    "model": usage.model,
+                    "quantity": usage.audio_duration,
+                    "unit": "seconds",
+                }
+            )
+        elif usage.type == "llm_usage":
+            common = {"stage": "llm", "provider": provider, "model": usage.model}
+            uncached = max(
+                usage.input_tokens - usage.input_cached_tokens - usage.input_cache_creation_tokens,
+                0,
+            )
+            if uncached:
+                lines.append({**common, "quantity": uncached, "unit": "input_tokens"})
+            if usage.input_cached_tokens:
+                lines.append(
+                    {**common, "quantity": usage.input_cached_tokens, "unit": "cached_input_tokens"}
+                )
+            if usage.input_cache_creation_tokens:
+                lines.append(
+                    {
+                        **common,
+                        "quantity": usage.input_cache_creation_tokens,
+                        "unit": "cache_creation_tokens",
+                    }
+                )
+            if usage.output_tokens:
+                lines.append({**common, "quantity": usage.output_tokens, "unit": "output_tokens"})
+        elif usage.type == "tts_usage":
+            lines.append(
+                {
+                    "stage": "tts",
+                    "provider": provider,
+                    "model": usage.model,
+                    "quantity": usage.characters_count,
+                    "unit": "characters",
+                }
+            )
+    return lines or None
+
+
 @dataclass
 class CallRecorder:
     room_name: str
@@ -341,6 +411,7 @@ class CallRecorder:
         ended_at: float,
         failed: bool,
         usage: dict[str, float] | None = None,
+        model_usage: list[dict] | None = None,
         recording_url: str | None = None,
     ) -> CallEnded:
         started = self.started_at if self.started_at is not None else ended_at
@@ -350,5 +421,6 @@ class CallRecorder:
             ended_at=iso_timestamp(ended_at),
             duration_ms=max(round((ended_at - started) * 1000), 0),
             usage=usage,
+            model_usage=model_usage,
             recording_url=recording_url,
         )

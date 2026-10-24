@@ -211,6 +211,32 @@ test("call.ended records status, duration, and usage", { skip }, () =>
   })
 );
 
+test("call.ended persists normalized usage and calculated cost idempotently", { skip }, () =>
+  withTenant(async ({ base, ended, started }, db) => {
+    const event: EventOf<"call.ended"> = {
+      ...ended,
+      model_usage: [
+        { model: "nova-3", provider: "deepgram", quantity: 60, stage: "stt", unit: "seconds" },
+        {
+          model: "gpt-4.1-mini",
+          provider: "openai",
+          quantity: 1000,
+          stage: "llm",
+          unit: "input_tokens",
+        },
+      ],
+    };
+    await persistCallEvent(db, started);
+    await persistCallEvent(db, event);
+    await persistCallEvent(db, event);
+
+    const call = await getCall(db, base.room_name);
+    assert.equal(call.costUsd, "0.005200");
+    assert.deepEqual(call.modelUsage, event.model_usage);
+    assert.equal(call.costBreakdown?.length, 2);
+  })
+);
+
 test("call.ended stores the recording location and keeps it when absent", { skip }, () =>
   withTenant(async ({ base, ended, started }, db) => {
     const recordingUrl = `s3://recordings/default/${base.room_name}.ogg`;

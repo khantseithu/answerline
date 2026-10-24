@@ -184,6 +184,9 @@ def test_close_publishes_completed_with_usage_without_waiting_for_shutdown():
     assert ended.type == "call.ended"
     assert ended.status == "completed"
     assert ended.usage["stt_seconds"] == 4
+    assert ended.model_usage[0].model == "nova"
+    assert ended.model_usage[0].provider == "deepgram"
+    assert ended.model_usage[0].quantity == 4
     assert not publisher.flushed
 
 
