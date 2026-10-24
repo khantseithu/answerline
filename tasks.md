@@ -112,9 +112,9 @@ Roadmap: *Built-in tools: booking, transfer, business hours*
   - [x] `transfer_call` config contract with a validated `to` target (#229)
   - [x] Cold transfer via SIP REFER; web calls fall back to voicemail (#58)
   - [ ] Warm transfer (#226)
-- [ ] Voicemail: record message, transcribe, attach to call
+- [x] Voicemail: record message, transcribe, attach to call
   - [x] `voicemails` storage and validated `voicemail.created` queue contract (#229)
-  - [ ] Voicemail tool and worker persistence (#59)
+  - [x] Voicemail tool and worker persistence (#59)
 - [ ] HTTP tools from config: templated URL/body, headers from secrets, JSON schema for params, response truncation
 - [ ] MCP servers: connect via `mcp_servers` on `AgentSession`, per-agent allowlist
 - [ ] Composio customer-support tools (deferred): optional integration for helpdesk tickets, customer context, and escalations via [Composio](https://composio.dev/product/composio-for-customer-support); implement after the core tool framework ([#186](https://github.com/khantseithu/answerline/issues/186))

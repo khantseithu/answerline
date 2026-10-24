@@ -1,6 +1,8 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
+from answerline_agent.capture_lead import LeadCaptureContext
 from answerline_agent.config import (
     BookAppointmentTool,
     BuiltinTool,
@@ -133,6 +135,27 @@ def test_capture_lead_requires_per_call_context():
     agent.tools = [BuiltinTool(builtin="capture_lead")]
     with pytest.raises(ValueError, match="requires a per-call lead context"):
         build_configured_tools(agent)
+
+
+def test_voicemail_requires_per_call_context():
+    agent = config()
+    agent.tools = [BuiltinTool(builtin="voicemail")]
+    with pytest.raises(ValueError, match="requires a per-call lead context"):
+        build_configured_tools(agent)
+
+
+def test_voicemail_is_registered_once_alongside_capture_lead():
+    agent = config()
+    agent.tools = [
+        BuiltinTool(builtin="voicemail"),
+        BuiltinTool(builtin="capture_lead"),
+        BuiltinTool(builtin="voicemail"),
+    ]
+    context = LeadCaptureContext(
+        publisher=SimpleNamespace(), tenant="default", agent="a", room_name="room"
+    )
+    tools = build_configured_tools(agent, lead_context=context)
+    assert [tool.id for tool in tools] == ["take_voicemail", "capture_lead"]
 
 
 def test_book_appointment_uses_opened_provider_once():
