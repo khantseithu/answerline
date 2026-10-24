@@ -10,7 +10,7 @@ import {
   QUEUES,
 } from "@answerline/shared";
 import { Queue, Worker } from "bullmq";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { Redis } from "ioredis";
 import { createEvalProcessor, normalizeEvalOutput, processEvalRun } from "./evals.ts";
 
@@ -18,6 +18,7 @@ const skip =
   process.env.DATABASE_URL && process.env.REDIS_URL ? false : "DATABASE_URL or REDIS_URL not set";
 const suiteMismatchPattern = /did not match the requested suite/;
 const providerErrorPattern = /sensitive provider detail/;
+const contextMismatchPattern = /eval execution context does not match/;
 
 const input = evalExecutionInputSchema.parse({
   agent: {
@@ -164,6 +165,125 @@ test("persists eval runs, retries safely, and executes queue jobs", {
     const [savedFailedRun] = await db.select().from(evalRuns).where(eq(evalRuns.id, failedRun.id));
     assert.equal(savedFailedRun?.status, "failed");
     assert.equal(savedFailedRun?.error, "Eval execution failed");
+
+    const [wrongTenantRun] = await db
+      .insert(evalRuns)
+      .values({
+        agentId: agent.id,
+        executionInput: input,
+        suite: "bright-smile-dental",
+        tenantId: tenant.id,
+      })
+      .returning();
+    assert.ok(wrongTenantRun);
+    let wrongTenantCalls = 0;
+    await assert.rejects(
+      processEvalRun(
+        db,
+        { agentId: agent.id, runId: wrongTenantRun.id, tenantId: crypto.randomUUID() },
+        {
+          execute: () => {
+            wrongTenantCalls += 1;
+            return Promise.resolve(output);
+          },
+        }
+      )
+    );
+    const [savedWrongTenantRun] = await db
+      .select()
+      .from(evalRuns)
+      .where(eq(evalRuns.id, wrongTenantRun.id));
+    assert.equal(wrongTenantCalls, 0);
+    assert.equal(savedWrongTenantRun?.status, "queued");
+    assert.equal(savedWrongTenantRun?.error, null);
+
+    const contextMismatchInput = evalExecutionInputSchema.parse({
+      ...input,
+      context: { agentSlug: "stale-agent", tenantSlug },
+      liveTools: true,
+    });
+    const [contextMismatchRun] = await db
+      .insert(evalRuns)
+      .values({
+        agentId: agent.id,
+        executionInput: contextMismatchInput,
+        suite: "bright-smile-dental",
+        tenantId: tenant.id,
+      })
+      .returning();
+    assert.ok(contextMismatchRun);
+    let contextMismatchCalls = 0;
+    await assert.rejects(
+      processEvalRun(
+        db,
+        { agentId: agent.id, runId: contextMismatchRun.id, tenantId: tenant.id },
+        {
+          execute: () => {
+            contextMismatchCalls += 1;
+            return Promise.resolve(output);
+          },
+        }
+      ),
+      contextMismatchPattern
+    );
+    const [savedContextMismatchRun] = await db
+      .select()
+      .from(evalRuns)
+      .where(eq(evalRuns.id, contextMismatchRun.id));
+    assert.equal(contextMismatchCalls, 0);
+    assert.equal(savedContextMismatchRun?.status, "failed");
+    assert.equal(savedContextMismatchRun?.error, "Eval execution failed");
+
+    const [missingSnapshotRun] = await db
+      .insert(evalRuns)
+      .values({
+        agentId: agent.id,
+        executionInput: null,
+        suite: "bright-smile-dental",
+        tenantId: tenant.id,
+      })
+      .returning();
+    assert.ok(missingSnapshotRun);
+    await assert.rejects(
+      processEvalRun(db, {
+        agentId: agent.id,
+        runId: missingSnapshotRun.id,
+        tenantId: tenant.id,
+      })
+    );
+    const [savedMissingSnapshotRun] = await db
+      .select()
+      .from(evalRuns)
+      .where(eq(evalRuns.id, missingSnapshotRun.id));
+    assert.equal(savedMissingSnapshotRun?.status, "failed");
+    assert.equal(savedMissingSnapshotRun?.error, "Eval execution failed");
+
+    const [invalidSnapshotRun] = await db
+      .insert(evalRuns)
+      .values({
+        agentId: agent.id,
+        executionInput: input,
+        suite: "bright-smile-dental",
+        tenantId: tenant.id,
+      })
+      .returning();
+    assert.ok(invalidSnapshotRun);
+    await db.execute(
+      sql`update eval_runs set execution_input = '{}'::jsonb where id = ${invalidSnapshotRun.id}`
+    );
+    await assert.rejects(
+      processEvalRun(db, {
+        agentId: agent.id,
+        runId: invalidSnapshotRun.id,
+        tenantId: tenant.id,
+      })
+    );
+    const [savedInvalidSnapshotRun] = await db
+      .select()
+      .from(evalRuns)
+      .where(eq(evalRuns.id, invalidSnapshotRun.id));
+    assert.equal(savedInvalidSnapshotRun?.status, "failed");
+    assert.equal(savedInvalidSnapshotRun?.error, "Eval execution failed");
 
     const [queuedRun] = await db
       .insert(evalRuns)
