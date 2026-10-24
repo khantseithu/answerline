@@ -36,6 +36,41 @@ services:
       - "7881:7881"
       - "7882:7882/udp"
 
+  sip:
+    image: livekit/sip:latest
+    entrypoint: ["livekit-sip"]
+    environment:
+      SIP_CONFIG_BODY: |
+        log_level: info
+        api_key: ${LIVEKIT_API_KEY:-devkey}
+        api_secret: ${LIVEKIT_API_SECRET:-secret}
+        ws_url: ws://livekit:7880
+        redis:
+          address: redis:6379
+        sip_port: 5060
+        rtp_port: ${SIP_RTP_PORT_START:-10000}-${SIP_RTP_PORT_END:-10100}
+        nat_1_to_1_ip: "${SIP_PUBLIC_IP:-}"
+        health_port: 8080
+    depends_on:
+      livekit:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    ports:
+      - "5060:5060/udp"
+      - "5060:5060/tcp"
+      - "${SIP_RTP_PORT_START:-10000}-${SIP_RTP_PORT_END:-10100}:${SIP_RTP_PORT_START:-10000}-${SIP_RTP_PORT_END:-10100}/udp"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "bash",
+          "-c",
+          "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET / HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q ' 200 ' <&3",
+        ]
+      interval: 5s
+      retries: 10
+
   minio:
     image: cgr.dev/chainguard/minio:latest
     command: server /data --console-address ":9001"
