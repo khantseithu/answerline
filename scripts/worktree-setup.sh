@@ -29,6 +29,7 @@ database="answerline_wt${slot}"
 
 set_env COMPOSE_PROJECT_NAME answerline
 set_env PORT "$((3000 + slot))"
+set_env BETTER_AUTH_URL "http://localhost:$((3000 + slot))"
 set_env DATABASE_URL "postgres://answerline:answerline@localhost:${postgres_port}/${database}"
 set_env REDIS_URL "redis://localhost:${redis_port}"
 set_env REDIS_PREFIX "bull-wt${slot}"
@@ -43,8 +44,9 @@ if docker compose exec -T postgres pg_isready -U answerline >/dev/null 2>&1; the
   fi
   pnpm db:migrate
   pnpm db:seed
+  pnpm admin:init
 else
-  echo "worktree-setup: postgres is not running; run 'pnpm infra:up' then 'pnpm db:migrate && pnpm db:seed'" >&2
+  echo "worktree-setup: postgres is not running; run 'pnpm infra:up' then 'pnpm db:migrate && pnpm db:seed && pnpm admin:init'" >&2
 fi
 
 echo "worktree-setup: slot ${slot} ready (web :$((3000 + slot)), db ${database}, agent answerline-wt${slot})"

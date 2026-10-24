@@ -90,6 +90,8 @@ bootstrap() {
   pnpm db:migrate
   step="seeding the database"
   pnpm db:seed
+  step="creating the first administrator"
+  pnpm admin:init
   trap - ERR
   printf '\nbootstrap: ready. Add any missing provider keys to .env, then run:\n  pnpm dev        # web + worker\n  pnpm agent:dev  # voice agent, in a separate terminal\n'
 }

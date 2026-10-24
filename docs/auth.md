@@ -1,6 +1,14 @@
 # Authentication persistence
 
-M5 uses Better Auth, as decided in #128. The database foundation is tracked in #244 under #73. Sign-in endpoints, dashboard protection, and optional OAuth configuration remain planned. First-run administrator provisioning is separate work in #74.
+M5 uses Better Auth, as decided in #128. The database foundation is tracked in #244 under #73. First-run administrator provisioning is tracked in #74. Sign-in endpoints, dashboard protection, and optional OAuth configuration remain planned.
+
+## First administrator
+
+`pnpm bootstrap` and `pnpm admin:init` create an administrator only when the `users` table is empty. The default email is `admin@answerline.local`; set `ADMIN_EMAIL` to change it. Set `ADMIN_PASSWORD` to use an operator-selected password of at least 12 characters. Otherwise, a random password is written to `.data/admin-credentials` with owner-only permissions. The initializer prints the file path, never the password. The file is ignored by Git; retrieve it securely and remove it after use.
+
+The initializer sets `BETTER_AUTH_SECRET` and `BETTER_AUTH_URL` in the root `.env` when they are missing, preserving existing settings. The URL defaults to `http://localhost:$PORT`. It marks the initial email verified only when `ADMIN_EMAIL_VERIFIED=true` is explicitly set by the operator. This setting attests that the operator controls the configured email; it does not send a verification email.
+
+Initialization is safe to rerun. It will not create another user or change credentials once any user exists. It provisions the Better Auth user and credential account directly in Postgres; interactive sign-in is delivered by the web auth implementation.
 
 ## Tables
 
@@ -43,12 +51,12 @@ const auth = betterAuth({
 
 This fragment assumes the caller supplies `db` and the remaining auth configuration, including the secret and application URL. It does not create an active auth service. Password hashing, email normalization, session expiry enforcement, token handling, and verification policy belong to Better Auth and its configuration.
 
-The database package includes Better Auth and its Drizzle adapter as development dependencies for compatibility testing. They are not production dependencies of the database package.
+The database package includes Better Auth and its Drizzle adapter for compatibility testing and initial administrator password hashing.
 
 ## Verification
 
 With `DATABASE_URL` set and migrations applied, `pnpm --filter @answerline/db test` exercises the real adapter through credential sign-up, failed and successful sign-in, session lookup, and sign-out. Database tests also cover identity uniqueness, OAuth fields, verification records, foreign keys, and deletion cascades.
 
-Apply the schema with `pnpm db:migrate`. This migration adds tables and does not create users, issue credentials, or enable login. The first-run administrator and web auth flows remain pending.
+Apply the schema with `pnpm db:migrate`. The migration adds tables without creating users. Run `pnpm admin:init` after migrations to provision the first administrator.
 
 References: [Better Auth core schema](https://better-auth.com/docs/concepts/database) and [Drizzle adapter](https://better-auth.com/docs/adapters/drizzle).
