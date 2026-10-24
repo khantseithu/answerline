@@ -8,7 +8,8 @@ from typing import Annotated, Any
 from uuid import uuid4
 
 from jsonschema import Draft202012Validator, FormatChecker
-from livekit.agents import Agent, AgentSession, RunContext, llm
+from livekit import rtc
+from livekit.agents import Agent, AgentSession, RunContext, io, llm, tts
 from livekit.agents.metrics import ModelUsageCollector
 from pydantic import Field
 
@@ -20,13 +21,19 @@ from .config import AgentConfig, BookAppointmentTool, HttpTool, McpTool, Transfe
 from .knowledge_tool import QUERY_DESCRIPTION, TOOL_DESCRIPTION, open_knowledge_tools
 from .native_booking import open_booking_provider
 from .prompts import compose_instructions
-from .providers import build_llm_chain
+from .providers import build_llm_chain, build_stt, build_tts
 from .publisher import CallEventPublisher
 from .settings import Settings
 from .tool_log import ToolLog
 from .tools import build_configured_tools
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
+EVAL_PHASE_TIMEOUT = 30
+TRANSCRIPT_TIMEOUT = 10
+
+
+def _build_caller_tts(ref: str) -> tts.TTS:
+    return build_tts(ref)
 
 
 def _validate_wire_payload(payload: Any, schema_name: str) -> None:
@@ -282,6 +289,67 @@ async def _judge(
     return result["passed"], reason, usage_lines
 
 
+class _QueueAudioInput(io.AudioInput):
+    def __init__(self) -> None:
+        super().__init__(label="eval caller")
+        self.frames: asyncio.Queue[rtc.AudioFrame] = asyncio.Queue()
+        self.audio_format: tuple[int, int] | None = None
+        self.frame_count = 0
+
+    async def __anext__(self) -> rtc.AudioFrame:
+        return await self.frames.get()
+
+    async def push(self, frame: rtc.AudioFrame) -> None:
+        self.audio_format = (frame.sample_rate, frame.num_channels)
+        self.frame_count += 1
+        await self.frames.put(frame)
+
+
+class _CapturedAudioOutput(io.AudioOutput):
+    def __init__(self) -> None:
+        super().__init__(
+            label="eval playback", capabilities=io.AudioOutputCapabilities(pause=False)
+        )
+        self.frame_count = 0
+
+    async def capture_frame(self, frame: rtc.AudioFrame) -> None:
+        self.frame_count += 1
+        await super().capture_frame(frame)
+
+    def flush(self) -> None:
+        super().flush()
+        self.on_playback_finished(playback_position=0, interrupted=False)
+
+    def clear_buffer(self) -> None:
+        super().clear_buffer()
+        self.on_playback_finished(playback_position=0, interrupted=True)
+
+
+async def _synthesize_into_input(
+    provider: tts.TTS, text: str, audio_input: _QueueAudioInput
+) -> list[dict[str, Any]]:
+    collector = ModelUsageCollector()
+    provider.on("metrics_collected", collector)
+    stream = provider.synthesize(text)
+    frame_count = 0
+    audio_format = None
+    try:
+        async for chunk in stream:
+            await audio_input.push(chunk.frame)
+            frame_count += 1
+            audio_format = (chunk.frame.sample_rate, chunk.frame.num_channels)
+    finally:
+        try:
+            await stream.aclose()
+        finally:
+            provider.off("metrics_collected", collector)
+    if frame_count == 0 or audio_format is None:
+        raise ValueError("caller TTS returned no audio frames")
+    sample_rate, channels = audio_format
+    await audio_input.push(rtc.AudioFrame.create(sample_rate, channels, sample_rate // 10))
+    return model_usage_lines(collector.flatten()) or []
+
+
 async def run_case(
     config: AgentConfig,
     case: dict[str, Any],
@@ -293,8 +361,8 @@ async def run_case(
     live_tools: bool = False,
     context: dict[str, str] | None = None,
 ) -> dict[str, Any]:
-    if mode != "text":
-        raise ValueError("audio eval mode is not available yet")
+    if mode not in {"text", "audio"}:
+        raise ValueError(f"unsupported eval mode {mode!r}")
     turns = case["caller"] if isinstance(case["caller"], list) else [case["caller"]]
     if not turns or any(not isinstance(turn, str) or not turn.strip() for turn in turns):
         raise ValueError(f"eval case {case.get('name', '<unnamed>')!r} must have caller text turns")
@@ -326,7 +394,13 @@ async def run_case(
         )
         closers = []
     transcript: list[dict[str, str]] = []
-    session = AgentSession(llm=provider)
+    usage: list[dict[str, Any]] = []
+    audio_input = None
+    audio_output = None
+    stt_provider = None
+    tts_provider = None
+    caller_tts_provider = None
+    session = None
     responses: list[str] = []
 
     def on_item(event) -> None:
@@ -334,20 +408,37 @@ async def run_case(
             if event.item.text_content:
                 responses.append(event.item.text_content)
 
-    session.on("conversation_item_added", on_item)
     if live_tools:
 
         def on_tools(event) -> None:
             for call, _output in event.zipped():
                 calls.append({"name": call.name, "args": parse_tool_args(call.arguments)})
 
-        session.on("function_tools_executed", on_tools)
     agent = Agent(
         instructions=compose_instructions(config.instructions, after_hours.instructions()),
         tools=tools,
     )
     started = time.monotonic()
     try:
+        if mode == "audio":
+            audio_input = _QueueAudioInput()
+            audio_output = _CapturedAudioOutput()
+            stt_provider = build_stt(models.stt)
+            tts_provider = build_tts(models.tts)
+            caller_tts_provider = _build_caller_tts(models.tts)
+            session = AgentSession(
+                llm=provider,
+                stt=stt_provider,
+                tts=tts_provider,
+                turn_handling={"turn_detection": "manual"},
+            )
+            session.input.audio = audio_input
+            session.output.audio = audio_output
+        else:
+            session = AgentSession(llm=provider)
+        session.on("conversation_item_added", on_item)
+        if live_tools:
+            session.on("function_tools_executed", on_tools)
         await session.start(agent=agent)
         greeting_text = config.greeting
         if after_hours.mode and after_hours.mode != "answer":
@@ -355,18 +446,37 @@ async def run_case(
                 "{name}", config.name
             )
         greeting = await session.say(greeting_text, allow_interruptions=False)
-        await greeting.wait_for_playout()
+        if mode == "audio":
+            await asyncio.wait_for(greeting.wait_for_playout(), EVAL_PHASE_TIMEOUT)
+        else:
+            await greeting.wait_for_playout()
         transcript.append({"role": "agent", "text": greeting_text})
         for turn in turns:
-            transcript.append({"role": "caller", "text": turn})
             start = len(responses)
-            handle = await session.generate_reply(user_input=turn, input_modality="text")
-            await handle.wait_for_playout()
+            if mode == "audio":
+                caller_usage = await asyncio.wait_for(
+                    _synthesize_into_input(caller_tts_provider, turn, audio_input),
+                    EVAL_PHASE_TIMEOUT,
+                )
+                usage.extend(caller_usage)
+                recognized = await asyncio.wait_for(
+                    session.commit_user_turn(
+                        transcript_timeout=TRANSCRIPT_TIMEOUT, stt_flush_duration=0
+                    ),
+                    EVAL_PHASE_TIMEOUT,
+                )
+                transcript.append({"role": "caller", "text": recognized})
+                await asyncio.wait_for(session.wait_for_idle(), EVAL_PHASE_TIMEOUT)
+                await asyncio.wait_for(audio_output.wait_for_playout(), EVAL_PHASE_TIMEOUT)
+            else:
+                transcript.append({"role": "caller", "text": turn})
+                handle = await session.generate_reply(user_input=turn, input_modality="text")
+                await handle.wait_for_playout()
             response = "\n".join(responses[start:]).strip()
             if response:
                 transcript.append({"role": "agent", "text": response})
         failures = _evaluate_assertions(case, transcript, calls)
-        usage = model_usage_lines(session.usage.model_usage) or []
+        usage.extend(model_usage_lines(session.usage.model_usage) or [])
         if case.get("expect", {}).get("judge"):
             passed, reason, judge_usage = await _judge(
                 provider,
@@ -389,18 +499,22 @@ async def run_case(
         }
     finally:
         try:
-            await session.aclose()
+            if session:
+                await session.aclose()
         finally:
-            for close in reversed(closers):
-                await close()
+            try:
+                for audio_provider in (caller_tts_provider, tts_provider, stt_provider):
+                    if audio_provider:
+                        await audio_provider.aclose()
+            finally:
+                for close in reversed(closers):
+                    await close()
 
 
 async def run_suite(payload: dict[str, Any]) -> dict[str, Any]:
     _validate_wire_payload(payload, "eval-execution-input.schema.json")
     if payload.get("liveTools") and payload.get("context") is None:
         raise ValueError("liveTools requires agentSlug and tenantSlug context")
-    if payload.get("mode", "text") != "text":
-        raise ValueError("audio eval mode is not available yet")
     names = [case["name"] for case in payload["suite"]]
     if len(set(names)) != len(names):
         raise ValueError("eval case names must be unique")
