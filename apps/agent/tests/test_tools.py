@@ -31,9 +31,20 @@ def test_hours_without_explicit_tool_does_not_enable_tool():
 
 def test_only_configured_supported_tools_are_registered_once(caplog):
     agent = config()
-    agent.tools.extend(
-        [BuiltinTool(builtin="business_hours"), BuiltinTool(builtin="business_hours")]
-    )
+    agent.tools = [
+        BookAppointmentTool(builtin="book_appointment"),
+        TransferCallTool(builtin="transfer_call", to="+15555550100"),
+        HttpTool(
+            http={
+                "name": "lookup",
+                "description": "Lookup",
+                "method": "GET",
+                "url": "https://x.test",
+            }
+        ),
+        BuiltinTool(builtin="business_hours"),
+        BuiltinTool(builtin="business_hours"),
+    ]
     tools = build_configured_tools(agent)
     assert [tool.id for tool in tools] == ["business_hours"]
     assert Agent(instructions="Be brief.", tools=tools).tools == tools
