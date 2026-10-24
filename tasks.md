@@ -264,7 +264,7 @@ Roadmap: *Multilingual agents*
 
 ## Decisions
 
-- Default agent primary LLM: `google/gemini-3.8-flash` through the Google provider; retain the existing fallback chain (#216)
+- Default agent primary LLM: `openrouter/recursive/flint-v1.0:free` through OpenRouter (replaces Google Gemini 3.8 Flash); retain the existing fallback chain (#216, #222)
 
 - Brand: adopt the Signal “a” identity selected from the logo concepts; keep outlined mark, wordmark, light/dark variants, and app icons in `brand/` (#192)
 - ORM and migrations: Drizzle with postgres.js (#127)
