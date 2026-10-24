@@ -2,6 +2,7 @@ import logging
 
 import httpx
 from answerline_llm import EmbeddingProvider, EmbeddingSettings, parse_model_ref
+from google.genai import types
 from livekit.agents import llm, stt, tts
 from livekit.plugins import anthropic, cartesia, deepgram, google, openai
 
@@ -32,7 +33,7 @@ def build_llm(ref: str) -> llm.LLM:
         case "openai":
             return openai.LLM(model=m.model)
         case "google":
-            return google.LLM(model=m.model)
+            return google.LLM(model=m.model, http_options=types.HttpOptions(timeout=30_000))
         case "deepseek":
             return openai.LLM.with_deepseek(model=m.model)
         case "ollama":

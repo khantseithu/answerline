@@ -5,7 +5,7 @@ import httpx
 import openai
 import pytest
 from answerline_agent.config import LLMModels, Models
-from answerline_agent.providers import build_embedder, build_llm_chain
+from answerline_agent.providers import build_embedder, build_llm, build_llm_chain
 from livekit.agents import llm
 
 STT = "deepgram/nova-3"
@@ -101,3 +101,17 @@ def test_build_embedder_embeds_gemini_embedding_2_input_as_a_query(monkeypatch):
 
     asyncio.run(scenario())
     assert texts == ["task: search result | query: hours"]
+
+
+def test_google_request_deadline_meets_api_minimum(monkeypatch):
+    from livekit.plugins import google
+
+    options = {}
+
+    def capture(**kwargs):
+        options.update(kwargs)
+
+    monkeypatch.setattr(google, "LLM", capture)
+    build_llm("google/gemini-3.8-flash")
+    assert options["model"] == "gemini-3.8-flash"
+    assert options["http_options"].timeout == 30_000
