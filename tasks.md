@@ -147,7 +147,8 @@ Roadmap: *Phone calls over SIP*
 Roadmap: *Dashboard: calls, transcripts, cost per call*
 
 - [ ] Auth
-  - [ ] Better Auth (#128): email/password + optional OAuth
+  - [ ] Better Auth: email/password + optional OAuth (#73; decision #128)
+    - [x] Persistence schema: users, sessions, accounts, verifications (#244)
   - [ ] First-run admin account printed in logs (per README quickstart)
 - [x] App shell: sidebar (Calls, Agents, Knowledge, Evals, Phone numbers, Settings), dark mode
 - [ ] Calls list: filters (agent, date, channel, outcome), search transcripts, pagination

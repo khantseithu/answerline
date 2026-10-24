@@ -22,7 +22,9 @@
     "postgres": "^3.4.9"
   },
   "devDependencies": {
+    "@better-auth/drizzle-adapter": "^1.7.12",
     "@types/node": "^24",
+    "better-auth": "^1.7.12",
     "drizzle-kit": "^0.31.11",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3"
