@@ -150,7 +150,7 @@ Roadmap: *Dashboard: calls, transcripts, cost per call*
 - [ ] Auth
   - [ ] Better Auth: email/password + optional OAuth (#73; decision #128)
     - [x] Persistence schema: users, sessions, accounts, verifications (#244)
-  - [x] First-run admin provisioning during bootstrap; generated credentials stored locally (#74)
+  - [ ] First-run admin provisioning during bootstrap; generated credentials stored locally (#74, PR #249)
 - [x] App shell: sidebar (Calls, Agents, Knowledge, Evals, Phone numbers, Settings), dark mode
 - [ ] Calls list: filters (agent, date, channel, outcome), search transcripts, pagination
 - [ ] Call detail: transcript with timestamps, audio player synced to transcript, tool calls timeline, latency per turn (STT / LLM TTFT / TTS TTFB), cost breakdown
