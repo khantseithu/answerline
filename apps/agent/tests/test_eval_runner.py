@@ -13,6 +13,8 @@ from answerline_agent.eval_runner import (
     run_suite,
 )
 from livekit.agents import llm
+from livekit.agents.metrics import LLMMetrics
+from livekit.agents.metrics.base import Metadata
 from livekit.agents.types import DEFAULT_API_CONNECT_OPTIONS
 
 CONFIG = {
@@ -89,20 +91,30 @@ class _ToolLLM(llm.LLM):
 
 
 class _JudgeStream(llm.LLMStream):
-    def __init__(self, *args, response: str, **kwargs):
+    def __init__(self, *args, response: str, metrics: LLMMetrics | None, **kwargs):
         super().__init__(*args, **kwargs)
         self.response = response
+        self.metrics = metrics
 
     async def _run(self) -> None:
         self._event_ch.send_nowait(
             llm.ChatChunk(id="judge", delta=llm.ChoiceDelta(content=self.response))
         )
+        if self.metrics:
+            self._llm.emit("metrics_collected", self.metrics)
 
 
 class _JudgeLLM(llm.LLM):
-    def __init__(self, response: str):
+    def __init__(self, response: str, metrics: LLMMetrics | None = None):
         super().__init__()
         self.response = response
+        self.metrics = metrics
+        self.removed_metrics_listener = False
+
+    def off(self, event, callback):
+        super().off(event, callback)
+        if event == "metrics_collected":
+            self.removed_metrics_listener = True
 
     def chat(self, *, chat_ctx, tools=None, conn_options=None, **kwargs):
         return _JudgeStream(
@@ -111,6 +123,7 @@ class _JudgeLLM(llm.LLM):
             tools=tools or [],
             conn_options=conn_options or DEFAULT_API_CONNECT_OPTIONS,
             response=self.response,
+            metrics=self.metrics,
         )
 
 
@@ -211,19 +224,18 @@ def test_assertions_report_all_failures():
 
 
 def test_judge_rejects_invalid_json():
-    passed, reason, usage = asyncio.run(
-        _judge(_JudgeLLM("yes"), "openai/gpt-4.1-mini", "Meets the rubric", [], [])
-    )
+    provider = _JudgeLLM("yes")
+    passed, reason, usage = asyncio.run(_judge(provider, "Meets the rubric", [], []))
     assert passed is False
     assert reason == "judge returned invalid JSON"
     assert usage == []
+    assert provider.removed_metrics_listener is True
 
 
 def test_judge_accepts_only_valid_structured_result():
     passed, reason, _usage = asyncio.run(
         _judge(
             _JudgeLLM('{"passed": true, "reason": "Evidence meets rubric"}'),
-            "openai/gpt-4.1-mini",
             "Meets the rubric",
             [],
             [],
@@ -231,6 +243,58 @@ def test_judge_accepts_only_valid_structured_result():
     )
     assert passed is True
     assert reason == "Evidence meets rubric"
+
+
+def test_judge_usage_uses_metrics_model_and_splits_cached_tokens():
+    metrics = LLMMetrics(
+        label="judge",
+        request_id="judge-request",
+        timestamp=1,
+        duration=0.5,
+        ttft=0.1,
+        cancelled=False,
+        completion_tokens=4,
+        prompt_tokens=30,
+        prompt_cached_tokens=6,
+        cache_creation_tokens=2,
+        total_tokens=34,
+        tokens_per_second=8,
+        metadata=Metadata(model_provider="anthropic", model_name="claude-fallback"),
+    )
+    provider = _JudgeLLM('{"passed": true, "reason": "Evidence meets rubric"}', metrics=metrics)
+    passed, _reason, usage = asyncio.run(_judge(provider, "Meets the rubric", [], []))
+    assert passed is True
+    assert usage == [
+        {
+            "stage": "llm",
+            "provider": "anthropic",
+            "model": "claude-fallback",
+            "quantity": 22,
+            "unit": "input_tokens",
+        },
+        {
+            "stage": "llm",
+            "provider": "anthropic",
+            "model": "claude-fallback",
+            "quantity": 6,
+            "unit": "cached_input_tokens",
+        },
+        {
+            "stage": "llm",
+            "provider": "anthropic",
+            "model": "claude-fallback",
+            "quantity": 2,
+            "unit": "cache_creation_tokens",
+        },
+        {
+            "stage": "llm",
+            "provider": "anthropic",
+            "model": "claude-fallback",
+            "quantity": 4,
+            "unit": "output_tokens",
+        },
+    ]
+    assert provider.removed_metrics_listener is True
 
 
 def test_shared_execution_fixtures_match_wire_schemas():

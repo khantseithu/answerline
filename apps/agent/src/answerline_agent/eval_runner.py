@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from jsonschema import Draft202012Validator, FormatChecker
 from livekit.agents import Agent, AgentSession, RunContext, llm
+from livekit.agents.metrics import ModelUsageCollector
 from pydantic import Field
 
 from .after_hours import AfterHours
@@ -234,7 +235,6 @@ def _evaluate_assertions(
 
 async def _judge(
     provider: llm.LLM,
-    model_ref: str,
     rubric: str,
     transcript: list[dict[str, str]],
     calls: list[dict[str, Any]],
@@ -254,35 +254,22 @@ async def _judge(
             )
         ]
     )
-    stream = provider.chat(chat_ctx=chat)
+    collector = ModelUsageCollector()
+    provider.on("metrics_collected", collector)
     chunks = []
-    usage_lines = []
-    async for chunk in stream:
-        if chunk.delta and chunk.delta.content:
-            chunks.append(chunk.delta.content)
-        if chunk.usage:
-            provider_name, _, model_name = model_ref.partition("/")
-            if chunk.usage.prompt_tokens:
-                usage_lines.append(
-                    {
-                        "stage": "llm",
-                        "provider": provider_name,
-                        "model": model_name,
-                        "quantity": chunk.usage.prompt_tokens,
-                        "unit": "input_tokens",
-                    }
-                )
-            if chunk.usage.completion_tokens:
-                usage_lines.append(
-                    {
-                        "stage": "llm",
-                        "provider": provider_name,
-                        "model": model_name,
-                        "quantity": chunk.usage.completion_tokens,
-                        "unit": "output_tokens",
-                    }
-                )
-    await stream.aclose()
+    stream = None
+    try:
+        stream = provider.chat(chat_ctx=chat)
+        async for chunk in stream:
+            if chunk.delta and chunk.delta.content:
+                chunks.append(chunk.delta.content)
+    finally:
+        try:
+            if stream:
+                await stream.aclose()
+        finally:
+            provider.off("metrics_collected", collector)
+    usage_lines = model_usage_lines(collector.flatten()) or []
     try:
         result = json.loads("".join(chunks))
     except json.JSONDecodeError:
@@ -383,7 +370,6 @@ async def run_case(
         if case.get("expect", {}).get("judge"):
             passed, reason, judge_usage = await _judge(
                 provider,
-                models.llm.primary,
                 case["expect"]["judge"],
                 transcript,
                 calls,
