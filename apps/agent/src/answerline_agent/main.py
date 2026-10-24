@@ -15,6 +15,7 @@ from .publisher import CallEventPublisher
 from .recording import build_call_recording, start_with_notice
 from .resolve import resolve_agent
 from .settings import Settings
+from .telemetry import TracedAgent, configure_tracing, flush_tracing
 from .tool_log import ToolLog
 from .tools import build_configured_tools
 from .transfer import CallTransfer
@@ -41,6 +42,14 @@ async def entrypoint(ctx: JobContext) -> None:
     ctx.log_context_fields = {"room": ctx.room.name}
     resolved = await resolve_agent(ctx.job.metadata, settings)
     config = resolved.config
+    trace_provider = configure_tracing(settings, ctx.room.name, resolved.slug)
+    if trace_provider is not None:
+
+        async def flush_trace() -> None:
+            await flush_tracing(trace_provider)
+
+        ctx.add_shutdown_callback(flush_trace)
+    agent_type = TracedAgent if trace_provider is not None else Agent
     publisher = CallEventPublisher(settings.redis_url, settings.redis_prefix)
     booking = await open_booking_provider(config, settings, resolved.slug, ctx.room.name)
     if booking:
@@ -87,7 +96,7 @@ async def entrypoint(ctx: JobContext) -> None:
     )
     await session.start(
         room=ctx.room,
-        agent=Agent(
+        agent=agent_type(
             instructions=compose_instructions(config.instructions, after_hours.instructions()),
             tools=[*(knowledge.tools if knowledge else []), *tools],
         ),

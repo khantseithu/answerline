@@ -159,7 +159,7 @@ Roadmap: *Dashboard: calls, transcripts, cost per call*
 - [ ] Agents page: list, create from template, edit (form + raw YAML editor with Zod validation), version history
 - [x] Business agent template library: at least 30 industry-specific YAML agents, setup catalog, schema validation, and matching eval scenarios (#235); complements the Agents page template picker (#80)
 - [ ] Overview page: calls today, avg duration, cost, bookings, failure rate
-- [ ] OpenTelemetry: traces from call → STT/LLM/TTS/tool spans, OTLP exporter config, optional Jaeger in compose
+- [x] OpenTelemetry: traces from call → STT/LLM/TTS/tool spans, OTLP exporter config, optional Jaeger in compose (#82)
 
 **Done when:** after a few test calls, the dashboard shows each call with transcript, recording, tool calls, latency, and cost.
 

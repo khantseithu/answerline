@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, HttpUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .call_events import Slug
@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379"
     redis_prefix: str = "bull"
     tenant: Slug = "default"
+    otel_exporter_otlp_endpoint: HttpUrl | None = None
+    otel_exporter_otlp_traces_endpoint: HttpUrl | None = None
+    otel_service_name: str = Field(default="answerline-agent", min_length=1)
+    otel_exporter_otlp_timeout: float = Field(default=5.0, gt=0, allow_inf_nan=False)
     turn_detection: Literal["local", "cloud", "stt", "vad"] = "local"
     interruption_mode: Literal["vad", "adaptive"] = "vad"
     max_call_duration_seconds: int = Field(default=900, ge=0)
