@@ -338,6 +338,79 @@
         "reason",
         "type"
       ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "agent": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+        },
+        "room_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tenant": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+        },
+        "message": {
+          "type": "string",
+          "allOf": [
+            {
+              "pattern": "^[\\s\\S]{1,4000}(?![\\s\\S])"
+            },
+            {
+              "pattern": "[^\t\\n\u000b\f\\r\u001c\u001d\u001e\u001f              \\u2028\\u2029  　﻿]"
+            }
+          ]
+        },
+        "name": {
+          "type": "string",
+          "allOf": [
+            {
+              "pattern": "^[\\s\\S]{1,200}(?![\\s\\S])"
+            },
+            {
+              "pattern": "[^\t\\n\u000b\f\\r\u001c\u001d\u001e\u001f              \\u2028\\u2029  　﻿]"
+            }
+          ]
+        },
+        "phone": {
+          "type": "string",
+          "allOf": [
+            {
+              "pattern": "^[\\s\\S]{1,100}(?![\\s\\S])"
+            },
+            {
+              "pattern": "[^\t\\n\u000b\f\\r\u001c\u001d\u001e\u001f              \\u2028\\u2029  　﻿]"
+            }
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "voicemail.created"
+        },
+        "voicemail_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        }
+      },
+      "required": [
+        "agent",
+        "room_name",
+        "tenant",
+        "created_at",
+        "message",
+        "type",
+        "voicemail_id"
+      ]
     }
   ]
 }

@@ -45,6 +45,6 @@ def build_configured_tools(
                 continue
             tools.extend(build_booking_tools(booking, config.hours.timezone, settings))
         else:
-            name = spec.builtin if isinstance(spec, BuiltinTool) else type(spec).__name__
+            name = getattr(spec, "builtin", type(spec).__name__)
             logger.warning("Configured tool %s is not implemented and will not be available", name)
     return tools

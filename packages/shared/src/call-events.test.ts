@@ -93,3 +93,22 @@ test("lead ids are canonical across producer languages", async () => {
   });
   assert.equal(callEventJobId(upper), callEventJobId(lead));
 });
+
+test("voicemail event ids distinguish voicemails and stay stable for retries", async () => {
+  const data = JSON.parse(
+    await readFile(new URL("valid/voicemail-created.json", fixtures), "utf8")
+  ) as unknown;
+  const voicemail = callEventJob.parse(data);
+  const expected = `${voicemail.room_name}_voicemail.created_7d1f9a52-3c2e-4b8f-a6d4-2e9b1c0f5a31`;
+  assert.equal(callEventJobId(voicemail), expected);
+  assert.equal(
+    callEventJobId(
+      callEventJob.parse({ ...voicemail, voicemail_id: "7D1F9A52-3C2E-4B8F-A6D4-2E9B1C0F5A31" })
+    ),
+    expected
+  );
+  assert.notEqual(
+    callEventJobId(callEventJob.parse({ ...voicemail, voicemail_id: crypto.randomUUID() })),
+    expected
+  );
+});

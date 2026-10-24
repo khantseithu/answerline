@@ -13,7 +13,14 @@ const knowledgeSource = z.discriminatedUnion("type", [
 
 const builtinTool = z
   .object({
-    builtin: z.enum(["transfer_call", "business_hours", "capture_lead"]),
+    builtin: z.enum(["business_hours", "capture_lead", "voicemail"]),
+  })
+  .catchall(z.unknown());
+
+const transferCallTool = z
+  .object({
+    builtin: z.literal("transfer_call"),
+    to: z.string().regex(/^(\+[1-9]\d{6,14}|sips?:\S+)$/, "expected E.164 number or sip: URI"),
   })
   .catchall(z.unknown());
 
@@ -47,17 +54,23 @@ const recording = z.object({
   notice: z.string().min(1).default(DEFAULT_RECORDING_NOTICE),
 });
 
+const timeRange = z.string().regex(/^\d{2}:\d{2}-\d{2}:\d{2}$/);
+
+const holiday = z.object({
+  date: z.iso.date(),
+  hours: timeRange.optional(),
+  name: z.string().min(1).optional(),
+});
+
 export const agentConfigSchema = z.object({
   greeting: z.string().min(1),
   hours: z
     .object({
       after_hours: z.enum(["voicemail", "transfer", "answer"]).default("voicemail"),
+      holidays: z.array(holiday).default([]),
       timezone: z.string(),
-      weekdays: z.string().regex(/^\d{2}:\d{2}-\d{2}:\d{2}$/),
-      weekends: z
-        .string()
-        .regex(/^\d{2}:\d{2}-\d{2}:\d{2}$/)
-        .optional(),
+      weekdays: timeRange,
+      weekends: timeRange.optional(),
     })
     .optional(),
   instructions: z.string().min(1),
@@ -73,7 +86,9 @@ export const agentConfigSchema = z.object({
   }),
   name: z.string().min(1),
   recording: recording.prefault({}),
-  tools: z.array(z.union([builtinTool, bookAppointmentTool, httpTool, mcpTool])).default([]),
+  tools: z
+    .array(z.union([builtinTool, transferCallTool, bookAppointmentTool, httpTool, mcpTool]))
+    .default([]),
 });
 
 export type AgentConfig = z.infer<typeof agentConfigSchema>;

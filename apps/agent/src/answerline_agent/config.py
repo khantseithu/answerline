@@ -1,3 +1,4 @@
+from datetime import date
 from pathlib import Path
 from typing import Annotated, Literal
 
@@ -45,7 +46,14 @@ class Knowledge(BaseModel):
 class BuiltinTool(BaseModel):
     model_config = ConfigDict(extra="allow")
 
-    builtin: Literal["transfer_call", "business_hours", "capture_lead"]
+    builtin: Literal["business_hours", "capture_lead", "voicemail"]
+
+
+class TransferCallTool(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    builtin: Literal["transfer_call"]
+    to: Annotated[str, StringConstraints(pattern=r"^(\+[1-9]\d{6,14}|sips?:\S+)$")]
 
 
 class BookAppointmentTool(BaseModel):
@@ -77,11 +85,18 @@ class McpTool(BaseModel):
     mcp: McpToolSpec
 
 
+class Holiday(BaseModel):
+    date: date
+    hours: TimeRange | None = None
+    name: NonEmpty | None = None
+
+
 class Hours(BaseModel):
     timezone: str
     weekdays: TimeRange
     weekends: TimeRange | None = None
     after_hours: Literal["voicemail", "transfer", "answer"] = "voicemail"
+    holidays: list[Holiday] = Field(default_factory=list)
 
 
 DEFAULT_RECORDING_NOTICE = "This call may be recorded for quality and training purposes."
@@ -99,7 +114,7 @@ class AgentConfig(BaseModel):
     instructions: NonEmpty
     models: Models
     knowledge: Knowledge | None = None
-    tools: list[BuiltinTool | BookAppointmentTool | HttpTool | McpTool] = Field(
+    tools: list[BuiltinTool | TransferCallTool | BookAppointmentTool | HttpTool | McpTool] = Field(
         default_factory=list
     )
     hours: Hours | None = None
