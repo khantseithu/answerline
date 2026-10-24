@@ -18,6 +18,31 @@
             "answer"
           ]
         },
+        "holidays": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "date": {
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              },
+              "hours": {
+                "type": "string",
+                "pattern": "^\\d{2}:\\d{2}-\\d{2}:\\d{2}$"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "date"
+            ]
+          }
+        },
         "timezone": {
           "type": "string"
         },
@@ -178,14 +203,32 @@
               "builtin": {
                 "type": "string",
                 "enum": [
-                  "transfer_call",
                   "business_hours",
-                  "capture_lead"
+                  "capture_lead",
+                  "voicemail"
                 ]
               }
             },
             "required": [
               "builtin"
+            ],
+            "additionalProperties": {}
+          },
+          {
+            "type": "object",
+            "properties": {
+              "builtin": {
+                "type": "string",
+                "const": "transfer_call"
+              },
+              "to": {
+                "type": "string",
+                "pattern": "^(\\+[1-9]\\d{6,14}|sips?:\\S+)$"
+              }
+            },
+            "required": [
+              "builtin",
+              "to"
             ],
             "additionalProperties": {}
           },

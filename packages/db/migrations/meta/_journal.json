@@ -43,6 +43,13 @@
       "when": 1792766390941,
       "tag": "0005_bookings_no_overlap",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792813954735,
+      "tag": "0006_bumpy_polaris",
+      "breakpoints": true
     }
   ]
 }

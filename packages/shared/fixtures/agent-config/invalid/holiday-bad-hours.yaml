@@ -1,0 +1,14 @@
+name: After Hours
+greeting: Hello
+instructions: Be brief.
+models:
+  stt: deepgram/nova-3
+  llm:
+    primary: openai/gpt-4.1-mini
+  tts: cartesia/sonic-3
+hours:
+  timezone: UTC
+  weekdays: "09:00-17:00"
+  holidays:
+    - date: "2026-12-24"
+      hours: "9am-1pm"

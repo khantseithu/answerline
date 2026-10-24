@@ -1,0 +1,22 @@
+name: After Hours
+greeting: Hello
+instructions: Be brief.
+models:
+  stt: deepgram/nova-3
+  llm:
+    primary: openai/gpt-4.1-mini
+  tts: cartesia/sonic-3
+tools:
+  - builtin: business_hours
+  - builtin: voicemail
+  - builtin: transfer_call
+    to: "+15555550100"
+hours:
+  timezone: America/New_York
+  weekdays: "09:00-18:00"
+  after_hours: transfer
+  holidays:
+    - date: "2026-12-25"
+      name: Christmas Day
+    - date: "2026-12-24"
+      hours: "09:00-13:00"

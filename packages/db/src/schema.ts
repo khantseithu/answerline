@@ -224,6 +224,25 @@ export const leads = pgTable(
   (t) => [index().on(t.tenantId, t.createdAt)]
 );
 
+export const voicemails = pgTable(
+  "voicemails",
+  {
+    agentId: uuid()
+      .notNull()
+      .references(() => agents.id, { onDelete: "cascade" }),
+    callId: uuid()
+      .notNull()
+      .references(() => calls.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+    id: id(),
+    message: text().notNull(),
+    name: text(),
+    phone: text(),
+    tenantId: tenantId(),
+  },
+  (t) => [index().on(t.tenantId, t.createdAt)]
+);
+
 export const evalRuns = pgTable(
   "eval_runs",
   {

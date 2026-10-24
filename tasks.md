@@ -96,6 +96,7 @@ Roadmap: *Built-in tools: booking, transfer, business hours*
   - [x] Timeouts, retries, and spoken filler while a tool runs (#48)
 - [ ] `business_hours`: timezone-aware open/closed, holidays, `after_hours` behavior (voicemail / transfer / answer)
   - [x] Opt-in lookup: timezone-aware weekday/weekend schedules, overnight hours, and configured after-hours policy (#46)
+  - [x] Holiday and after-hours config contract (#229)
   - [ ] Holiday overrides and automatic after-hours routing (#49)
 - [ ] `book_appointment` (#50)
   - [x] Provider interface: availability lookup, create, cancel (#51)
@@ -108,7 +109,12 @@ Roadmap: *Built-in tools: booking, transfer, business hours*
   - [x] Lead storage and validated `lead.created` queue contract (#197)
   - [x] Capture tool and worker persistence (#57)
 - [ ] `transfer_call`: cold transfer (SIP REFER) and warm transfer (agent briefs human, then bridges); web calls fall back to message capture
+  - [x] `transfer_call` config contract with a validated `to` target (#229)
+  - [ ] Cold transfer via SIP REFER; web calls fall back to voicemail (#58)
+  - [ ] Warm transfer (#226)
 - [ ] Voicemail: record message, transcribe, attach to call
+  - [x] `voicemails` storage and validated `voicemail.created` queue contract (#229)
+  - [ ] Voicemail tool and worker persistence (#59)
 - [ ] HTTP tools from config: templated URL/body, headers from secrets, JSON schema for params, response truncation
 - [ ] MCP servers: connect via `mcp_servers` on `AgentSession`, per-agent allowlist
 - [ ] Composio customer-support tools (deferred): optional integration for helpdesk tickets, customer context, and escalations via [Composio](https://composio.dev/product/composio-for-customer-support); implement after the core tool framework ([#186](https://github.com/khantseithu/answerline/issues/186))
@@ -278,6 +284,9 @@ Roadmap: *Multilingual agents*
 - Booking providers: a Python `BookingProvider` protocol (availability, create, cancel) behind a registry keyed by the `book_appointment` `provider` name; the tool takes its timezone from `hours`, and callers can cancel only bookings made earlier in the same call. Cross-call cancellation is deferred (#51)
 - Booking confirmation: `book_appointment` only prepares a booking; `confirm_booking` writes it and is refused until the caller has spoken after the read-back, so the model cannot book in the same breath as summarizing (#55)
 - OpenRouter model refs: `openrouter/<vendor>/<model>` (e.g. `openrouter/anthropic/claude-sonnet-4.5`). The model ref pattern allows one optional extra `/` segment so OpenRouter's own ids pass unchanged; the provider is everything before the first `/` (#209)
+- After-hours routing: decided at call start from `hours` plus `hours.holidays` (`{date, hours?, name?}`; no `hours` means closed all day). Closed with `voicemail` takes a message; `transfer` transfers immediately (web calls fall back to voicemail); `answer` answers normally with the agent told it is closed (#49)
+- Transfer: the MVP ships cold transfer only, via LiveKit `transfer_sip_participant` (SIP REFER) to `transfer_call.to` (E.164 or `sip:` URI); web calls fall back to voicemail. Warm transfer is #226 (#58)
+- Voicemail: the agent takes the message and the STT transcript is stored in `voicemails` via a `voicemail.created` event, linked to the call. Audio is the call recording when recording is enabled; no per-voicemail clip (#59)
 
 ## Open decisions
 

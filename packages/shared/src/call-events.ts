@@ -81,12 +81,23 @@ export const leadCreatedJob = z.object({
   type: z.literal("lead.created"),
 });
 
+export const voicemailCreatedJob = z.object({
+  ...callRef,
+  created_at: z.iso.datetime({ offset: true }),
+  message: leadText(4000),
+  name: leadText(200).optional(),
+  phone: leadText(100).optional(),
+  type: z.literal("voicemail.created"),
+  voicemail_id: z.uuid().toLowerCase(),
+});
+
 export const callEventJob = z.discriminatedUnion("type", [
   callStartedJob,
   callTurnJob,
   callToolJob,
   callEndedJob,
   leadCreatedJob,
+  voicemailCreatedJob,
 ]);
 
 export type CallEventJob = z.infer<typeof callEventJob>;
@@ -94,6 +105,9 @@ export type CallEventJob = z.infer<typeof callEventJob>;
 export function callEventJobId(event: CallEventJob): string {
   if (event.type === "lead.created") {
     return `${event.room_name}_${event.type}_${event.lead_id}`;
+  }
+  if (event.type === "voicemail.created") {
+    return `${event.room_name}_${event.type}_${event.voicemail_id}`;
   }
   return event.type === "call.turn" || event.type === "call.tool"
     ? `${event.room_name}_${event.type}_${event.seq}`

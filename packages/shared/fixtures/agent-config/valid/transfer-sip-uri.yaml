@@ -1,0 +1,11 @@
+name: After Hours
+greeting: Hello
+instructions: Be brief.
+models:
+  stt: deepgram/nova-3
+  llm:
+    primary: openai/gpt-4.1-mini
+  tts: cartesia/sonic-3
+tools:
+  - builtin: transfer_call
+    to: "sip:frontdesk@pbx.example.com"
