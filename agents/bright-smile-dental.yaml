@@ -11,7 +11,7 @@ instructions: |
 models:
   stt: deepgram/nova-3
   llm:
-    primary: google/gemini-3.8-flash
+    primary: openrouter/recursive/flint-v1.0:free
     fallback: [openai/gpt-4.1-mini, google/gemini-2.5-flash]
   tts: cartesia/sonic-3
 
