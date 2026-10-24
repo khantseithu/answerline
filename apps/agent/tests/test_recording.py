@@ -14,8 +14,9 @@ from livekit import api
 
 
 class FakeEgress:
-    def __init__(self, error: Exception | None = None):
+    def __init__(self, error: Exception | None = None, started_at_ns: int = 0):
         self.error = error
+        self.started_at_ns = started_at_ns
         self.started = []
         self.stopped = []
 
@@ -23,7 +24,7 @@ class FakeEgress:
         if self.error:
             raise self.error
         self.started.append(request)
-        return SimpleNamespace(egress_id="EG_1")
+        return SimpleNamespace(egress_id="EG_1", started_at=self.started_at_ns)
 
     async def stop_egress(self, request):
         if self.error:
@@ -77,10 +78,25 @@ def test_start_requests_audio_only_room_composite_ogg():
     assert call_recording.url == "s3://recordings/acme/call-1.ogg"
 
 
+def test_start_records_egress_start_time_from_nanoseconds():
+    call_recording = _recording(FakeEgress(started_at_ns=1_782_000_000_500_000_000))
+    assert call_recording.started_at is None
+    asyncio.run(call_recording.start())
+    assert call_recording.started_at == 1_782_000_000.5
+
+
+def test_start_without_egress_start_time_uses_current_time(monkeypatch):
+    monkeypatch.setattr(recording.time, "time", lambda: 1_782_000_123.0)
+    call_recording = _recording(FakeEgress())
+    asyncio.run(call_recording.start())
+    assert call_recording.started_at == 1_782_000_123.0
+
+
 def test_start_failure_is_swallowed_and_leaves_no_url():
     call_recording = _recording(FakeEgress(error=RuntimeError("no egress")))
     assert asyncio.run(call_recording.start()) is False
     assert call_recording.url is None
+    assert call_recording.started_at is None
 
 
 def test_start_timeout_is_swallowed(monkeypatch):

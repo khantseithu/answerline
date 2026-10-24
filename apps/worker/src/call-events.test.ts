@@ -240,14 +240,24 @@ test("call.ended persists normalized usage and calculated cost idempotently", { 
 test("call.ended stores the recording location and keeps it when absent", { skip }, () =>
   withTenant(async ({ base, ended, started }, db) => {
     const recordingUrl = `s3://recordings/default/${base.room_name}.ogg`;
+    const recordingStartedAt = "2026-10-22T14:00:02.000Z";
     await persistCallEvent(db, started);
     assert.equal((await getCall(db, base.room_name)).recordingUrl, null);
+    assert.equal((await getCall(db, base.room_name)).recordingStartedAt, null);
 
-    await persistCallEvent(db, { ...ended, recording_url: recordingUrl });
-    assert.equal((await getCall(db, base.room_name)).recordingUrl, recordingUrl);
+    await persistCallEvent(db, {
+      ...ended,
+      recording_started_at: recordingStartedAt,
+      recording_url: recordingUrl,
+    });
+    const recorded = await getCall(db, base.room_name);
+    assert.equal(recorded.recordingUrl, recordingUrl);
+    assert.equal(recorded.recordingStartedAt?.toISOString(), recordingStartedAt);
 
     await persistCallEvent(db, ended);
-    assert.equal((await getCall(db, base.room_name)).recordingUrl, recordingUrl);
+    const kept = await getCall(db, base.room_name);
+    assert.equal(kept.recordingUrl, recordingUrl);
+    assert.equal(kept.recordingStartedAt?.toISOString(), recordingStartedAt);
   })
 );
 

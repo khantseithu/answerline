@@ -129,6 +129,17 @@ def test_ended_carries_recording_url_only_when_set():
     assert recorded["recording_url"] == "s3://recordings/d/call-1.ogg"
 
 
+def test_ended_carries_recording_start_only_when_set():
+    recorder = _recorder()
+    recorder.start(is_sip=False, started_at=START)
+    plain = call_event_payload(recorder.end(ended_at=START + 1, failed=False))
+    recorded = call_event_payload(
+        recorder.end(ended_at=START + 1, failed=False, recording_started_at=START + 0.25)
+    )
+    assert "recording_started_at" not in plain
+    assert recorded["recording_started_at"] == "2026-10-22T14:00:00.250+00:00"
+
+
 def test_summarize_usage_sums_models():
     usage = [
         STTModelUsage(provider="deepgram", model="nova", audio_duration=10.5),

@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 
 from livekit import api
 from livekit.agents import AgentSession, JobContext
@@ -24,6 +25,12 @@ def recording_key(tenant: str, room_name: str) -> str:
     return f"{tenant}/{room_name}.ogg"
 
 
+def _egress_started_at(started_at_ns: int) -> float:
+    if started_at_ns > 0:
+        return started_at_ns / 1_000_000_000
+    return time.time()
+
+
 class CallRecording:
     def __init__(
         self,
@@ -38,12 +45,17 @@ class CallRecording:
         self._key = recording_key(tenant, room_name)
         self._bucket = bucket
         self._egress_id: str | None = None
+        self._started_at: float | None = None
 
     @property
     def url(self) -> str | None:
         if self._egress_id is None:
             return None
         return f"s3://{self._bucket}/{self._key}"
+
+    @property
+    def started_at(self) -> float | None:
+        return self._started_at
 
     async def start(self) -> bool:
         request = api.RoomCompositeEgressRequest(
@@ -65,6 +77,7 @@ class CallRecording:
             logger.warning("failed to start recording for %s", self._room_name, exc_info=True)
             return False
         self._egress_id = info.egress_id
+        self._started_at = _egress_started_at(info.started_at)
         logger.info("recording %s started as egress %s", self.url, info.egress_id)
         return True
 

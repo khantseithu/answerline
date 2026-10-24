@@ -193,6 +193,9 @@ async function handleEnded(
     durationMs: event.duration_ms,
     endedAt,
     modelUsage: event.model_usage ?? null,
+    recordingStartedAt: event.recording_started_at
+      ? new Date(event.recording_started_at)
+      : undefined,
     recordingUrl: event.recording_url,
     status: event.status,
     usage: event.usage,
