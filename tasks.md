@@ -175,7 +175,7 @@ Roadmap: *Evals runner*
 - [ ] Assertions: `tool_called`, `tool_args`, `mentions`, `not_mentions`, `judge` (LLM-as-judge with rubric)
 - [x] Metrics per run: pass rate, latency, cost; per-case result with transcript (#86)
 - [x] CLI: `worker eval agents/<name>.yaml` with exit code for CI, `--model` override for comparisons (#87)
-- [ ] Queue-backed runs from dashboard; Evals page with run history and diff between runs
+- [x] Queue-backed runs from dashboard; Evals page with run history and diff between runs (#88)
 - [ ] Optional audio-mode evals (TTS caller → full pipeline) for latency realism
 - [ ] GitHub Action example: run evals on PRs that change `agents/` or `evals/`
 

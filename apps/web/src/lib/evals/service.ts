@@ -1,4 +1,4 @@
-import { agents, type Database, evalResults, evalRuns } from "@answerline/db";
+import { agents, type Database, evalResults, evalRuns, tenants } from "@answerline/db";
 import { type EvalJob, evalExecutionInputSchema, evalRunCreateSchema } from "@answerline/shared";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
@@ -176,8 +176,9 @@ export type EvalRunComparison = NonNullable<Awaited<ReturnType<typeof compareEva
 export async function createEvalRun(deps: EvalDeps, rawInput: unknown) {
   const input = evalRunCreateSchema.parse(rawInput);
   const [agent] = await deps.db
-    .select({ config: agents.config })
+    .select({ agentSlug: agents.slug, config: agents.config, tenantSlug: tenants.slug })
     .from(agents)
+    .innerJoin(tenants, eq(agents.tenantId, tenants.id))
     .where(and(eq(agents.id, input.agentId), eq(agents.tenantId, deps.tenantId)))
     .limit(1);
   if (!agent) {
@@ -191,6 +192,7 @@ export async function createEvalRun(deps: EvalDeps, rawInput: unknown) {
   });
   const executionInput = evalExecutionInputSchema.parse({
     agent: agent.config,
+    context: { agentSlug: agent.agentSlug, tenantSlug: agent.tenantSlug },
     liveTools: input.liveTools,
     mode: input.mode,
     modelOverride: input.modelOverride,

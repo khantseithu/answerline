@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { agents, createDb, evalResults, evalRuns, tenants } from "@answerline/db";
-import { type EvalJob, parseAgentConfig } from "@answerline/shared";
+import { type EvalJob, evalExecutionInputSchema, parseAgentConfig } from "@answerline/shared";
 import { eq } from "drizzle-orm";
 import { createEvalHandlers } from "./handlers.ts";
 import { compareEvalRuns, type EvalDeps, evalJobId, getEvalRun } from "./service.ts";
@@ -134,6 +134,10 @@ test("queues a run with an immutable snapshot and a minimal job", { skip }, () =
     assert.equal(row?.executionInput?.liveTools, false);
     assert.equal(row?.executionInput?.mode, "text");
     assert.equal(row?.executionInput?.modelOverride, "openai/gpt-4.1-mini");
+    assert.deepEqual(row?.executionInput?.context, {
+      agentSlug: "primary",
+      tenantSlug: `evals-${harness.deps.tenantId}`,
+    });
 
     await harness.deps.db
       .update(agents)
@@ -149,6 +153,13 @@ test("records explicit live tools and audio mode", { skip }, () =>
     const run = await createRun(harness, { liveTools: true, mode: "audio" });
     assert.equal(run.liveTools, true);
     assert.equal(run.mode, "audio");
+    const [row] = await harness.deps.db.select().from(evalRuns).where(eq(evalRuns.id, run.id));
+    assert.equal(row?.executionInput?.liveTools, true);
+    assert.deepEqual(row?.executionInput?.context, {
+      agentSlug: "primary",
+      tenantSlug: `evals-${harness.deps.tenantId}`,
+    });
+    assert.ok(evalExecutionInputSchema.safeParse(row?.executionInput).success);
   })
 );
 
