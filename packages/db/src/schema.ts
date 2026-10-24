@@ -1,4 +1,4 @@
-import type { AgentConfig, QuestionAnswerPairs } from "@answerline/shared";
+import type { AgentConfig, CostLine, ModelUsage, QuestionAnswerPairs } from "@answerline/shared";
 import { sql } from "drizzle-orm";
 import {
   boolean,
@@ -134,8 +134,23 @@ export const agents = pgTable(
     slug: text().notNull(),
     tenantId: tenantId(),
     updatedAt: updatedAt(),
+    version: integer().notNull().default(1),
   },
   (t) => [uniqueIndex().on(t.tenantId, t.slug)]
+);
+
+export const agentVersions = pgTable(
+  "agent_versions",
+  {
+    agentId: uuid()
+      .notNull()
+      .references(() => agents.id, { onDelete: "cascade" }),
+    config: jsonb().$type<AgentConfig>().notNull(),
+    createdAt: createdAt(),
+    id: id(),
+    version: integer().notNull(),
+  },
+  (t) => [uniqueIndex().on(t.agentId, t.version)]
 );
 
 export const calls = pgTable(
@@ -145,6 +160,7 @@ export const calls = pgTable(
       .notNull()
       .references(() => agents.id, { onDelete: "cascade" }),
     channel: callChannel().notNull(),
+    costBreakdown: jsonb().$type<CostLine[]>(),
     costUsd: numeric({ precision: 12, scale: 6 }),
     createdAt: createdAt(),
     direction: callDirection().notNull().default("inbound"),
@@ -152,9 +168,12 @@ export const calls = pgTable(
     endedAt: timestamp({ withTimezone: true }),
     fromNumber: text(),
     id: id(),
+    modelUsage: jsonb().$type<ModelUsage[]>(),
     outcome: text(),
+    recordingStartedAt: timestamp({ withTimezone: true }),
     recordingUrl: text(),
     roomName: text().notNull().unique(),
+    sentiment: text(),
     startedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
     status: callStatus().notNull().default("in_progress"),
     summary: text(),

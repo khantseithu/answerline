@@ -146,6 +146,7 @@ Roadmap: *Phone calls over SIP*
 
 Roadmap: *Dashboard: calls, transcripts, cost per call*
 
+- [x] Shared dashboard and post-call data contracts (#246)
 - [ ] Auth
   - [ ] Better Auth: email/password + optional OAuth (#73; decision #128)
     - [x] Persistence schema: users, sessions, accounts, verifications (#244)

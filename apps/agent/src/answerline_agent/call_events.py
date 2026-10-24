@@ -80,12 +80,41 @@ class CallTool(CallRef):
     started_at: Timestamp
 
 
+class STTModelUsage(BaseModel):
+    stage: Literal["stt"]
+    provider: NonEmpty
+    model: NonEmpty
+    quantity: Annotated[float, Field(ge=0, strict=True, allow_inf_nan=False)]
+    unit: Literal["seconds"]
+
+
+class LLMModelUsage(BaseModel):
+    stage: Literal["llm"]
+    provider: NonEmpty
+    model: NonEmpty
+    quantity: Annotated[int, Field(ge=0, le=MAX_SEQ, strict=True)]
+    unit: Literal["input_tokens", "output_tokens", "cached_input_tokens", "cache_creation_tokens"]
+
+
+class TTSModelUsage(BaseModel):
+    stage: Literal["tts"]
+    provider: NonEmpty
+    model: NonEmpty
+    quantity: Annotated[int, Field(ge=0, le=MAX_SEQ, strict=True)]
+    unit: Literal["characters"]
+
+
+ModelUsage = Annotated[STTModelUsage | LLMModelUsage | TTSModelUsage, Field(discriminator="stage")]
+
+
 class CallEnded(CallRef):
     type: Literal["call.ended"] = "call.ended"
     status: Literal["completed", "failed"]
     ended_at: Timestamp
     duration_ms: Annotated[int, Field(ge=0)]
     usage: dict[str, float] | None = None
+    model_usage: list[ModelUsage] | None = None
+    recording_started_at: Timestamp | None = None
     recording_url: NonEmpty | None = None
 
 
