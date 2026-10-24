@@ -18,6 +18,7 @@ import { AgentSessionView_01 } from "@/components/agents-ui/blocks/agent-session
 import { StartAudioButton } from "@/components/agents-ui/start-audio-button";
 import { LogoMark } from "@/components/brand/logo";
 import { LiveDot } from "@/components/call/live-dot";
+import { callSetupErrorDescription } from "@/lib/call-error";
 
 const CONTROLS = { camera: false, chat: true, leave: true, microphone: true, screenShare: false };
 
@@ -181,10 +182,9 @@ function AvailableCallApp({
       return;
     }
     start()
-      .catch(() => {
+      .catch((error: unknown) => {
         toast.error("Call setup failed", {
-          description:
-            "Check that LiveKit is running and that this browser can use your microphone.",
+          description: callSetupErrorDescription(error),
         });
       })
       .finally(() => setStartPending(false));
