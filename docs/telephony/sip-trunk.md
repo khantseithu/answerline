@@ -1,6 +1,6 @@
 # Connect any SIP trunk
 
-Answerline answers phone calls through the LiveKit SIP service, so any carrier or PBX that can send a SIP INVITE to it should work, for example another carrier's SIP trunk or a FreePBX/Asterisk box. Only Twilio and Telnyx have guides so far. Their step-by-step guides with setup scripts: [Twilio](twilio.md), [Telnyx](telnyx.md).
+Answerline answers phone calls through the LiveKit SIP service, so any carrier or PBX that can send a SIP INVITE to it should work, for example another carrier's SIP trunk or a FreePBX/Asterisk box. Twilio and Telnyx have their own step-by-step guides with setup scripts: [Twilio](twilio.md), [Telnyx](telnyx.md).
 
 Start with [Connect a phone number](../telephony.md) for the server-side requirements (a public host for the SIP service, open ports).
 
