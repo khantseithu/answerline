@@ -28,7 +28,7 @@ class CallTransfer:
         self, client: SipTransferClient, to: str, timeout: float = TRANSFER_TIMEOUT
     ) -> None:
         self._client = client
-        self._to = to
+        self._to = to if to.startswith(("sip:", "sips:")) else f"tel:{to}"
         self._timeout = timeout
         self._caller: rtc.RemoteParticipant | None = None
 

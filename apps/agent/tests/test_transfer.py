@@ -58,7 +58,7 @@ def test_sip_caller_is_transferred_to_target_identity():
         context.wait_for_playout.assert_awaited_once()
         caller, target = fake.transfer_sip_participant.call_args.args
         assert caller.identity == "sip_+15555550123"
-        assert target == "+15555550100"
+        assert target == "tel:+15555550100"
 
     asyncio.run(scenario())
 
@@ -102,3 +102,14 @@ def test_transfer_timeout_surfaces_as_tool_error():
     transfer_tool = build_transfer_call_tool(transfer)
     with pytest.raises(ToolError):
         asyncio.run(transfer_tool(FakeContext()))
+
+
+def test_sip_uri_targets_pass_through_unchanged():
+    async def scenario():
+        fake = client()
+        transfer = CallTransfer(fake, "sip:frontdesk@pbx.example.com")
+        transfer.set_caller(participant(SIP))
+        await transfer.transfer()
+        assert fake.transfer_sip_participant.call_args.args[1] == "sip:frontdesk@pbx.example.com"
+
+    asyncio.run(scenario())
