@@ -1,5 +1,11 @@
 import { DashboardAuthError, dashboardErrorResponse } from "@/lib/dashboard/errors";
 
+export function appendAuthCookies(source: Headers | undefined, target: Headers) {
+  for (const cookie of source?.getSetCookie() ?? []) {
+    target.append("set-cookie", cookie);
+  }
+}
+
 export async function guardApiRequest(
   request: Request,
   resolveSession: (headers: Headers) => Promise<unknown>,

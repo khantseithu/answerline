@@ -1,6 +1,7 @@
 import { accounts, type Database, sessions, users, verifications } from "@answerline/db";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { betterAuth } from "better-auth/minimal";
+import { nextCookies } from "better-auth/next-js";
 import { z } from "zod";
 
 export const authConfigSchema = z.object({
@@ -21,6 +22,7 @@ export function createAuth(db: Database, config: z.infer<typeof authConfigSchema
       transaction: true,
     }),
     emailAndPassword: { disableSignUp: true, enabled: true },
+    plugins: [nextCookies()],
     secret: config.secret,
     session: { cookieCache: { enabled: false } },
     socialProviders: config.github

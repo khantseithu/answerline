@@ -4,7 +4,7 @@ import { accounts, createDb, sessions, users } from "@answerline/db";
 import { hashPassword } from "better-auth/crypto";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { guardApiRequest } from "./access.ts";
+import { appendAuthCookies, guardApiRequest } from "./access.ts";
 import { createAuth } from "./config.ts";
 
 const skip = process.env.DATABASE_URL ? false : "DATABASE_URL not set";
@@ -54,6 +54,35 @@ test("only provisioned credentials can sign in and revoked or expired sessions f
     assert.equal(signIn.status, 200);
     const cookie = cookieHeader(signIn);
     assert.ok(cookie);
+    const [sessionBeforeRenewal] = await db
+      .select()
+      .from(sessions)
+      .where(eq(sessions.userId, user.id));
+    assert.ok(sessionBeforeRenewal);
+    const previousExpiry = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
+    await db
+      .update(sessions)
+      .set({ expiresAt: previousExpiry })
+      .where(eq(sessions.id, sessionBeforeRenewal.id));
+    const renewedSession = await auth.api.getSession({
+      headers: new Headers({ cookie }),
+      returnHeaders: true,
+    });
+    assert.ok(renewedSession.response);
+    assert.ok(
+      renewedSession.headers
+        .getSetCookie()
+        .some((value) => value.includes("better-auth.session_token") && value.includes("Max-Age"))
+    );
+    const forwardedHeaders = new Headers();
+    appendAuthCookies(renewedSession.headers, forwardedHeaders);
+    assert.deepEqual(forwardedHeaders.getSetCookie(), renewedSession.headers.getSetCookie());
+    const [sessionAfterRenewal] = await db
+      .select()
+      .from(sessions)
+      .where(eq(sessions.id, sessionBeforeRenewal.id));
+    assert.ok(sessionAfterRenewal);
+    assert.ok(sessionAfterRenewal.expiresAt > previousExpiry);
     const resolveSession = (headers: Headers) => auth.api.getSession({ headers });
     const apiRequest = (headers: HeadersInit = {}) =>
       new Request(`${baseURL}/api/v1/knowledge`, { headers });
