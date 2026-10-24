@@ -128,7 +128,7 @@ Roadmap: *Built-in tools: booking, transfer, business hours*
 
 Roadmap: *Phone calls over SIP*
 
-- [ ] Add LiveKit SIP service to docker compose (with Redis)
+- [x] Add LiveKit SIP service to docker compose (with Redis) (#63)
 - [ ] Inbound trunk + dispatch rule per phone number → agent
 - [ ] Twilio guide and setup script
 - [ ] Telnyx guide and setup script

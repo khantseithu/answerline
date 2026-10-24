@@ -13,7 +13,7 @@
     "eval": "pnpm --filter @answerline/worker eval",
     "format": "ultracite fix",
     "infra:down": "docker compose down",
-    "infra:up": "docker compose up -d postgres redis livekit minio minio-init egress",
+    "infra:up": "docker compose up -d postgres redis livekit sip minio minio-init egress",
     "lint": "ultracite check",
     "prepare": "lefthook install",
     "py:lint": "uv run ruff check . && uv run ruff format --check .",

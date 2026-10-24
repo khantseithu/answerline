@@ -88,7 +88,7 @@ Manual setup, for reference:
 ```bash
 cp .env.example .env        # only if .env does not exist; add your provider keys
 pnpm install && uv sync
-pnpm infra:up               # Postgres, Redis, LiveKit, Egress, MinIO
+pnpm infra:up               # Postgres, Redis, LiveKit, LiveKit SIP, Egress, MinIO
 pnpm db:migrate && pnpm db:seed
 pnpm dev                    # web on :3000 + worker
 pnpm agent:dev              # voice agent (separate terminal)
