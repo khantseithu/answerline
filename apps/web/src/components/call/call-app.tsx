@@ -42,8 +42,9 @@ const AGENT_STATE_LABELS: Partial<Record<AgentState, string>> = {
 interface CallContextValue {
   agentName: string;
   canCall: boolean;
+  isBusy: boolean;
   isConnecting: boolean;
-  startCall: () => void;
+  startCall: (agent?: { name: string; slug: string }) => void;
 }
 
 const CallContext = createContext<CallContextValue | null>(null);
@@ -113,29 +114,50 @@ export function CallApp({
   canCall?: boolean;
   children: ReactNode;
 }) {
-  const tokenSource = useMemo(
-    () => TokenSource.endpoint(`/api/v1/token?agent=${encodeURIComponent(agentSlug)}`),
-    [agentSlug]
-  );
+  const [selectedAgent, setSelectedAgent] = useState({ name: agentName, slug: agentSlug });
+  const [requestId, setRequestId] = useState("");
+  const [startPending, setStartPending] = useState(false);
+  const tokenSource = useMemo(() => {
+    const query = new URLSearchParams({ agent: selectedAgent.slug, request: requestId });
+    return TokenSource.endpoint(`/api/v1/token?${query}`);
+  }, [requestId, selectedAgent.slug]);
   const session = useSession(tokenSource);
   const { start, end } = session;
-  const startCall = useCallback(() => {
-    start().catch(() => {
-      toast.error("Call setup failed", {
-        description: "Check that LiveKit is running and that this browser can use your microphone.",
-      });
-    });
-  }, [start]);
+  useEffect(() => {
+    if (!startPending || session.connectionState !== ConnectionState.Disconnected) {
+      return;
+    }
+    start()
+      .catch(() => {
+        toast.error("Call setup failed", {
+          description:
+            "Check that LiveKit is running and that this browser can use your microphone.",
+        });
+      })
+      .finally(() => setStartPending(false));
+  }, [session.connectionState, start, startPending]);
+  const startCall = useCallback(
+    (agent?: { name: string; slug: string }) => {
+      if (startPending || session.connectionState !== ConnectionState.Disconnected) {
+        return;
+      }
+      setSelectedAgent(agent ?? { name: agentName, slug: agentSlug });
+      setRequestId(crypto.randomUUID());
+      setStartPending(true);
+    },
+    [agentName, agentSlug, session.connectionState, startPending]
+  );
   const endCall = useCallback(() => end(), [end]);
 
   const value = useMemo(
     () => ({
-      agentName,
+      agentName: selectedAgent.name,
       canCall,
+      isBusy: startPending || session.connectionState !== ConnectionState.Disconnected,
       isConnecting: session.connectionState === ConnectionState.Connecting,
       startCall,
     }),
-    [agentName, canCall, session.connectionState, startCall]
+    [canCall, selectedAgent.name, session.connectionState, startCall, startPending]
   );
 
   return (
@@ -145,13 +167,13 @@ export function CallApp({
         <AnimatePresence>
           {session.isConnected ? (
             <motion.div
-              aria-label={`Call with ${agentName}`}
+              aria-label={`Call with ${selectedAgent.name}`}
               className="fixed inset-0 z-50 bg-background"
               key="session"
               role="dialog"
               {...FADE}
             >
-              <CallHeader agentName={agentName} />
+              <CallHeader agentName={selectedAgent.name} />
               <AgentSessionView_01
                 audioVisualizer={VISUALIZER}
                 className="h-full [&_[data-lk-state]]:text-live"

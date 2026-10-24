@@ -156,7 +156,7 @@ Roadmap: *Dashboard: calls, transcripts, cost per call*
 - [ ] Call detail: transcript with timestamps, audio player synced to transcript, tool calls timeline, latency per turn (STT / LLM TTFT / TTS TTFB), cost breakdown
 - [ ] Post-call job (worker, `post-call` queue): summary, outcome tag, sentiment, cost calculation
 - [x] Cost tracking: price table per provider/model (STT per min, LLM per token, TTS per char), usage captured from LiveKit metrics (#79)
-- [ ] Agents page: list, create from template, edit (form + raw YAML editor with Zod validation), version history
+- [x] Agents page: list, create from template, edit (form + raw YAML editor with Zod validation), version history (#80)
 - [x] Business agent template library: at least 30 industry-specific YAML agents, setup catalog, schema validation, and matching eval scenarios (#235); complements the Agents page template picker (#80)
 - [ ] Overview page: calls today, avg duration, cost, bookings, failure rate
 - [x] OpenTelemetry: traces from call → STT/LLM/TTS/tool spans, OTLP exporter config, optional Jaeger in compose (#82)
