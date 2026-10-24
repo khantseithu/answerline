@@ -220,9 +220,9 @@ Node.js with BullMQ, run with `tsx`. [`src/index.ts`](../apps/worker/src/index.t
 | `call-events` | [`call-events.ts`](../apps/worker/src/call-events.ts): persists calls, transcripts, tool calls, and leads |
 | `ingestion` | [`ingestion.ts`](../apps/worker/src/ingestion.ts): loads, chunks, embeds through an injected function, and replaces changed sources |
 | `post-call` | Logs the job. **Planned** ([#78](https://github.com/khantseithu/answerline/issues/78)) |
-| `evals` | Logs the job. **Planned** ([#88](https://github.com/khantseithu/answerline/issues/88)) |
+| `evals` | [`evals.ts`](../apps/worker/src/evals.ts): runs the saved execution snapshot, replaces per-case results transactionally, and records completion or a safe failure |
 
-`enqueueIngestion` (exported as `@answerline/worker/ingestion`) queues a tenant-scoped source with three attempts and exponential backoff. Nothing enqueues to `post-call` or `evals` yet.
+`enqueueIngestion` (exported as `@answerline/worker/ingestion`) queues a tenant-scoped source with three attempts and exponential backoff. Eval queue jobs carry run, agent, and tenant IDs; the CLI calls the same processor directly so its persisted run is visible to the dashboard.
 
 **Knowledge ingestion.** Jobs contain `{ tenantId, sourceId }`, validated by the shared `ingestionJob` schema. The worker reads `knowledge_sources`: `url` sources use an HTTP(S) `uri`; `file` sources use an absolute path or `file://` URI to a PDF, `.txt`, `.md`, or `.markdown` file that must resolve (after `realpath`, so symlinks cannot escape) inside `KNOWLEDGE_FILES_DIR/<tenantId>/`; `text` sources store a string in `content`; `qa` sources store an array of `{ question, answer }` pairs in `content`. Files must be available on the worker filesystem (20 MiB limit; `KNOWLEDGE_FILES_DIR` defaults to `.data/knowledge` at the repo root, matching the web app); upload/storage UI remains planned. PDF extraction preserves page numbers and does not perform OCR. URL extraction uses Mozilla Readability without executing scripts, rejects non-public IPs before connecting, pins the resolved address, checks redirects, and bounds response size (10 MiB) and HTTP time (15 s).
 
@@ -244,7 +244,7 @@ Chunks are at most 1600 characters with 240-character overlap, preferring word b
 
 Every write is an upsert or insert-if-absent, so the handler tolerates retries and events arriving out of order (a turn, tool, or end event before `call.started` still creates the call).
 
-[`src/cli.ts`](../apps/worker/src/cli.ts) is the `eval` CLI stub: `pnpm eval agents/<name>.yaml` parses the agent and its suite in `evals/`, lists the cases, and exits 1. The runner is **Planned** ([#83](https://github.com/khantseithu/answerline/issues/83), [#87](https://github.com/khantseithu/answerline/issues/87)).
+[`src/cli.ts`](../apps/worker/src/cli.ts) implements `pnpm eval agents/<name>.yaml` with `--model`, `--live-tools`, and `--audio` options. It reads the local agent and suite YAML, resolves the seeded agent in the default tenant, saves the execution snapshot, then executes through the shared runner and persistence path. Exit status is 0 when all cases pass, 1 when assertions fail, and 2 for setup or execution errors. `uv run python -m answerline_agent.eval_runner` reads one JSON input from stdin and writes the validated result JSON to stdout; diagnostics go to stderr. Cost stays unknown when actual model usage is unavailable or unpriced.
 
 ### Shared contracts (`packages/shared`)
 
@@ -254,7 +254,7 @@ Zod schemas that every TypeScript package imports as source, and the source of t
 |---|---|
 | [`agent-config.ts`](../packages/shared/src/agent-config.ts) | Agent YAML / `agents.config` JSON: name, greeting, language, instructions, models, knowledge, tools, hours, recording |
 | [`call-events.ts`](../packages/shared/src/call-events.ts) | `callEventJob` (agent to worker) and `callEventJobId` |
-| [`eval-suite.ts`](../packages/shared/src/eval-suite.ts) | Eval suite YAML |
+| [`eval-suite.ts`](../packages/shared/src/eval-suite.ts) | Eval suite YAML, execution snapshots, queue jobs, and validated per-case results |
 | [`ingestion.ts`](../packages/shared/src/ingestion.ts) | Tenant-scoped ingestion jobs and validated Q&A pairs |
 | [`events.ts`](../packages/shared/src/events.ts) | `QUEUES` names, and webhook payloads (`call.started`, `call.ended`, `booking.created`). The webhook schemas are not used yet; webhooks are **Planned** ([#115](https://github.com/khantseithu/answerline/issues/115)). |
 
@@ -337,7 +337,7 @@ erDiagram
 | `knowledge_sources` | type, uri, inline `content` jsonb (text or Q&A), status, error, `content_hash`, `updated_at`, `ingested_at` | worker ingestion (source creation by callers) |
 | `knowledge_chunks` | source, seq, content, citation metadata; `embedding vector(1536)` with an HNSW cosine index, `search` tsvector generated from `content` with a GIN index | worker ingestion |
 | `bookings` | agent/call references, name, phone, notes, provider, `external_id`, `starts_at`, `ends_at`, status (`confirmed`, `cancelled`); no overlapping confirmed bookings per agent | agent (native booking) |
-| `eval_runs`, `eval_results` | pass counts, latency, cost, transcript | nothing yet ([#86](https://github.com/khantseithu/answerline/issues/86)) |
+| `eval_runs`, `eval_results` | tenant/agent scoped snapshot, status/error, pass counts, latency, cost, per-case assertions and transcript | worker, dashboard |
 
 Every table except `call_turns`, `tool_calls`, and `eval_results` carries `tenant_id` directly; those three inherit it through their parent. Users, API keys, and webhook tables are not in the schema yet ([#72](https://github.com/khantseithu/answerline/issues/72), [#107](https://github.com/khantseithu/answerline/issues/107), [#115](https://github.com/khantseithu/answerline/issues/115)). Recordings themselves live in object storage; Postgres stores only the `s3://` URL.
 

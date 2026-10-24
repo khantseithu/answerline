@@ -1,8 +1,12 @@
 import { readFile } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, extname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { parseAgentConfig, parseEvalSuite } from "@answerline/shared";
+import { createDb, evalResults, evalRuns } from "@answerline/db";
+import { evalExecutionInputSchema, parseAgentConfig, parseEvalSuite } from "@answerline/shared";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
+import { createEvalRun, findDefaultTenantAgent, processEvalRun } from "./evals.ts";
 import {
   addPhoneNumber,
   assignPhoneNumber,
@@ -25,24 +29,86 @@ const SIP_USAGE = `usage:
   worker sip twilio <+15551234567> <agent> [--sip-host <host>]   (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN; host defaults to SIP_PUBLIC_IP)
   worker sip telnyx <+15551234567> <agent> --sip-host <hostname>   (TELNYX_API_KEY)`;
 
+const repositoryRoot = fileURLToPath(new URL("../../../", import.meta.url));
+
 function fail(message: string): never {
   console.error(message);
   process.exit(1);
 }
 
-async function runEval(agentFile: string | undefined) {
-  if (!agentFile) {
-    fail("usage: worker eval <agents/name.yaml>");
+async function runEval(args: string[]) {
+  const { positionals, values } = parseArgs({
+    allowPositionals: true,
+    args,
+    options: {
+      audio: { type: "boolean" },
+      "live-tools": { type: "boolean" },
+      model: { type: "string" },
+    },
+  });
+  const [agentPath, ...extra] = positionals;
+  if (!agentPath || extra.length) {
+    throw new Error(
+      "usage: worker eval <agents/name.yaml> [--model provider/model] [--live-tools] [--audio]"
+    );
   }
-  const suiteFile = join(dirname(agentFile), "..", "evals", basename(agentFile));
-  const agent = parseAgentConfig(await readFile(agentFile, "utf8"));
-  const suite = parseEvalSuite(await readFile(suiteFile, "utf8"));
 
-  console.log(`${agent.name}: ${suite.length} eval cases from ${suiteFile}`);
-  for (const c of suite) {
-    console.log(`- ${c.name}`);
+  const resolvedAgentPath = resolve(repositoryRoot, agentPath);
+  const agent = parseAgentConfig(await readFile(resolvedAgentPath, "utf8"));
+  const agentSlug = basename(resolvedAgentPath, extname(resolvedAgentPath));
+  const suiteFile = join(dirname(resolvedAgentPath), "..", "evals", basename(resolvedAgentPath));
+  const suite = parseEvalSuite(await readFile(suiteFile, "utf8"));
+  const db = createDb();
+
+  try {
+    const agentRow = await findDefaultTenantAgent(db, agentSlug);
+    if (!agentRow) {
+      throw new Error(`agent ${agentSlug} was not found in the default tenant; run pnpm db:seed`);
+    }
+    const executionInput = evalExecutionInputSchema.parse({
+      agent,
+      context: { agentSlug: agentRow.agentSlug, tenantSlug: agentRow.tenantSlug },
+      liveTools: values["live-tools"],
+      mode: values.audio ? "audio" : "text",
+      modelOverride: values.model,
+      suite,
+    });
+    const suiteName = basename(suiteFile, extname(suiteFile));
+    const runId = await createEvalRun(db, {
+      agentId: agentRow.agentId,
+      executionInput,
+      suite: suiteName,
+      tenantId: agentRow.tenantId,
+    });
+    await processEvalRun(db, {
+      agentId: agentRow.agentId,
+      runId,
+      tenantId: agentRow.tenantId,
+    });
+
+    const [run] = await db.select().from(evalRuns).where(eq(evalRuns.id, runId));
+    const results = await db.select().from(evalResults).where(eq(evalResults.runId, runId));
+    if (run?.status !== "completed") {
+      throw new Error(run?.error ?? "eval run did not complete");
+    }
+
+    const rate = run.total ? Math.round(((run.passed ?? 0) / run.total) * 100) : 0;
+    console.log(`eval run: ${runId}`);
+    console.log(`${agent.name}: ${run.passed}/${run.total} passed (${rate}%)`);
+    console.log(`average latency: ${run.avgLatencyMs === null ? "n/a" : `${run.avgLatencyMs} ms`}`);
+    console.log(`cost: ${run.costUsd === null ? "n/a" : `$${run.costUsd}`}`);
+    for (const result of results) {
+      console.log(`${result.passed ? "PASS" : "FAIL"} ${result.caseName}`);
+      for (const failure of result.failures) {
+        console.log(`  ${failure}`);
+      }
+    }
+    if (run.passed !== run.total) {
+      process.exitCode = 1;
+    }
+  } finally {
+    await db.$client.end();
   }
-  fail("eval runner not implemented yet");
 }
 
 function printNumber(n: PhoneNumber) {
@@ -122,7 +188,10 @@ async function runSip(args: string[]) {
 const [command, ...rest] = process.argv.slice(2);
 
 if (command === "eval") {
-  await runEval(rest[0]);
+  await runEval(rest).catch((error: unknown) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 2;
+  });
 } else if (command === "sip") {
   await runSip(rest).catch((error: unknown) => {
     if (error instanceof z.ZodError) {

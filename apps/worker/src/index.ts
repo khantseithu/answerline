@@ -3,6 +3,7 @@ import { type PostCallJob, QUEUES } from "@answerline/shared";
 import { type Job, Queue, Worker } from "bullmq";
 import { createCallEventProcessor } from "./call-events.ts";
 import { env } from "./env.ts";
+import { createEvalProcessor } from "./evals.ts";
 import { createIngestionProcessor, createKnowledgeEmbedder } from "./ingestion.ts";
 import { createPostCallProcessor } from "./post-call.ts";
 import { createRedis } from "./redis.ts";
@@ -24,9 +25,7 @@ const handlers: Record<string, (job: Job) => Promise<void> | void> = {
     filesDir: env.KNOWLEDGE_FILES_DIR,
   }),
   [QUEUES.postCall]: createPostCallProcessor(db),
-  [QUEUES.evals]: (job) => {
-    console.log(`[evals] ${job.name} ${job.id}`);
-  },
+  [QUEUES.evals]: createEvalProcessor(db),
 };
 
 const workers = Object.entries(handlers).map(
