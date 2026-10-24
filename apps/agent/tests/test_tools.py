@@ -77,14 +77,26 @@ def test_configured_tools_are_isolated_per_agent():
     assert first_tools[0] is not second_tools[0]
 
 
-@pytest.mark.parametrize("has_knowledge", [False, True])
-def test_entrypoint_registers_configured_tools_alongside_knowledge(monkeypatch, has_knowledge):
+@pytest.mark.parametrize(
+    ("has_knowledge", "closed"), [(False, False), (True, False), (False, True)]
+)
+def test_entrypoint_registers_configured_tools_alongside_knowledge(
+    monkeypatch, has_knowledge, closed
+):
     import asyncio
+    from datetime import datetime
     from types import SimpleNamespace
     from unittest.mock import AsyncMock
 
-    from answerline_agent import main
+    from answerline_agent import business_hours, main
     from livekit.agents import llm
+
+    now = datetime.fromisoformat(
+        "2026-10-24T15:00:00+00:00" if closed else "2026-10-23T15:00:00+00:00"
+    )
+    monkeypatch.setattr(
+        business_hours, "datetime", SimpleNamespace(now=lambda zone: now.astimezone(zone))
+    )
 
     async def search_knowledge(query: str) -> str:
         return query
@@ -120,12 +132,15 @@ def test_entrypoint_registers_configured_tools_alongside_knowledge(monkeypatch, 
     )
     with pytest.raises(RuntimeError, match="registration captured"):
         asyncio.run(main.entrypoint(ctx))
-    registered = session.start.call_args.kwargs["agent"].tools
-    assert [tool.id for tool in registered] == (
-        ["search_knowledge", "business_hours", "capture_lead"]
-        if has_knowledge
-        else ["business_hours", "capture_lead"]
-    )
+    agent = session.start.call_args.kwargs["agent"]
+    registered = agent.tools
+    assert [tool.id for tool in registered] == [
+        *(["search_knowledge"] if has_knowledge else []),
+        "business_hours",
+        "capture_lead",
+        *(["take_voicemail"] if closed else []),
+    ]
+    assert ("closed right now" in agent.instructions) is closed
     if has_knowledge:
         assert registered[0] is knowledge_tool
 
@@ -156,6 +171,19 @@ def test_voicemail_is_registered_once_alongside_capture_lead():
     )
     tools = build_configured_tools(agent, lead_context=context)
     assert [tool.id for tool in tools] == ["take_voicemail", "capture_lead"]
+
+
+def test_after_hours_voicemail_is_added_once_when_not_configured():
+    context = LeadCaptureContext(
+        publisher=SimpleNamespace(), tenant="default", agent="a", room_name="room"
+    )
+    agent = config()
+    agent.tools = []
+    tools = build_configured_tools(agent, lead_context=context, ensure_voicemail=True)
+    assert [tool.id for tool in tools] == ["take_voicemail"]
+    agent.tools = [BuiltinTool(builtin="voicemail")]
+    tools = build_configured_tools(agent, lead_context=context, ensure_voicemail=True)
+    assert [tool.id for tool in tools] == ["take_voicemail"]
 
 
 def test_book_appointment_uses_opened_provider_once():

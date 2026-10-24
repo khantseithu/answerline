@@ -60,6 +60,15 @@ def test_slots_use_elapsed_time_across_dst_changes():
     ]
 
 
+def test_slots_skip_closed_holidays_and_use_special_hours():
+    hours = Hours(
+        timezone="UTC",
+        weekdays="09:00-11:00",
+        holidays=[{"date": "2026-12-24", "hours": "09:00-10:00"}, {"date": "2026-12-25"}],
+    )
+    assert starts(hours, 60, "2026-12-24T00:00", "2026-12-26T00:00") == ["2026-12-24T09:00"]
+
+
 def agent_config(provider: str = "answerline") -> AgentConfig:
     return AgentConfig(
         name="Clinic",

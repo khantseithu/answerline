@@ -2,6 +2,7 @@ from livekit.agents import Agent, AgentServer, AgentSession, JobContext, JobProc
 from livekit.local_inference import init_eot
 from livekit.plugins import silero
 
+from .after_hours import AfterHours
 from .call_limits import SHUTDOWN_PROCESS_TIMEOUT, CallLifecycle, drain_timeout
 from .call_session import CallSessionEvents, wait_for_caller
 from .capture_lead import LeadCaptureContext
@@ -48,6 +49,7 @@ async def entrypoint(ctx: JobContext) -> None:
         (spec for spec in config.tools if isinstance(spec, TransferCallTool)), None
     )
     transfer = CallTransfer(ctx, transfer_spec.to) if transfer_spec else None
+    after_hours = AfterHours(config.hours, config.name, settings)
     tools = build_configured_tools(
         config,
         settings,
@@ -59,6 +61,7 @@ async def entrypoint(ctx: JobContext) -> None:
         ),
         booking=booking,
         transfer=transfer,
+        ensure_voicemail=after_hours.takes_voicemail,
     )
     session = AgentSession(
         stt=build_stt(config.models.stt),
@@ -85,7 +88,7 @@ async def entrypoint(ctx: JobContext) -> None:
     await session.start(
         room=ctx.room,
         agent=Agent(
-            instructions=compose_instructions(config.instructions),
+            instructions=compose_instructions(config.instructions, after_hours.instructions()),
             tools=[*(knowledge.tools if knowledge else []), *tools],
         ),
     )
@@ -100,7 +103,7 @@ async def entrypoint(ctx: JobContext) -> None:
     if recording:
         ctx.add_shutdown_callback(lambda _reason: recording.stop())
         await start_with_notice(recording, session, config.recording.notice)
-    await session.say(config.greeting)
+    await after_hours.greet(session, config.greeting, transfer)
 
 
 def main() -> None:

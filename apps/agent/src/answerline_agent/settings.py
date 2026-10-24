@@ -35,3 +35,14 @@ class Settings(BaseSettings):
         "I'm sorry, we've reached the time limit for this call. Thank you for calling, and goodbye."
     )
     idle_check_in_message: str = "Are you still there?"
+    after_hours_voicemail_message: str = (
+        "Thanks for calling {name}. We're closed right now, but I can take a message and "
+        "someone will get back to you."
+    )
+    after_hours_transfer_message: str = (
+        "Thanks for calling {name}. We're closed right now, so I'm transferring you to our "
+        "after-hours line."
+    )
+    after_hours_transfer_failed_message: str = (
+        "I'm sorry, I couldn't connect you. I can take a message instead."
+    )

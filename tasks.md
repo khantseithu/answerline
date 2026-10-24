@@ -94,10 +94,10 @@ Roadmap: *Built-in tools: booking, transfer, business hours*
   - [x] Map `tools:` config to LiveKit function tools (#46); `business_hours` is the first supported configured tool
   - [x] Log every tool call (args, result, latency, error) to `tool_calls` (#47, pulled forward for #42)
   - [x] Timeouts, retries, and spoken filler while a tool runs (#48)
-- [ ] `business_hours`: timezone-aware open/closed, holidays, `after_hours` behavior (voicemail / transfer / answer)
+- [x] `business_hours`: timezone-aware open/closed, holidays, `after_hours` behavior (voicemail / transfer / answer)
   - [x] Opt-in lookup: timezone-aware weekday/weekend schedules, overnight hours, and configured after-hours policy (#46)
   - [x] Holiday and after-hours config contract (#229)
-  - [ ] Holiday overrides and automatic after-hours routing (#49)
+  - [x] Holiday overrides and automatic after-hours routing (#49)
 - [ ] `book_appointment` (#50)
   - [x] Provider interface: availability lookup, create, cancel (#51)
   - [x] Native provider: slots from `hours`, bookings stored in Postgres without double-booking (#205)

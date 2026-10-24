@@ -26,3 +26,8 @@ def test_example_agent_prompt_keeps_its_own_instructions():
     config = load_agent_config(DEFAULT_AGENTS_DIR / "bright-smile-dental.yaml")
     composed = compose_instructions(config.instructions)
     assert config.instructions.strip() in composed
+
+
+def test_call_context_follows_agent_instructions():
+    composed = compose_instructions("You are the receptionist for Acme.", "The business is closed.")
+    assert composed.endswith("You are the receptionist for Acme.\n\nThe business is closed.\n")

@@ -2,12 +2,11 @@ import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
-from zoneinfo import ZoneInfo
 
 import asyncpg
 
 from .booking import Attendee, Booking, Slot, SlotUnavailableError
-from .business_hours import parse_window
+from .business_hours import Schedule
 from .config import AgentConfig, BookAppointmentTool, Hours
 from .settings import Settings
 
@@ -43,14 +42,13 @@ where id = $1 and agent_id = $2 and status = 'confirmed'
 
 
 def schedule_slots(hours: Hours, slot_minutes: int, start: datetime, end: datetime) -> list[Slot]:
-    zone = ZoneInfo(hours.timezone)
-    weekdays = parse_window(hours.weekdays)
-    weekends = parse_window(hours.weekends) if hours.weekends else None
+    schedule = Schedule.from_hours(hours)
+    zone = schedule.zone
     length = timedelta(minutes=slot_minutes)
     slots: list[Slot] = []
     day = start.astimezone(zone).date() - timedelta(days=1)
     while day <= end.astimezone(zone).date():
-        window = weekdays if day.weekday() < 5 else weekends
+        window = schedule.window(day)
         if window is not None:
             opens, closes = window
             close_day = day + timedelta(days=1) if closes < opens else day
