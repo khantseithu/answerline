@@ -68,6 +68,7 @@ Roadmap: *Knowledge base ingestion and hybrid search*
   - [x] Chunking with overlap and source metadata
   - [x] Embeddings via pluggable provider (OpenAI, Gemini, Ollama) (#34)
   - [x] Gemini Embedding 2 as the default embedding model (#212)
+  - [x] Ingestion retries rate-limited embedding requests (HTTP 429/503) and splits batches (#218)
   - [x] Store chunks + embeddings + `tsvector` in Postgres
   - [x] Re-ingest on change (content hash), delete stale chunks
   - [x] Job status and errors visible to the dashboard

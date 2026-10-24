@@ -371,3 +371,18 @@ test("the env embedder calls the configured provider", async () => {
   assert.equal(vector?.length, EMBEDDING_DIMENSIONS);
   assert.ok(Math.abs(Math.hypot(...(vector ?? [])) - 1) < 1e-9);
 });
+
+test("the env embedder retries rate-limited requests", async () => {
+  const statuses = [429, 200];
+  const embed = createKnowledgeEmbedder(
+    { EMBEDDING_MODEL: "ollama/qwen3-embedding:4b", OLLAMA_BASE_URL: "http://ollama.test:11434" },
+    () =>
+      Promise.resolve(
+        statuses.shift() === 429
+          ? new Response(null, { headers: { "Retry-After": "0" }, status: 429 })
+          : Response.json({ embeddings: [Array.from({ length: EMBEDDING_DIMENSIONS }, () => 1)] })
+      )
+  );
+  assert.equal((await embed(["hello"])).length, 1);
+  assert.deepEqual(statuses, []);
+});
