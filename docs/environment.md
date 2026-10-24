@@ -12,6 +12,8 @@ Bootstrap creates `.env` from `.env.example` only when absent. Add your provider
 
 Dotenvx injects values into the child process before Zod (web/worker) or Pydantic Settings (agent) validates them. Existing process environment variables take precedence, so deployment-injected secrets remain authoritative. Restart dev processes after editing the env file. Never source `.env` as a shell script.
 
+The worker's `POST_CALL_MODEL` optionally overrides the agent LLM for asynchronous call analysis, using the same `provider/model` syntax as agent configs. When unset, the worker tries the agent's configured primary model followed by its fallback list. The selected provider's existing API key is required only when an analysis job runs, not when the worker starts. The post-call analysis request is not included in voice-call cost totals.
+
 `.env`, `.env.keys`, and environment-specific files are gitignored; `.env.example` is intentionally tracked. Never commit provider keys or private decryption keys, including encrypted real credentials in this repository.
 
 ## Try the quickstart encryption flow

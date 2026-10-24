@@ -20,6 +20,16 @@ test("validates embedding provider configuration without requiring unused keys",
   assert.throws(() => parseEnv({ OLLAMA_BASE_URL: "invalid" }));
 });
 
+test("validates an optional post-call model without requiring provider credentials", () => {
+  assert.equal(parseEnv({ POST_CALL_MODEL: "ollama/qwen3" }).POST_CALL_MODEL, "ollama/qwen3");
+  assert.equal(
+    parseEnv({ POST_CALL_MODEL: "anthropic/claude-haiku" }).POST_CALL_MODEL,
+    "anthropic/claude-haiku"
+  );
+  assert.equal(parseEnv({}).POST_CALL_MODEL, undefined);
+  assert.throws(() => parseEnv({ POST_CALL_MODEL: "unknown/model" }));
+});
+
 test("rejects an invalid REDIS_URL", () => {
   assert.throws(() => parseEnv({ REDIS_URL: "not a url" }));
 });
