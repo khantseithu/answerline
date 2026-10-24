@@ -20,6 +20,11 @@ const envSchema = z
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     REDIS_PREFIX: z.string().min(1).default("bull"),
     REDIS_URL: z.url().default("redis://localhost:6379"),
+    S3_ACCESS_KEY: z.string().min(1).optional(),
+    S3_BUCKET: z.string().min(1).default("recordings"),
+    S3_ENDPOINT: z.url().optional(),
+    S3_REGION: z.string().min(1).default("us-east-1"),
+    S3_SECRET_KEY: z.string().min(1).optional(),
     TENANT: z.string().min(1).default("default"),
   })
   .refine(
