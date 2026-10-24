@@ -8,6 +8,7 @@
     "./schema": "./src/schema.ts"
   },
   "scripts": {
+    "admin:init": "dotenvx run -f ../../.env -- tsx src/admin-init.ts",
     "check": "drizzle-kit check",
     "generate": "dotenvx run -f ../../.env -- drizzle-kit generate",
     "migrate": "dotenvx run -f ../../.env -- tsx src/migrate.ts",
@@ -18,13 +19,15 @@
   },
   "dependencies": {
     "@answerline/shared": "workspace:*",
+    "better-auth": "^1.7.12",
+    "dotenv": "^18.0.9",
     "drizzle-orm": "^0.45.4",
-    "postgres": "^3.4.9"
+    "postgres": "^3.4.9",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@better-auth/drizzle-adapter": "^1.7.12",
     "@types/node": "^24",
-    "better-auth": "^1.7.12",
     "drizzle-kit": "^0.31.11",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3"

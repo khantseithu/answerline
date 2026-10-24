@@ -76,7 +76,7 @@ cd answerline
 pnpm bootstrap
 ```
 
-Bootstrap checks prerequisites, creates `.env` only if absent, installs dependencies, starts infrastructure, waits for Postgres and Redis to be healthy, and migrates and seeds the database. It is safe to rerun and never starts dev servers. Add your provider keys to `.env` (bootstrap warns when they are empty), then start:
+Bootstrap checks prerequisites, creates `.env` only if absent, installs dependencies, starts infrastructure, waits for Postgres and Redis to be healthy, migrates and seeds the database, and provisions the first administrator. It is safe to rerun and never starts dev servers. The generated password is saved to `.data/admin-credentials` with owner-only permissions; bootstrap prints the path, never the password. You can instead set `ADMIN_EMAIL` and `ADMIN_PASSWORD` in `.env` (`ADMIN_PASSWORD` must be at least 12 characters). Set `ADMIN_EMAIL_VERIFIED=true` only when you control the configured email. Add your provider keys to `.env` (bootstrap warns when they are empty), then start:
 
 ```bash
 pnpm dev                    # web on :3000 + worker
@@ -89,7 +89,7 @@ Manual setup, for reference:
 cp .env.example .env        # only if .env does not exist; add your provider keys
 pnpm install && uv sync
 pnpm infra:up               # Postgres, Redis, LiveKit, LiveKit SIP, Egress, MinIO
-pnpm db:migrate && pnpm db:seed
+pnpm db:migrate && pnpm db:seed && pnpm admin:init
 pnpm dev                    # web on :3000 + worker
 pnpm agent:dev              # voice agent (separate terminal)
 ```
@@ -100,7 +100,7 @@ Open http://localhost:3000 and click **Talk to agent** to call the sample agent 
 
 To answer phone calls, [connect a phone number](docs/telephony.md) from Twilio, Telnyx, or any SIP trunk.
 
-*(planned)* A one-command `docker compose up -d` with prebuilt images and a first-run admin account (M7).
+The initial administrator is provisioned during bootstrap. Dashboard sign-in is still being implemented.
 
 ## Configure an agent
 

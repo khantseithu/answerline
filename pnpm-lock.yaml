@@ -205,12 +205,21 @@ importers:
       '@answerline/shared':
         specifier: workspace:*
         version: link:../shared
+      better-auth:
+        specifier: ^1.7.12
+        version: 1.7.12(drizzle-kit@0.31.11)(drizzle-orm@0.45.4(kysely@0.29.7)(postgres@3.4.9))(next@16.4.2(@babel/core@7.29.7)(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      dotenv:
+        specifier: ^18.0.9
+        version: 18.0.9
       drizzle-orm:
         specifier: ^0.45.4
         version: 0.45.4(kysely@0.29.7)(postgres@3.4.9)
       postgres:
         specifier: ^3.4.9
         version: 3.4.9
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
     devDependencies:
       '@better-auth/drizzle-adapter':
         specifier: ^1.7.12
@@ -218,9 +227,6 @@ importers:
       '@types/node':
         specifier: ^24
         version: 24.19.2
-      better-auth:
-        specifier: ^1.7.12
-        version: 1.7.12(drizzle-kit@0.31.11)(drizzle-orm@0.45.4(kysely@0.29.7)(postgres@3.4.9))(next@16.4.2(@babel/core@7.29.7)(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       drizzle-kit:
         specifier: ^0.31.11
         version: 0.31.11
@@ -2447,6 +2453,11 @@ packages:
   dotenv@17.4.2:
     resolution: {integrity: sha512-nI4U3TottKAcAD9LLud4Cb7b2QztQMUEfHbvhTH09bqXTxnSie8WnjPALV/WMCrJZ6UV/qHJ6L03OqO3LcdYZw==}
     engines: {node: '>=12'}
+
+  dotenv@18.0.9:
+    resolution: {integrity: sha512-3fVOW4cB02R066PUSwn8O4TJyz9NckQl7F81blIbaq9jKBm2tSmOKky7ZHIXzGvkVPXCSn6jkpziBPZdGFs8Tw==}
+    engines: {node: '>=12'}
+    hasBin: true
 
   drizzle-kit@0.31.11:
     resolution: {integrity: sha512-YCYqxTLIB2OCqf6w9/Vef13baBVbwQIPcbT4Y56AfO6B9ajZhDhD8Jkveg/hJvT/iuMloKD/IYYkyMMNhr7Kqg==}
@@ -6165,6 +6176,8 @@ snapshots:
       is-obj: 2.0.0
 
   dotenv@17.4.2: {}
+
+  dotenv@18.0.9: {}
 
   drizzle-kit@0.31.11:
     dependencies:
