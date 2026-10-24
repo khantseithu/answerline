@@ -43,11 +43,11 @@ Answerline gives you the same building blocks as open source:
 - Real-time voice agent built on [LiveKit Agents](https://docs.livekit.io/agents/), with interruption handling and turn detection
 - In-browser calls from the dashboard; inbound phone calls over SIP (Twilio, Telnyx, or any SIP trunk) and an embeddable widget *(planned)*
 - Call limits (max duration, idle timeout) and opt-in call recording with a spoken notice
-- Warm transfer to a human, voicemail fallback, and configurable business hours *(planned)*
+- Business hours with holiday overrides and after-hours routing: take a voicemail, cold-transfer SIP calls to a human, or answer anyway; warm transfer *(planned)*
 
 **Knowledge and tools**
 - Knowledge base from PDFs, web pages, and Q&A pairs, with hybrid search (vector + keyword) and source citations logged with each knowledge lookup; reranking *(planned)*
-- Built-in tools: appointment booking, business-hours lookup, call transfer, and lead capture *(planned)*
+- Built-in tools: appointment booking, business-hours lookup, call transfer, voicemail, and lead capture; Cal.com and Google Calendar booking *(planned)*
 - Custom HTTP tools defined in config, plus MCP server support for connecting external systems *(planned)*
 
 **Models**

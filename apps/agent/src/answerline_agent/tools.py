@@ -20,6 +20,7 @@ def build_configured_tools(
     lead_context: LeadCaptureContext | None = None,
     booking: BookingProvider | None = None,
     transfer: CallTransfer | None = None,
+    ensure_voicemail: bool = False,
 ) -> list[llm.FunctionTool]:
     tools: list[llm.FunctionTool] = []
     for spec in config.tools:
@@ -63,4 +64,8 @@ def build_configured_tools(
         else:
             name = getattr(spec, "builtin", type(spec).__name__)
             logger.warning("Configured tool %s is not implemented and will not be available", name)
+    if ensure_voicemail and not any(tool.id == "take_voicemail" for tool in tools):
+        if lead_context is None:
+            raise ValueError("voicemail requires a per-call lead context")
+        tools.append(build_voicemail_tool(lead_context, settings))
     return tools

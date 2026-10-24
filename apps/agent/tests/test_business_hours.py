@@ -57,7 +57,62 @@ def test_tool_has_no_caller_supplied_clock_or_schedule():
     assert schema["name"] == "business_hours"
     assert schema["parameters"]["properties"] == {}
     assert "does not transfer" in schema["description"]
-    assert "Holiday overrides are not supported" in schema["description"]
+    assert "holiday" in schema["description"]
+
+
+def lookup_at(monkeypatch, hours: Hours, instant: str) -> dict[str, object]:
+    now = datetime.fromisoformat(instant)
+    monkeypatch.setattr(
+        business_hours, "datetime", SimpleNamespace(now=lambda zone: now.astimezone(zone))
+    )
+    return asyncio.run(build_business_hours_tool(hours)(context=None))
+
+
+HOLIDAY_HOURS = Hours(
+    timezone="America/New_York",
+    weekdays="09:00-18:00",
+    holidays=[
+        {"date": "2026-12-25", "name": "Christmas Day"},
+        {"date": "2026-12-24", "hours": "09:00-13:00"},
+    ],
+)
+
+
+def test_closed_holiday_reports_closed_with_its_name(monkeypatch):
+    result = lookup_at(monkeypatch, HOLIDAY_HOURS, "2026-12-25T15:00:00+00:00")
+    assert result["is_open"] is False
+    assert result["holiday"] == {"date": "2026-12-25", "name": "Christmas Day"}
+
+
+@pytest.mark.parametrize(
+    ("instant", "expected"),
+    [("2026-12-24T17:59:00+00:00", True), ("2026-12-24T18:00:00+00:00", False)],
+)
+def test_holiday_special_hours_replace_the_regular_window(monkeypatch, instant, expected):
+    result = lookup_at(monkeypatch, HOLIDAY_HOURS, instant)
+    assert result["is_open"] is expected
+    assert result["holiday"] == {"date": "2026-12-24", "hours": "09:00-13:00"}
+
+
+def test_regular_days_have_no_holiday_field(monkeypatch):
+    assert "holiday" not in lookup_at(monkeypatch, HOLIDAY_HOURS, "2026-12-23T15:00:00+00:00")
+
+
+def test_overnight_shift_carries_into_a_closed_holiday():
+    hours = Hours(timezone="UTC", weekdays="22:00-02:00", holidays=[{"date": "2026-12-25"}])
+    schedule = business_hours.Schedule.from_hours(hours)
+    assert schedule.is_open_at(datetime.fromisoformat("2026-12-25T01:00:00+00:00"))
+    assert not schedule.is_open_at(datetime.fromisoformat("2026-12-25T23:00:00+00:00"))
+
+
+def test_invalid_holiday_hours_fail_when_building_tool():
+    hours = Hours(
+        timezone="UTC",
+        weekdays="09:00-18:00",
+        holidays=[{"date": "2026-12-24", "hours": "25:00-13:00"}],
+    )
+    with pytest.raises(ValueError):
+        build_business_hours_tool(hours)
 
 
 @pytest.mark.parametrize("window", ["24:00-18:00", "09:99-18:00", "09:00-09:00"])
