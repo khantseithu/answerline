@@ -1,0 +1,56 @@
+name: Agent evals
+
+on:
+  pull_request:
+    paths:
+      - agents/**
+      - evals/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-evals-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  eval:
+    if: >-
+      vars.ANSWERLINE_EVALS_ENABLED == 'true' &&
+      (github.event_name == 'workflow_dispatch' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: answerline
+          POSTGRES_PASSWORD: answerline
+          POSTGRES_DB: answerline
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U answerline"
+          --health-interval 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://answerline:answerline@localhost:5432/answerline
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: astral-sh/setup-uv@v10.3.2
+        with:
+          enable-cache: true
+      - run: pnpm install --frozen-lockfile
+      - run: uv sync --locked
+      - run: pnpm db:migrate
+      - run: pnpm db:seed
+      - name: Evaluate the dental agent
+        run: pnpm eval agents/bright-smile-dental.yaml
