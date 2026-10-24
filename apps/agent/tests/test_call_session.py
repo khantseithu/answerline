@@ -40,7 +40,9 @@ class FakePublisher:
         self.closed = True
 
 
-def _events(session=None, publisher=None, recording_url=None, tool_log=None):
+def _events(
+    session=None, publisher=None, recording_url=None, recording_started_at=None, tool_log=None
+):
     session = session or FakeSession()
     publisher = publisher or FakePublisher()
     events = CallSessionEvents(
@@ -50,6 +52,7 @@ def _events(session=None, publisher=None, recording_url=None, tool_log=None):
         tenant="default",
         agent="bright-smile-dental",
         recording_url=recording_url,
+        recording_started_at=recording_started_at,
         tool_log=tool_log,
     )
     return events, session, publisher
@@ -216,12 +219,23 @@ def test_close_reports_recording_url_when_available():
     assert publisher.events[-1].recording_url == "s3://recordings/default/call-1.ogg"
 
 
-def test_close_without_recording_has_no_recording_url():
+def test_close_reports_recording_start_when_available():
+    events, session, publisher = _events(
+        recording_url=lambda: "s3://recordings/default/call-1.ogg",
+        recording_started_at=lambda: 1_782_000_000.5,
+    )
+    events.started(None)
+    session.handlers["close"](CloseEvent(reason=CloseReason.PARTICIPANT_DISCONNECTED))
+    assert publisher.events[-1].recording_started_at == "2026-06-21T00:00:00.500+00:00"
+
+
+def test_close_without_recording_has_no_recording_start():
     for provider in (None, lambda: None):
-        events, session, publisher = _events(recording_url=provider)
+        events, session, publisher = _events(recording_url=provider, recording_started_at=provider)
         events.started(None)
         session.handlers["close"](CloseEvent(reason=CloseReason.PARTICIPANT_DISCONNECTED))
         assert publisher.events[-1].recording_url is None
+        assert publisher.events[-1].recording_started_at is None
 
 
 def test_shutdown_flushes_and_does_not_duplicate_ended():

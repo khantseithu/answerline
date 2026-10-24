@@ -92,6 +92,7 @@ async def entrypoint(ctx: JobContext) -> None:
         tenant=settings.tenant,
         agent=resolved.slug,
         recording_url=(lambda: recording.url) if recording else None,
+        recording_started_at=(lambda: recording.started_at) if recording else None,
         tool_log=tool_log,
     )
     await session.start(

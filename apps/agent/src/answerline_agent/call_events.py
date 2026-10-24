@@ -424,6 +424,7 @@ class CallRecorder:
         usage: dict[str, float] | None = None,
         model_usage: list[dict] | None = None,
         recording_url: str | None = None,
+        recording_started_at: float | None = None,
     ) -> CallEnded:
         started = self.started_at if self.started_at is not None else ended_at
         return CallEnded(
@@ -433,5 +434,8 @@ class CallRecorder:
             duration_ms=max(round((ended_at - started) * 1000), 0),
             usage=usage,
             model_usage=model_usage,
+            recording_started_at=(
+                iso_timestamp(recording_started_at) if recording_started_at is not None else None
+            ),
             recording_url=recording_url,
         )

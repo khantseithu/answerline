@@ -48,6 +48,7 @@ class CallSessionEvents:
         tenant: str,
         agent: str,
         recording_url: Callable[[], str | None] | None = None,
+        recording_started_at: Callable[[], float | None] | None = None,
         tool_log: ToolLog | None = None,
     ) -> None:
         self._session = session
@@ -55,6 +56,7 @@ class CallSessionEvents:
         self._publisher = publisher
         self._recorder = CallRecorder(room_name=room_name, tenant=tenant, agent=agent)
         self._recording_url = recording_url
+        self._recording_started_at = recording_started_at
         self._closed = asyncio.Event()
         self._failed = False
         self._started = False
@@ -140,6 +142,9 @@ class CallSessionEvents:
                     usage=usage,
                     model_usage=model_usage,
                     recording_url=self._recording_url() if self._recording_url else None,
+                    recording_started_at=(
+                        self._recording_started_at() if self._recording_started_at else None
+                    ),
                 )
             )
         except Exception:
