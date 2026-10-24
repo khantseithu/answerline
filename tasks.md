@@ -132,7 +132,7 @@ Roadmap: *Phone calls over SIP*
 - [x] Inbound trunk + dispatch rule per phone number → agent (#64)
 - [ ] Twilio guide and setup script
 - [ ] Telnyx guide and setup script
-- [ ] Generic SIP trunk guide
+- [x] Generic SIP trunk guide (#67)
 - [x] Caller ID captured on call record (#68)
 - [ ] DTMF handling (optional menu, extension entry)
 - [ ] Phone numbers page in dashboard (assign number to agent)
