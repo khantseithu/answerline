@@ -210,9 +210,9 @@ pnpm eval agents/bright-smile-dental.yaml --model openai/gpt-4.1-mini
 pnpm eval agents/bright-smile-dental.yaml --live-tools --audio
 ```
 
-The eval command exits `0` when all cases pass, `1` when a case fails, and `2` when setup or execution fails. Runs use the repository's `evals/<agent>.yaml` suite and the seeded `default` tenant agent; options and the parsed inputs are saved with each run.
+The eval command exits `0` when all cases pass, `1` for failed cases (including model-generation failures), and `2` for setup failures or runner crashes. Runs use the repository's `evals/<agent>.yaml` suite and the seeded `default` tenant agent; options and the parsed inputs are saved with each run.
 
-Audio mode synthesizes caller turns and evaluates the text recognized by STT. Its case latency includes caller synthesis, agent processing, and captured output completion. Turns are committed manually, so this excludes RTC transport, VAD, and real-time playback duration. Caller synthesis usage is included in the run cost.
+Audio mode synthesizes caller turns, transcribes each complete audio buffer with batch STT, and evaluates the recognized text through the agent and TTS. Its case latency includes caller synthesis, batch recognition, agent processing, and captured output completion. It excludes RTC transport, VAD, and real-time playback duration. Caller synthesis usage is included in the run cost.
 
 To run the same CLI in Docker, put your model provider keys in `.env`, then build the worker and prepare the Compose database:
 
