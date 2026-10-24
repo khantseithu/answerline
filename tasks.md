@@ -136,7 +136,7 @@ Roadmap: *Phone calls over SIP*
 - [x] Caller ID captured on call record (#68)
 - [ ] DTMF handling (optional menu, extension entry)
 - [x] Phone numbers page in dashboard (assign number to agent) (#70)
-- [ ] `docs/telephony.md` ("Connect a phone number")
+- [x] `docs/telephony.md` ("Connect a phone number") (#71)
 
 **Done when:** calling a real Twilio number reaches the agent, and the call shows up in the call list with caller ID.
 

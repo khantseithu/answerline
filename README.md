@@ -41,7 +41,7 @@ Answerline gives you the same building blocks as open source:
 
 **Voice**
 - Real-time voice agent built on [LiveKit Agents](https://docs.livekit.io/agents/), with interruption handling and turn detection
-- In-browser calls from the dashboard; inbound phone calls over SIP (Twilio, Telnyx, or any SIP trunk) and an embeddable widget *(planned)*
+- In-browser calls from the dashboard and inbound phone calls over SIP (Twilio, Telnyx, or any SIP trunk, see [docs/telephony.md](docs/telephony.md)); an embeddable widget *(planned)*
 - Call limits (max duration, idle timeout) and opt-in call recording with a spoken notice
 - Business hours with holiday overrides and after-hours routing: take a voicemail, cold-transfer SIP calls to a human, or answer anyway; warm transfer *(planned)*
 
@@ -98,7 +98,9 @@ The scripts use the project-local [Dotenvx](https://dotenvx.com/docs/quickstart)
 
 Open http://localhost:3000 and click **Talk to agent** to call the sample agent from your browser.
 
-*(planned)* A one-command `docker compose up -d` with prebuilt images and a first-run admin account (M7), and connecting a phone number over SIP (M4).
+To answer phone calls, [connect a phone number](docs/telephony.md) from Twilio, Telnyx, or any SIP trunk.
+
+*(planned)* A one-command `docker compose up -d` with prebuilt images and a first-run admin account (M7).
 
 ## Configure an agent
 
@@ -180,7 +182,7 @@ flowchart LR
 | Redis | | Job queues and caching |
 | LiveKit Server + SIP | | Media transport and phone connectivity |
 
-The diagram shows the target architecture; knowledge base, tools, SIP, and the dashboard API are *(planned)*. Design notes for what exists today are in [docs/architecture.md](docs/architecture.md).
+The diagram shows the target architecture; parts of it are still *(planned)*. Design notes for what exists today are in [docs/architecture.md](docs/architecture.md).
 
 ## Evals *(planned)*
 
