@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
+import { Suspense } from "react";
 import { CallApp } from "@/components/call/call-app";
 import { CallConsoleVisual } from "@/components/landing/call-console-visual";
 import { CtaFooter } from "@/components/landing/cta-footer";
@@ -19,16 +20,24 @@ export const metadata: Metadata = {
   title: "Answerline · Open-Source AI Voice Receptionist",
 };
 
-export default async function HomePage() {
+export default function HomePage() {
+  return (
+    <Suspense fallback={<Landing canCall={false} />}>
+      <SessionLanding />
+    </Suspense>
+  );
+}
+
+async function SessionLanding() {
   const session = await readOptionalSession(await headers(), (requestHeaders) =>
     getAuth().api.getSession({ headers: requestHeaders, query: { disableRefresh: true } })
   );
+  return <Landing canCall={Boolean(session)} />;
+}
+
+function Landing({ canCall }: { canCall: boolean }) {
   return (
-    <CallApp
-      agentName="Bright Smile Dental"
-      agentSlug={DEFAULT_AGENT_SLUG}
-      canCall={Boolean(session)}
-    >
+    <CallApp agentName="Bright Smile Dental" agentSlug={DEFAULT_AGENT_SLUG} canCall={canCall}>
       <div className="flex min-h-screen flex-col bg-background text-foreground selection:bg-primary/20">
         <SiteNav />
         <main className="flex-1" id="main-content">
