@@ -93,31 +93,17 @@ class _ToolLLM(llm.LLM):
 
 class _FakeSTT(stt.STT):
     def __init__(self):
-        super().__init__(capabilities=stt.STTCapabilities(streaming=True, interim_results=False))
-
-    def stream(self, *, language=None, conn_options=DEFAULT_API_CONNECT_OPTIONS):
-        provider = self
-
-        class Stream(stt.RecognizeStream):
-            async def _run(self):
-                async for _frame in self._input_ch:
-                    self._event_ch.send_nowait(
-                        stt.SpeechEvent(
-                            type=stt.SpeechEventType.FINAL_TRANSCRIPT,
-                            alternatives=[
-                                stt.SpeechData(
-                                    language="en-US",
-                                    text="Please save Alex's appointment question.",
-                                )
-                            ],
-                        )
-                    )
-                    return
-
-        return Stream(stt=provider, conn_options=conn_options)
+        super().__init__(capabilities=stt.STTCapabilities(streaming=False, interim_results=False))
 
     async def _recognize_impl(self, buffer, *, language, conn_options):
-        raise AssertionError("streaming fake STT should not use batch recognition")
+        assert isinstance(buffer, list)
+        assert buffer
+        return stt.SpeechEvent(
+            type=stt.SpeechEventType.FINAL_TRANSCRIPT,
+            alternatives=[
+                stt.SpeechData(language="en-US", text="Please save Alex's appointment question.")
+            ],
+        )
 
 
 class _FakeTTS(tts.TTS):
@@ -329,6 +315,9 @@ def test_audio_eval_runs_stt_tools_llm_and_tts_without_rtc(monkeypatch):
             "unit": "characters",
         }
     ]
+    stt_usage = [line for line in result["modelUsage"] if line["stage"] == "stt"]
+    assert len(stt_usage) == 1
+    assert stt_usage[0]["quantity"] > 0
     assert result["latencyMs"] >= 0
 
 

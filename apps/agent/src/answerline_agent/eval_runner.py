@@ -9,7 +9,7 @@ from uuid import uuid4
 
 from jsonschema import Draft202012Validator, FormatChecker
 from livekit import rtc
-from livekit.agents import Agent, AgentSession, RunContext, io, llm, tts
+from livekit.agents import Agent, AgentSession, RunContext, io, llm, stt, tts
 from livekit.agents.metrics import ModelUsageCollector
 from livekit.agents.utils import http_context
 from pydantic import Field
@@ -30,7 +30,6 @@ from .tools import build_configured_tools
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 EVAL_PHASE_TIMEOUT = 30
-TRANSCRIPT_TIMEOUT = 10
 
 
 def _build_caller_tts(ref: str) -> tts.TTS:
@@ -290,22 +289,6 @@ async def _judge(
     return result["passed"], reason, usage_lines
 
 
-class _QueueAudioInput(io.AudioInput):
-    def __init__(self) -> None:
-        super().__init__(label="eval caller")
-        self.frames: asyncio.Queue[rtc.AudioFrame] = asyncio.Queue()
-        self.audio_format: tuple[int, int] | None = None
-        self.frame_count = 0
-
-    async def __anext__(self) -> rtc.AudioFrame:
-        return await self.frames.get()
-
-    async def push(self, frame: rtc.AudioFrame) -> None:
-        self.audio_format = (frame.sample_rate, frame.num_channels)
-        self.frame_count += 1
-        await self.frames.put(frame)
-
-
 class _CapturedAudioOutput(io.AudioOutput):
     def __init__(self) -> None:
         super().__init__(
@@ -326,29 +309,43 @@ class _CapturedAudioOutput(io.AudioOutput):
         self.on_playback_finished(playback_position=0, interrupted=True)
 
 
-async def _synthesize_into_input(
-    provider: tts.TTS, text: str, audio_input: _QueueAudioInput
-) -> list[dict[str, Any]]:
+async def _synthesize_caller_audio(
+    provider: tts.TTS, text: str
+) -> tuple[list[rtc.AudioFrame], list[dict[str, Any]]]:
     collector = ModelUsageCollector()
     provider.on("metrics_collected", collector)
     stream = provider.synthesize(text)
-    frame_count = 0
-    audio_format = None
+    frames = []
     try:
         async for chunk in stream:
-            await audio_input.push(chunk.frame)
-            frame_count += 1
-            audio_format = (chunk.frame.sample_rate, chunk.frame.num_channels)
+            frames.append(chunk.frame)
     finally:
         try:
             await stream.aclose()
         finally:
             provider.off("metrics_collected", collector)
-    if frame_count == 0 or audio_format is None:
+    if not frames:
         raise ValueError("caller TTS returned no audio frames")
-    sample_rate, channels = audio_format
-    await audio_input.push(rtc.AudioFrame.create(sample_rate, channels, sample_rate // 10))
-    return model_usage_lines(collector.flatten()) or []
+    last_frame = frames[-1]
+    frames.append(
+        rtc.AudioFrame.create(
+            last_frame.sample_rate, last_frame.num_channels, last_frame.sample_rate // 2
+        )
+    )
+    return frames, model_usage_lines(collector.flatten()) or []
+
+
+async def _recognize_caller_audio(
+    provider: stt.STT, frames: list[rtc.AudioFrame]
+) -> tuple[str, list[dict[str, Any]]]:
+    collector = ModelUsageCollector()
+    provider.on("metrics_collected", collector)
+    try:
+        result = await provider.recognize(frames)
+    finally:
+        provider.off("metrics_collected", collector)
+    transcript = " ".join(alternative.text for alternative in result.alternatives).strip()
+    return transcript, model_usage_lines(collector.flatten()) or []
 
 
 async def run_case(
@@ -396,13 +393,13 @@ async def run_case(
         closers = []
     transcript: list[dict[str, str]] = []
     usage: list[dict[str, Any]] = []
-    audio_input = None
     audio_output = None
     stt_provider = None
     tts_provider = None
     caller_tts_provider = None
     session = None
     responses: list[str] = []
+    speech_failures: list[str] = []
 
     def on_item(event) -> None:
         if event.item.type == "message" and event.item.role == "assistant":
@@ -422,18 +419,14 @@ async def run_case(
     started = time.monotonic()
     try:
         if mode == "audio":
-            audio_input = _QueueAudioInput()
             audio_output = _CapturedAudioOutput()
             stt_provider = build_stt(models.stt)
             tts_provider = build_tts(models.tts)
             caller_tts_provider = _build_caller_tts(models.tts)
             session = AgentSession(
                 llm=provider,
-                stt=stt_provider,
                 tts=tts_provider,
-                turn_handling={"turn_detection": "manual"},
             )
-            session.input.audio = audio_input
             session.output.audio = audio_output
         else:
             session = AgentSession(llm=provider)
@@ -451,32 +444,37 @@ async def run_case(
             await asyncio.wait_for(greeting.wait_for_playout(), EVAL_PHASE_TIMEOUT)
         else:
             await greeting.wait_for_playout()
+        if error := greeting.exception():
+            speech_failures.append(f"agent greeting failed: {type(error).__name__}: {error}")
         transcript.append({"role": "agent", "text": greeting_text})
         for turn in turns:
             start = len(responses)
             if mode == "audio":
-                caller_usage = await asyncio.wait_for(
-                    _synthesize_into_input(caller_tts_provider, turn, audio_input),
+                caller_frames, caller_usage = await asyncio.wait_for(
+                    _synthesize_caller_audio(caller_tts_provider, turn),
                     EVAL_PHASE_TIMEOUT,
                 )
                 usage.extend(caller_usage)
-                recognized = await asyncio.wait_for(
-                    session.commit_user_turn(
-                        transcript_timeout=TRANSCRIPT_TIMEOUT, stt_flush_duration=0
-                    ),
+                recognized, stt_usage = await asyncio.wait_for(
+                    _recognize_caller_audio(stt_provider, caller_frames),
                     EVAL_PHASE_TIMEOUT,
                 )
+                usage.extend(stt_usage)
+                if not recognized:
+                    raise ValueError("caller STT returned an empty transcript")
                 transcript.append({"role": "caller", "text": recognized})
-                await asyncio.wait_for(session.wait_for_idle(), EVAL_PHASE_TIMEOUT)
-                await asyncio.wait_for(audio_output.wait_for_playout(), EVAL_PHASE_TIMEOUT)
+                handle = session.generate_reply(user_input=recognized, input_modality="audio")
+                await asyncio.wait_for(handle.wait_for_playout(), EVAL_PHASE_TIMEOUT)
             else:
                 transcript.append({"role": "caller", "text": turn})
                 handle = await session.generate_reply(user_input=turn, input_modality="text")
                 await handle.wait_for_playout()
+            if error := handle.exception():
+                speech_failures.append(f"agent response failed: {type(error).__name__}: {error}")
             response = "\n".join(responses[start:]).strip()
             if response:
                 transcript.append({"role": "agent", "text": response})
-        failures = _evaluate_assertions(case, transcript, calls)
+        failures = speech_failures + _evaluate_assertions(case, transcript, calls)
         usage.extend(model_usage_lines(session.usage.model_usage) or [])
         if case.get("expect", {}).get("judge"):
             passed, reason, judge_usage = await _judge(

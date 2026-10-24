@@ -176,7 +176,7 @@ Roadmap: *Evals runner*
 - [x] Metrics per run: pass rate, latency, cost; per-case result with transcript (#86)
 - [x] CLI: `worker eval agents/<name>.yaml` with exit code for CI, `--model` override for comparisons (#87)
 - [x] Queue-backed runs from dashboard; Evals page with run history and diff between runs (#88)
-- [x] Optional audio-mode evals (TTS caller → full pipeline; manual commit latency excludes RTC/VAD) (#89)
+- [x] Optional audio-mode evals (TTS caller → batch STT and full pipeline; latency excludes RTC/VAD) (#89)
 - [x] GitHub Action example: run evals on PRs that change `agents/` or `evals/` (#90)
 
 **Done when:** `docker compose run --rm worker eval agents/bright-smile-dental.yaml` prints pass rate, latency, and cost, and the same run appears in the dashboard.
