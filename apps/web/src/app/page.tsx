@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { CallApp } from "@/components/call/call-app";
 import { CallConsoleVisual } from "@/components/landing/call-console-visual";
 import { CtaFooter } from "@/components/landing/cta-footer";
@@ -8,6 +9,8 @@ import { HowItWorks } from "@/components/landing/how-it-works";
 import { SiteNav } from "@/components/landing/site-nav";
 import { TechnicalCredibility } from "@/components/landing/technical-credibility";
 import { ValueStrip } from "@/components/landing/value-strip";
+import { readOptionalSession } from "@/lib/auth/access";
+import { getAuth } from "@/lib/auth/server";
 import { DEFAULT_AGENT_SLUG } from "@/lib/call-token";
 
 export const metadata: Metadata = {
@@ -16,9 +19,16 @@ export const metadata: Metadata = {
   title: "Answerline · Open-Source AI Voice Receptionist",
 };
 
-export default function HomePage() {
+export default async function HomePage() {
+  const session = await readOptionalSession(await headers(), (requestHeaders) =>
+    getAuth().api.getSession({ headers: requestHeaders, query: { disableRefresh: true } })
+  );
   return (
-    <CallApp agentName="Bright Smile Dental" agentSlug={DEFAULT_AGENT_SLUG}>
+    <CallApp
+      agentName="Bright Smile Dental"
+      agentSlug={DEFAULT_AGENT_SLUG}
+      canCall={Boolean(session)}
+    >
       <div className="flex min-h-screen flex-col bg-background text-foreground selection:bg-primary/20">
         <SiteNav />
         <main className="flex-1" id="main-content">
