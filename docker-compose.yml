@@ -119,6 +119,16 @@ services:
       minio:
         condition: service_started
 
+  jaeger:
+    image: jaegertracing/jaeger:2.22.0
+    profiles: [observability]
+    command: ["--config", "/etc/jaeger/config.yaml"]
+    volumes:
+      - ./infra/jaeger/config.yaml:/etc/jaeger/config.yaml:ro
+    ports:
+      - "127.0.0.1:${JAEGER_UI_PORT:-16686}:16686"
+      - "127.0.0.1:${JAEGER_OTLP_PORT:-4318}:4318"
+
 volumes:
   postgres-data:
   redis-data:
