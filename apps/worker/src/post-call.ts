@@ -12,7 +12,6 @@ import type { PostCallAnalysis, PostCallJob } from "@answerline/shared";
 import { agentConfigSchema, postCallJobSchema } from "@answerline/shared";
 import type { Job } from "bullmq";
 import { and, asc, eq, sql } from "drizzle-orm";
-import { calculateCallCost, parseCostPrices } from "./costs.ts";
 import { generatePostCallAnalysis, type PostCallModelOptions } from "./post-call-model.ts";
 
 const MAX_TRANSCRIPT_CHARS = 22_000;
@@ -162,16 +161,9 @@ function analyzePostCall(db: Database, input: PostCallJob, options: PostCallProc
           sentiment: "unknown",
           summary: "No transcript was recorded for this call.",
         } satisfies PostCallAnalysis);
-    const { costBreakdown, costUsd } = calculateCallCost(
-      call.modelUsage ?? undefined,
-      parseCostPrices(env.COST_PRICES_JSON)
-    );
-
     await tx
       .update(calls)
       .set({
-        costBreakdown,
-        costUsd: costUsd?.toFixed(6) ?? null,
         outcome: authoritativeOutcome(call.status, evidence, analysis.outcome),
         sentiment: analysis.sentiment,
         summary: analysis.summary,

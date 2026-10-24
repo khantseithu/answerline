@@ -259,6 +259,36 @@ test("failed model output does not write partial analysis", { skip }, async () =
   }
 });
 
+test("post-call analysis leaves the cost written on call.ended untouched", { skip }, async () => {
+  const context = events();
+  const db = createDb();
+  const fixture = await startHttpFixture({
+    outcome: "resolved",
+    sentiment: "neutral",
+    summary: "The caller asked about closing time.",
+  });
+  try {
+    await persistCallEvent(db, context.started);
+    await persistCallEvent(db, context.turns[0] as CallEventJob);
+    await persistCallEvent(db, context.ended);
+    const call = await resolveCall(db, context.ref.room_name);
+    assert.equal(call.costUsd, "0.005200");
+    await db.update(calls).set({ costUsd: "9.000000" }).where(eq(calls.id, call.id));
+
+    await runPostCall(db, postCallJob(call.id, call.tenantId), {
+      env: { OLLAMA_BASE_URL: fixture.baseUrl, POST_CALL_MODEL: "ollama/fixture" },
+    });
+
+    const updated = await resolveCall(db, context.ref.room_name);
+    assert.equal(updated.costUsd, "9.000000");
+    assert.equal(updated.summary, "The caller asked about closing time.");
+  } finally {
+    await fixture.close();
+    await db.delete(tenants).where(eq(tenants.slug, context.ref.tenant));
+    await db.$client.end();
+  }
+});
+
 test("confirmed booking evidence overrides the model's outcome", { skip }, async () => {
   const context = events();
   const db = createDb();
