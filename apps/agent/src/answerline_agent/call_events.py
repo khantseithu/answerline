@@ -254,9 +254,15 @@ def summarize_usage(model_usage: Iterable) -> dict[str, float] | None:
     return totals if seen else None
 
 
-def _usage_provider(provider: str) -> str:
-    host = urlparse(provider).hostname or provider
+def _usage_provider(provider: str | None) -> str:
+    if not provider or not provider.strip():
+        return "unknown"
+    address = provider.strip()
+    parsed = urlparse(address if "://" in address else f"//{address}")
+    host = parsed.hostname or address
     normalized = host.lower().removeprefix("www.")
+    if normalized == "anthropic" or normalized == "api.anthropic.com":
+        return "anthropic"
     if normalized in {"deepgram", "api.deepgram.com"}:
         return "deepgram"
     if normalized in {"cartesia", "api.cartesia.ai"}:
@@ -269,27 +275,32 @@ def _usage_provider(provider: str) -> str:
         return "openrouter"
     if normalized in {"deepseek", "api.deepseek.com"}:
         return "deepseek"
-    if normalized in {"localhost", "127.0.0.1", "::1"}:
+    if normalized in {"localhost", "127.0.0.1", "::1"} and parsed.port == 11434:
         return "ollama"
     return provider
+
+
+def _usage_model(model: str | None) -> str:
+    return model.strip() if model and model.strip() else "unknown"
 
 
 def model_usage_lines(model_usage: Iterable) -> list[dict] | None:
     lines = []
     for usage in model_usage:
-        provider = _usage_provider(usage.provider)
+        provider = _usage_provider(getattr(usage, "provider", None))
+        model = _usage_model(getattr(usage, "model", None))
         if usage.type == "stt_usage":
             lines.append(
                 {
                     "stage": "stt",
                     "provider": provider,
-                    "model": usage.model,
+                    "model": model,
                     "quantity": usage.audio_duration,
                     "unit": "seconds",
                 }
             )
         elif usage.type == "llm_usage":
-            common = {"stage": "llm", "provider": provider, "model": usage.model}
+            common = {"stage": "llm", "provider": provider, "model": model}
             uncached = max(
                 usage.input_tokens - usage.input_cached_tokens - usage.input_cache_creation_tokens,
                 0,
@@ -315,7 +326,7 @@ def model_usage_lines(model_usage: Iterable) -> list[dict] | None:
                 {
                     "stage": "tts",
                     "provider": provider,
-                    "model": usage.model,
+                    "model": model,
                     "quantity": usage.characters_count,
                     "unit": "characters",
                 }

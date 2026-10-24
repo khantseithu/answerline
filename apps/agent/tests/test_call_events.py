@@ -1,4 +1,5 @@
 import json
+from types import SimpleNamespace
 
 from answerline_agent.call_events import (
     MAX_TOOL_RESULT_CHARS,
@@ -212,6 +213,8 @@ def test_model_usage_keeps_unknown_providers_and_normalizes_supported_endpoint_h
                 provider="https://api.deepseek.com/v1", model="deepseek-chat", input_tokens=3
             ),
             LLMModelUsage(provider="http://localhost:11434/v1", model="qwen3", input_tokens=4),
+            LLMModelUsage(provider="api.anthropic.com", model="claude-haiku", input_tokens=5),
+            LLMModelUsage(provider="localhost:8080", model="custom-local", input_tokens=6),
         ]
     )
     assert lines is not None
@@ -222,6 +225,52 @@ def test_model_usage_keeps_unknown_providers_and_normalizes_supported_endpoint_h
         "custom-provider",
         "deepseek",
         "ollama",
+        "anthropic",
+        "localhost:8080",
+    ]
+
+
+def test_model_usage_replaces_empty_provider_and_model_with_unknown():
+    lines = model_usage_lines(
+        [LLMModelUsage(provider="", model="", input_tokens=12, output_tokens=3)]
+    )
+    assert lines == [
+        {
+            "stage": "llm",
+            "provider": "unknown",
+            "model": "unknown",
+            "quantity": 12,
+            "unit": "input_tokens",
+        },
+        {
+            "stage": "llm",
+            "provider": "unknown",
+            "model": "unknown",
+            "quantity": 3,
+            "unit": "output_tokens",
+        },
+    ]
+
+
+def test_model_usage_replaces_missing_provider_and_model_with_unknown():
+    usage = SimpleNamespace(
+        type="llm_usage",
+        provider=None,
+        model=None,
+        input_tokens=1,
+        input_cached_tokens=0,
+        input_cache_creation_tokens=0,
+        output_tokens=0,
+    )
+    lines = model_usage_lines([usage])
+    assert lines == [
+        {
+            "stage": "llm",
+            "provider": "unknown",
+            "model": "unknown",
+            "quantity": 1,
+            "unit": "input_tokens",
+        }
     ]
 
 
