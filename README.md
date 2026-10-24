@@ -212,6 +212,8 @@ pnpm eval agents/bright-smile-dental.yaml --live-tools --audio
 
 The eval command exits `0` when all cases pass, `1` when a case fails, and `2` when setup or execution fails. Runs use the repository's `evals/<agent>.yaml` suite and the seeded `default` tenant agent; options and the parsed inputs are saved with each run.
 
+Audio mode synthesizes caller turns and evaluates the text recognized by STT. Its case latency includes caller synthesis, agent processing, and captured output completion. Turns are committed manually, so this excludes RTC transport, VAD, and real-time playback duration. Caller synthesis usage is included in the run cost.
+
 To run the same CLI in Docker, put your model provider keys in `.env`, then build the worker and prepare the Compose database:
 
 ```bash
@@ -222,6 +224,8 @@ docker compose run --rm worker eval agents/bright-smile-dental.yaml
 ```
 
 The worker profile starts Postgres and Redis as needed. Container runs use the Compose database; point the dashboard at that database to view the same history. Full production deployment remains planned under M7. `--live-tools` can create real bookings and save messages in configured services.
+
+To run text evals on pull requests, enable the [opt-in GitHub Action](docs/evals-ci.md).
 
 
 ## Deployment *(planned)*
