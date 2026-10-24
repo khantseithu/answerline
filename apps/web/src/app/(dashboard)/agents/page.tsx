@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { EmptyPanel } from "@/components/shell/empty-panel";
 import { PageContainer, PageHeader } from "@/components/shell/page-header";
 
+export const instant = false;
 export const metadata: Metadata = { title: "Agents" };
 
 export default function AgentsPage() {

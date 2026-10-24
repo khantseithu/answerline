@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getPhoneNumberDeps } from "@/lib/phone-numbers/context";
 import { listPhoneNumberView, PhoneNumberUnavailableError } from "@/lib/phone-numbers/service";
 
+export const instant = false;
 export const metadata: Metadata = { title: "Phone numbers" };
 
 async function PhoneNumbersContent() {

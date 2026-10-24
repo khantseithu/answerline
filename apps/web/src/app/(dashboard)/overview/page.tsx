@@ -15,6 +15,8 @@ const METRICS = [
   { label: "Failure rate", span: "sm:col-span-2 lg:col-span-1" },
 ];
 
+export const instant = false;
+
 export const metadata: Metadata = { title: "Overview" };
 
 export default function OverviewPage() {

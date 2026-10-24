@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getKnowledgeDeps } from "@/lib/knowledge/context";
 import { listKnowledgeSources } from "@/lib/knowledge/service";
 
+export const instant = false;
 export const metadata: Metadata = { title: "Knowledge" };
 
 async function KnowledgeContent() {
