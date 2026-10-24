@@ -9,6 +9,7 @@ import {
 import {
   addPhoneNumber,
   assignPhoneNumber,
+  connectPhoneNumber,
   listPhoneNumbers,
   type PhoneNumberClient,
   removePhoneNumber,
@@ -142,6 +143,16 @@ test("assign creates a dispatch rule for a trunk that has none", async () => {
   assert.equal(rules.length, 1);
   assert.equal(assigned.dispatchRuleId, rules[0]?.sipDispatchRuleId);
   assert.equal(assigned.agent, "front-desk");
+});
+
+test("connect adds a new number and reassigns an existing one", async () => {
+  const { client, rules, trunks } = fakeClient();
+  await connectPhoneNumber(client, "a", { agent: "first", number: NUMBER });
+  const connected = await connectPhoneNumber(client, "a", { agent: "second", number: NUMBER });
+
+  assert.equal(trunks.length, 1);
+  assert.equal(rules.length, 1);
+  assert.equal(connected.agent, "second");
 });
 
 test("remove deletes the rule and trunk", async () => {

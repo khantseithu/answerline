@@ -130,7 +130,7 @@ Roadmap: *Phone calls over SIP*
 
 - [x] Add LiveKit SIP service to docker compose (with Redis) (#63)
 - [x] Inbound trunk + dispatch rule per phone number → agent (#64)
-- [ ] Twilio guide and setup script
+- [x] Twilio guide and setup script (#65)
 - [ ] Telnyx guide and setup script
 - [ ] Generic SIP trunk guide
 - [x] Caller ID captured on call record (#68)
