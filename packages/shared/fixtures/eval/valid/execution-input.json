@@ -11,6 +11,11 @@
     },
     "name": "Test agent"
   },
+  "context": {
+    "agentSlug": "bright-smile-dental",
+    "tenantSlug": "default"
+  },
+  "liveTools": true,
   "suite": [
     {
       "caller": "Hi",

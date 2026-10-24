@@ -52,13 +52,24 @@ export const evalExecutionOutputSchema = z.object({
   results: z.array(evalCaseResultSchema),
 });
 
-export const evalExecutionInputSchema = z.object({
-  agent: agentConfigSchema,
-  liveTools: z.boolean().default(false),
-  mode: z.enum(["text", "audio"]).default("text"),
-  modelOverride: modelRefSchema.optional(),
-  suite: evalSuiteSchema,
-});
+export const evalExecutionInputSchema = z
+  .object({
+    agent: agentConfigSchema,
+    context: z
+      .object({
+        agentSlug: z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/),
+        tenantSlug: z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/),
+      })
+      .optional(),
+    liveTools: z.boolean().default(false),
+    mode: z.enum(["text", "audio"]).default("text"),
+    modelOverride: modelRefSchema.optional(),
+    suite: evalSuiteSchema,
+  })
+  .refine((input) => !input.liveTools || input.context !== undefined, {
+    message: "live tools require agent and tenant slugs in context",
+    path: ["context"],
+  });
 
 export const evalJobSchema = z.object({
   agentId: z.uuid().toLowerCase(),

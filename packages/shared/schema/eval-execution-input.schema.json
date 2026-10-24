@@ -348,6 +348,23 @@
         "name"
       ]
     },
+    "context": {
+      "type": "object",
+      "properties": {
+        "agentSlug": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+        },
+        "tenantSlug": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+        }
+      },
+      "required": [
+        "agentSlug",
+        "tenantSlug"
+      ]
+    },
     "liveTools": {
       "default": false,
       "type": "boolean"

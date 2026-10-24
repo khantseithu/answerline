@@ -94,12 +94,29 @@ test("execution input defaults to mocked text mode and accepts overrides", () =>
   assert.equal(
     evalExecutionInputSchema.parse({
       agent: minimalAgent,
+      context: { agentSlug: "bright-smile-dental", tenantSlug: "default" },
       liveTools: true,
       mode: "audio",
       modelOverride: "openai/gpt-4.1",
       suite: [{ caller: "Hi", expect: {}, name: "hello" }],
     }).mode,
     "audio"
+  );
+  assert.throws(() =>
+    evalExecutionInputSchema.parse({
+      agent: minimalAgent,
+      liveTools: true,
+      suite: [{ caller: "Hi", expect: {}, name: "hello" }],
+    })
+  );
+  assert.deepEqual(
+    evalExecutionInputSchema.parse({
+      agent: minimalAgent,
+      context: { agentSlug: "bright-smile-dental", tenantSlug: "default" },
+      liveTools: true,
+      suite: [{ caller: "Hi", expect: {}, name: "hello" }],
+    }).context,
+    { agentSlug: "bright-smile-dental", tenantSlug: "default" }
   );
 });
 
