@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { modelUsageSchema } from "./model-usage.ts";
 
 const slug = z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/);
 
@@ -53,6 +54,8 @@ export const callEndedJob = z.object({
   ...callRef,
   duration_ms: z.number().int().nonnegative(),
   ended_at: z.iso.datetime({ offset: true }),
+  model_usage: z.array(modelUsageSchema).optional(),
+  recording_started_at: z.iso.datetime({ offset: true }).optional(),
   recording_url: z.string().min(1).optional(),
   status: z.enum(["completed", "failed"]),
   type: z.literal("call.ended"),

@@ -1,0 +1,24 @@
+{
+  "type": "call.ended",
+  "room_name": "call-0b9c1c3e-2f4a-4e8e-9d3a-5f1f2b7c9a10",
+  "tenant": "default",
+  "agent": "bright-smile-dental",
+  "ended_at": "2026-10-22T14:03:00.000Z",
+  "duration_ms": 180000,
+  "status": "completed",
+  "usage": {
+    "stt_seconds": 92.5,
+    "llm_input_tokens": 5120,
+    "tts_characters": 1830
+  },
+  "recording_started_at": "2026-10-22T14:00:02Z",
+  "model_usage": [
+    {
+      "stage": "stt",
+      "provider": "deepgram",
+      "model": "nova-3",
+      "unit": "seconds",
+      "quantity": true
+    }
+  ]
+}
