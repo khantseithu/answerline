@@ -12,8 +12,9 @@ from answerline_agent.eval_runner import (
     run_case,
     run_suite,
 )
-from livekit.agents import llm
-from livekit.agents.metrics import LLMMetrics
+from livekit import rtc
+from livekit.agents import APIStatusError, llm, stt, tts
+from livekit.agents.metrics import LLMMetrics, TTSMetrics
 from livekit.agents.metrics.base import Metadata
 from livekit.agents.types import DEFAULT_API_CONNECT_OPTIONS
 
@@ -87,6 +88,80 @@ class _ToolLLM(llm.LLM):
             tools=tools or [],
             conn_options=conn_options or DEFAULT_API_CONNECT_OPTIONS,
             tool_call=self.calls == 1,
+        )
+
+
+class _FakeSTT(stt.STT):
+    def __init__(self):
+        super().__init__(capabilities=stt.STTCapabilities(streaming=False, interim_results=False))
+
+    async def _recognize_impl(self, buffer, *, language, conn_options):
+        assert isinstance(buffer, list)
+        assert buffer
+        return stt.SpeechEvent(
+            type=stt.SpeechEventType.FINAL_TRANSCRIPT,
+            alternatives=[
+                stt.SpeechData(language="en-US", text="Please save Alex's appointment question.")
+            ],
+        )
+
+
+class _FakeTTS(tts.TTS):
+    def __init__(self):
+        super().__init__(
+            capabilities=tts.TTSCapabilities(streaming=False), sample_rate=48000, num_channels=1
+        )
+        self.spoken: list[str] = []
+
+    def synthesize(self, text: str, *, conn_options=None):
+        self.spoken.append(text)
+
+        class Stream(tts.ChunkedStream):
+            async def _run(self, output_emitter):
+                output_emitter.initialize(
+                    request_id="fake",
+                    sample_rate=48000,
+                    num_channels=1,
+                    mime_type="audio/pcm",
+                    stream=False,
+                )
+                output_emitter.push_frame(rtc.AudioFrame.create(48000, 1, 480))
+                output_emitter.flush()
+                self._tts.emit(
+                    "metrics_collected",
+                    TTSMetrics(
+                        request_id="fake",
+                        timestamp=1,
+                        ttfb=0.01,
+                        duration=0.1,
+                        characters_count=len(self._input_text),
+                        audio_duration=0.01,
+                        cancelled=False,
+                        label="fake",
+                        streamed=False,
+                        metadata=Metadata(model_provider="fake", model_name="fake-tts"),
+                    ),
+                )
+
+        return Stream(
+            tts=self,
+            input_text=text,
+            conn_options=conn_options or DEFAULT_API_CONNECT_OPTIONS,
+        )
+
+
+class _HangingTTS(_FakeTTS):
+    def synthesize(self, text: str, *, conn_options=None):
+        self.spoken.append(text)
+
+        class Stream(tts.ChunkedStream):
+            async def _run(self, _output_emitter):
+                await asyncio.Event().wait()
+
+        return Stream(
+            tts=self,
+            input_text=text,
+            conn_options=conn_options or DEFAULT_API_CONNECT_OPTIONS,
         )
 
 
@@ -194,6 +269,130 @@ def test_run_case_executes_mock_tool_and_checks_its_arguments():
     )
     assert result["passed"] is True
     assert result["transcript"][-1] == {"role": "agent", "text": "Your request was saved."}
+
+
+def test_speech_failures_exclude_provider_error_body(monkeypatch):
+    error = APIStatusError(
+        "secret-like provider message",
+        status_code=402,
+        body={"user_id": "private-user", "api_key": "private-key"},
+    )
+
+    class FailedSpeech:
+        async def wait_for_playout(self):
+            return None
+
+        def exception(self):
+            return error
+
+    async def failed_reply(*_args, **_kwargs):
+        return FailedSpeech()
+
+    monkeypatch.setattr(
+        eval_runner.AgentSession,
+        "generate_reply",
+        failed_reply,
+    )
+    result = asyncio.run(
+        run_case(
+            _config(),
+            {"name": "provider failure", "caller": "Hello", "expect": {}},
+            llm_provider=_TextLLM(),
+        )
+    )
+    assert result["passed"] is False
+    assert result["failures"] == ["agent response failed: APIStatusError (status 402)"]
+    assert "private-user" not in json.dumps(result)
+    assert "private-key" not in json.dumps(result)
+    assert "secret-like provider message" not in json.dumps(result)
+
+
+def test_audio_eval_runs_stt_tools_llm_and_tts_without_rtc(monkeypatch):
+    providers = iter([_FakeTTS(), _FakeTTS()])
+    agent_tts, caller_tts = next(providers), next(providers)
+    stt_provider = _FakeSTT()
+    monkeypatch.setattr(eval_runner, "build_tts", lambda _ref: agent_tts)
+    monkeypatch.setattr(eval_runner, "build_stt", lambda _ref: stt_provider)
+    monkeypatch.setattr(eval_runner, "_build_caller_tts", lambda _ref: caller_tts)
+    result = asyncio.run(
+        run_case(
+            _config(),
+            {
+                "name": "audio lead capture",
+                "caller": "Please save Alex's appointment question.",
+                "expect": {
+                    "mentions": ["saved"],
+                    "tool_called": "capture_lead",
+                    "tool_args": {"capture_lead": {"name": "Alex"}},
+                },
+            },
+            llm_provider=_ToolLLM(),
+            mode="audio",
+        )
+    )
+    assert result["passed"] is True
+    assert result["transcript"] == [
+        {"role": "agent", "text": "Hello"},
+        {"role": "caller", "text": "Please save Alex's appointment question."},
+        {"role": "agent", "text": "Your request was saved."},
+    ]
+    assert caller_tts.spoken == ["Please save Alex's appointment question."]
+    caller_tts_usage = [
+        line
+        for line in result["modelUsage"]
+        if line["stage"] == "tts" and line["model"] == "fake-tts" and line["quantity"] == 40
+    ]
+    assert caller_tts_usage == [
+        {
+            "stage": "tts",
+            "provider": "fake",
+            "model": "fake-tts",
+            "quantity": 40,
+            "unit": "characters",
+        }
+    ]
+    stt_usage = [line for line in result["modelUsage"] if line["stage"] == "stt"]
+    assert len(stt_usage) == 1
+    assert stt_usage[0]["quantity"] > 0
+    assert result["latencyMs"] >= 0
+
+
+def test_audio_eval_timeout_closes_session_and_providers(monkeypatch):
+    caller_tts = _HangingTTS()
+    agent_tts = _FakeTTS()
+    stt_provider = _FakeSTT()
+    closed = []
+
+    async def close(provider):
+        closed.append(provider)
+
+    monkeypatch.setattr(eval_runner, "EVAL_PHASE_TIMEOUT", 0.01)
+    monkeypatch.setattr(eval_runner, "build_stt", lambda _ref: stt_provider)
+    monkeypatch.setattr(eval_runner, "build_tts", lambda _ref: agent_tts)
+    monkeypatch.setattr(eval_runner, "_build_caller_tts", lambda _ref: caller_tts)
+    monkeypatch.setattr(caller_tts, "aclose", lambda: close(caller_tts))
+    monkeypatch.setattr(agent_tts, "aclose", lambda: close(agent_tts))
+    monkeypatch.setattr(stt_provider, "aclose", lambda: close(stt_provider))
+    closed_sessions = []
+    original_session = eval_runner.AgentSession
+
+    class TrackingSession(original_session):
+        async def aclose(self):
+            closed_sessions.append(self)
+            await super().aclose()
+
+    monkeypatch.setattr(eval_runner, "AgentSession", TrackingSession)
+    with pytest.raises(TimeoutError):
+        asyncio.run(
+            run_case(
+                _config(),
+                {"name": "audio timeout", "caller": "Hello", "expect": {}},
+                llm_provider=_TextLLM(),
+                mode="audio",
+            )
+        )
+    assert len(closed_sessions) == 1
+    assert closed == [caller_tts, agent_tts, stt_provider]
 
 
 def test_assertions_check_mentions_tools_and_arguments():
@@ -330,6 +529,35 @@ def test_run_suite_validates_output_and_keeps_mock_tools_off_database(monkeypatc
     greeting = output["results"][0]["transcript"][0]
     assert greeting["role"] == "agent"
     assert greeting["text"]
+
+
+def test_run_suite_opens_http_context_for_provider_execution(monkeypatch):
+    payload = {
+        "agent": CONFIG,
+        "suite": [{"name": "http context", "caller": "Hi", "expect": {}}],
+    }
+    sessions = []
+
+    async def run_case_with_http_context(*_args, **_kwargs):
+        session = eval_runner.http_context.http_session()
+        assert not session.closed
+        sessions.append(session)
+        return {
+            "caseName": "http context",
+            "passed": True,
+            "failures": [],
+            "transcript": [],
+            "latencyMs": 1,
+            "costUsd": None,
+            "modelUsage": [],
+        }
+
+    monkeypatch.setattr(eval_runner, "run_case", run_case_with_http_context)
+    output = asyncio.run(run_suite(payload))
+    assert output["aggregate"]["passed"] == 1
+    assert sessions[0].closed
+    with pytest.raises(RuntimeError, match="outside of a job context"):
+        eval_runner.http_context.http_session()
 
 
 def test_live_tools_use_the_supplied_tenant_and_agent_slugs(monkeypatch):
