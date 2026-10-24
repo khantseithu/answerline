@@ -13,6 +13,8 @@
     "@answerline/db": "workspace:*",
     "@answerline/shared": "workspace:*",
     "@answerline/worker": "workspace:*",
+    "@aws-sdk/client-s3": "^3.1156.0",
+    "@aws-sdk/s3-request-presigner": "^3.1156.0",
     "@base-ui/react": "^1.9.0",
     "@better-auth/drizzle-adapter": "^1.7.12",
     "@livekit/components-react": "^2.9.24",

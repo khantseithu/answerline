@@ -147,14 +147,14 @@ Roadmap: *Phone calls over SIP*
 Roadmap: *Dashboard: calls, transcripts, cost per call*
 
 - [x] Shared dashboard and post-call data contracts (#246)
-- [ ] Auth
+- [x] Auth
   - [x] Better Auth: email/password + optional OAuth (#73; decision #128)
     - [x] Persistence schema: users, sessions, accounts, verifications (#244)
   - [x] First-run admin provisioning during bootstrap; generated credentials stored locally (#74)
 - [x] App shell: sidebar (Calls, Agents, Knowledge, Evals, Phone numbers, Settings), dark mode
 - [x] Calls list: filters (agent, date, channel, outcome), search transcripts, pagination (#76)
-- [ ] Call detail: transcript with timestamps, audio player synced to transcript, tool calls timeline, latency per turn (STT / LLM TTFT / TTS TTFB), cost breakdown
-- [ ] Post-call job (worker, `post-call` queue): summary, outcome tag, sentiment, cost calculation
+- [x] Call detail: transcript with timestamps, audio player synced to transcript, tool calls timeline, latency per turn (STT / LLM TTFT / TTS TTFB), cost breakdown (#77)
+- [x] Post-call job (worker, `post-call` queue): summary, outcome tag, sentiment, cost calculation (#78)
 - [x] Cost tracking: price table per provider/model (STT per min, LLM per token, TTS per char), usage captured from LiveKit metrics (#79)
 - [x] Agents page: list, create from template, edit (form + raw YAML editor with Zod validation), version history (#80)
 - [x] Business agent template library: at least 30 industry-specific YAML agents, setup catalog, schema validation, and matching eval scenarios (#235); complements the Agents page template picker (#80)

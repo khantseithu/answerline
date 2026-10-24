@@ -246,7 +246,9 @@ export default async function CallsPage({
                 {result.items.map((call) => (
                   <TableRow key={call.id}>
                     <TableCell className="whitespace-nowrap">
-                      {displayDate(call.startedAt)}
+                      <Link className="hover:underline" href={`/calls/${call.id}`}>
+                        {displayDate(call.startedAt)}
+                      </Link>
                     </TableCell>
                     <TableCell>{call.channel === "sip" ? "Phone" : "Web"}</TableCell>
                     <TableCell>{call.agentName}</TableCell>
