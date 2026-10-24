@@ -1,6 +1,7 @@
 import { ArrowUpRightIcon, Grid3x3Icon, PhoneIncomingIcon } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { connection } from "next/server";
 import { CallWelcome } from "@/components/call/call-welcome";
 import { EmptyPanel } from "@/components/shell/empty-panel";
 import { PageContainer, PageHeader } from "@/components/shell/page-header";
@@ -112,6 +113,7 @@ function metricDetails(data: Awaited<ReturnType<typeof getOverviewData>>) {
 }
 
 export default async function OverviewPage() {
+  await connection();
   const { db, tenantId } = await getDashboardContext();
   const data = await getOverviewData(db, tenantId);
 
