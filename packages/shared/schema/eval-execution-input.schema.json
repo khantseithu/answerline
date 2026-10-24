@@ -1,0 +1,534 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "agent": {
+      "type": "object",
+      "properties": {
+        "greeting": {
+          "type": "string",
+          "minLength": 1
+        },
+        "hours": {
+          "type": "object",
+          "properties": {
+            "after_hours": {
+              "default": "voicemail",
+              "type": "string",
+              "enum": [
+                "voicemail",
+                "transfer",
+                "answer"
+              ]
+            },
+            "holidays": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "date": {
+                    "type": "string",
+                    "format": "date",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                  },
+                  "hours": {
+                    "type": "string",
+                    "pattern": "^\\d{2}:\\d{2}-\\d{2}:\\d{2}$"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "date"
+                ]
+              }
+            },
+            "timezone": {
+              "type": "string"
+            },
+            "weekdays": {
+              "type": "string",
+              "pattern": "^\\d{2}:\\d{2}-\\d{2}:\\d{2}$"
+            },
+            "weekends": {
+              "type": "string",
+              "pattern": "^\\d{2}:\\d{2}-\\d{2}:\\d{2}$"
+            }
+          },
+          "required": [
+            "timezone",
+            "weekdays"
+          ]
+        },
+        "instructions": {
+          "type": "string",
+          "minLength": 1
+        },
+        "knowledge": {
+          "type": "object",
+          "properties": {
+            "sources": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "url"
+                      },
+                      "url": {
+                        "type": "string",
+                        "format": "uri"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "url"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "type": {
+                        "type": "string",
+                        "const": "file"
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "type"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "answer": {
+                        "type": "string"
+                      },
+                      "question": {
+                        "type": "string"
+                      },
+                      "type": {
+                        "type": "string",
+                        "const": "qa"
+                      }
+                    },
+                    "required": [
+                      "answer",
+                      "question",
+                      "type"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "language": {
+          "default": "en",
+          "type": "string"
+        },
+        "models": {
+          "type": "object",
+          "properties": {
+            "llm": {
+              "type": "object",
+              "properties": {
+                "fallback": {
+                  "default": [],
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9-]+\\/(?:[\\w.:-]+\\/)?[\\w.:-]+$"
+                  }
+                },
+                "primary": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9-]+\\/(?:[\\w.:-]+\\/)?[\\w.:-]+$"
+                }
+              },
+              "required": [
+                "primary"
+              ]
+            },
+            "stt": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]+\\/(?:[\\w.:-]+\\/)?[\\w.:-]+$"
+            },
+            "tts": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]+\\/(?:[\\w.:-]+\\/)?[\\w.:-]+$"
+            }
+          },
+          "required": [
+            "llm",
+            "stt",
+            "tts"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "recording": {
+          "default": {},
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "default": false,
+              "type": "boolean"
+            },
+            "notice": {
+              "default": "This call may be recorded for quality and training purposes.",
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "tools": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "builtin": {
+                    "type": "string",
+                    "enum": [
+                      "business_hours",
+                      "capture_lead",
+                      "voicemail"
+                    ]
+                  }
+                },
+                "required": [
+                  "builtin"
+                ],
+                "additionalProperties": {}
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "builtin": {
+                    "type": "string",
+                    "const": "transfer_call"
+                  },
+                  "to": {
+                    "type": "string",
+                    "pattern": "^(\\+[1-9]\\d{6,14}|sips?:\\S+)$"
+                  }
+                },
+                "required": [
+                  "builtin",
+                  "to"
+                ],
+                "additionalProperties": {}
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "builtin": {
+                    "type": "string",
+                    "const": "book_appointment"
+                  },
+                  "provider": {
+                    "default": "answerline",
+                    "type": "string",
+                    "enum": [
+                      "answerline",
+                      "cal_com"
+                    ]
+                  },
+                  "slot_minutes": {
+                    "default": 30,
+                    "type": "integer",
+                    "minimum": 5,
+                    "maximum": 480
+                  }
+                },
+                "required": [
+                  "builtin"
+                ],
+                "additionalProperties": {}
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "http": {
+                    "type": "object",
+                    "properties": {
+                      "description": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "headers": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {
+                          "type": "string"
+                        }
+                      },
+                      "method": {
+                        "type": "string",
+                        "enum": [
+                          "GET",
+                          "POST",
+                          "PUT",
+                          "PATCH",
+                          "DELETE"
+                        ]
+                      },
+                      "name": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9_]*$"
+                      },
+                      "url": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "description",
+                      "method",
+                      "name",
+                      "url"
+                    ]
+                  }
+                },
+                "required": [
+                  "http"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "mcp": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "url": {
+                        "type": "string",
+                        "format": "uri"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "url"
+                    ]
+                  }
+                },
+                "required": [
+                  "mcp"
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "required": [
+        "greeting",
+        "instructions",
+        "models",
+        "name"
+      ]
+    },
+    "context": {
+      "type": "object",
+      "properties": {
+        "agentSlug": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+        },
+        "tenantSlug": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+        }
+      },
+      "required": [
+        "agentSlug",
+        "tenantSlug"
+      ]
+    },
+    "liveTools": {
+      "default": false,
+      "type": "boolean"
+    },
+    "mode": {
+      "default": "text",
+      "type": "string",
+      "enum": [
+        "text",
+        "audio"
+      ]
+    },
+    "modelOverride": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+\\/(?:[\\w.:-]+\\/)?[\\w.:-]+$"
+    },
+    "suite": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "caller": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            ]
+          },
+          "expect": {
+            "type": "object",
+            "properties": {
+              "judge": {
+                "type": "string"
+              },
+              "mentions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "not_mentions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "tool_args": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/$defs/__schema0"
+                  }
+                }
+              },
+              "tool_called": {
+                "type": "string"
+              }
+            }
+          },
+          "mocks": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "$ref": "#/$defs/__schema1"
+            }
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "caller",
+          "expect",
+          "name"
+        ]
+      }
+    }
+  },
+  "required": [
+    "agent",
+    "suite"
+  ],
+  "$defs": {
+    "__schema0": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema0"
+          }
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema0"
+          }
+        }
+      ]
+    },
+    "__schema1": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema1"
+          }
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema1"
+          }
+        }
+      ]
+    }
+  }
+}

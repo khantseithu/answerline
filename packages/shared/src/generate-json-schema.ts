@@ -2,10 +2,22 @@ import { writeFile } from "node:fs/promises";
 import { z } from "zod";
 import { agentConfigSchema } from "./agent-config.ts";
 import { callEventJob } from "./call-events.ts";
+import {
+  evalExecutionInputSchema,
+  evalExecutionOutputSchema,
+  evalJobSchema,
+  evalRunCreateSchema,
+  evalSuiteSchema,
+} from "./eval-suite.ts";
 
 const schemas = {
   "agent-config": agentConfigSchema,
   "call-event": callEventJob,
+  "eval-execution-input": evalExecutionInputSchema,
+  "eval-execution-output": evalExecutionOutputSchema,
+  "eval-job": evalJobSchema,
+  "eval-run-create": evalRunCreateSchema,
+  "eval-suite": evalSuiteSchema,
 } as const;
 
 export type SchemaName = keyof typeof schemas;

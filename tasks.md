@@ -170,6 +170,7 @@ Roadmap: *Dashboard: calls, transcripts, cost per call*
 Roadmap: *Evals runner*
 
 - [ ] Text-mode eval harness: run the agent's LLM + tools against scripted caller turns without audio (LiveKit Agents testing utilities)
+- [x] Shared eval execution contracts and run input snapshots for CLI, worker, harness, and dashboard (#260)
 - [ ] Multi-turn scripts (array of caller turns), mocked tools by default with opt-in live tools
 - [ ] Assertions: `tool_called`, `tool_args`, `mentions`, `not_mentions`, `judge` (LLM-as-judge with rubric)
 - [ ] Metrics per run: pass rate, latency, cost; per-case result with transcript

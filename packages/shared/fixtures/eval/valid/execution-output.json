@@ -1,0 +1,27 @@
+{
+  "aggregate": {
+    "avgLatencyMs": null,
+    "costUsd": null,
+    "passed": 0,
+    "total": 1
+  },
+  "results": [
+    {
+      "caseName": "hello",
+      "costUsd": null,
+      "failures": ["judge failed"],
+      "latencyMs": null,
+      "modelUsage": [
+        {
+          "model": "gpt-4.1-mini",
+          "provider": "openai",
+          "quantity": 10,
+          "stage": "llm",
+          "unit": "input_tokens"
+        }
+      ],
+      "passed": false,
+      "transcript": [{ "role": "caller", "text": "Hi" }]
+    }
+  ]
+}

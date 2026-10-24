@@ -1,7 +1,7 @@
 import { parse } from "yaml";
 import { z } from "zod";
 
-const modelRef = z
+export const modelRefSchema = z
   .string()
   .regex(/^[a-z0-9-]+\/(?:[\w.:-]+\/)?[\w.:-]+$/, "expected provider/model");
 
@@ -78,11 +78,11 @@ export const agentConfigSchema = z.object({
   language: z.string().default("en"),
   models: z.object({
     llm: z.object({
-      fallback: z.array(modelRef).default([]),
-      primary: modelRef,
+      fallback: z.array(modelRefSchema).default([]),
+      primary: modelRefSchema,
     }),
-    stt: modelRef,
-    tts: modelRef,
+    stt: modelRefSchema,
+    tts: modelRefSchema,
   }),
   name: z.string().min(1),
   recording: recording.prefault({}),
