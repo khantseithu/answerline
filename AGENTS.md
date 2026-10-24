@@ -88,6 +88,7 @@ Parallel tasks run in [treehouse](https://github.com/kunchenguid/treehouse) work
 - Claude Code worktree isolation (`isolation: "worktree"`, `--worktree`) leases slots through the `WorktreeCreate`/`WorktreeRemove` hooks in `.claude/settings.json`. Slots start on a detached `HEAD` at `origin/main`: create your branch first. Subagent slots are not returned automatically; run `pnpm wt:gc` to return leased Claude slots with no uncommitted or unpushed work.
 - Return a slot (`treehouse return <path>` or `pnpm wt:gc`) before merging its PR: `gh pr merge --delete-branch` deletes the local branch and removes the worktree it is checked out in.
 - Split parallel work by area. Shared contracts (`packages/shared`) and schema changes land first in their own PR. If two PRs add migrations, the later one regenerates its migration after rebasing.
+- Delegate independent tasks with the Orca CLI: `orca agent launch --agent claude`. Prefer one agent per separate worktree (one issue each), let them run in parallel, then collect each agent's result (diff, checks run, PR link) and review it before merging. Don't delegate tasks that depend on each other's unmerged output.
 
 ## Git
 
