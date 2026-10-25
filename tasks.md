@@ -194,7 +194,7 @@ Roadmap: *Docker Compose and Coolify deploys*
 - [x] Production LiveKit config (keys, TURN, UDP port range, domain/TLS notes) (#93)
 - [ ] `.env.example` complete and documented
 - [x] Recording storage: Cloudflare R2 as the primary target, with an adapter for other S3-compatible providers ([#153](https://github.com/khantseithu/answerline/issues/153))
-- [ ] Images published to GHCR on tag (multi-arch)
+- [x] Images published to GHCR on tag (multi-arch) (#95)
 - [ ] `docs/deploy/docker.md`
 - [ ] Coolify template + `docs/deploy/coolify.md`
 - [ ] Backup/restore notes for Postgres and recordings
