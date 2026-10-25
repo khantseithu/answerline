@@ -25,6 +25,7 @@ const envSchema = embeddingEnvSchema.extend({
     }, "Expected a supported provider/model reference"),
   REDIS_PREFIX: z.string().min(1).default("bull"),
   REDIS_URL: z.url().default("redis://localhost:6379"),
+  WORKER_HEALTH_PORT: z.coerce.number().int().min(1).max(65_535).optional(),
 });
 
 export const parseEnv = (source: NodeJS.ProcessEnv) => envSchema.parse(source);

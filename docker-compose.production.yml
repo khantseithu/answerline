@@ -1,0 +1,249 @@
+x-app-environment: &app-environment
+  DATABASE_URL: postgres://answerline:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/answerline
+  REDIS_URL: redis://redis:6379
+  REDIS_PREFIX: bull
+  LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?Set LIVEKIT_API_KEY}
+  LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?Set LIVEKIT_API_SECRET}
+  LIVEKIT_URL: wss://${LIVEKIT_DOMAIN:?Set LIVEKIT_DOMAIN}
+  BETTER_AUTH_URL: https://${APP_DOMAIN:?Set APP_DOMAIN}
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET}
+  AGENTS_DIR: /app/agents
+  KNOWLEDGE_FILES_DIR: /app/.data/knowledge
+  S3_BUCKET: ${S3_BUCKET:?Set S3_BUCKET}
+  S3_REGION: ${S3_REGION:-auto}
+  S3_ACCESS_KEY: ${S3_ACCESS_KEY:?Set S3_ACCESS_KEY}
+  S3_SECRET_KEY: ${S3_SECRET_KEY:?Set S3_SECRET_KEY}
+
+x-healthcheck: &healthcheck
+  interval: 10s
+  timeout: 5s
+  retries: 12
+  start_period: 30s
+
+services:
+  migrate:
+    working_dir: /app/packages/db
+    image: ${ANSWERLINE_IMAGE_REGISTRY:-ghcr.io/khantseithu/answerline}/worker:${ANSWERLINE_VERSION:-latest}
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    env_file: ${ANSWERLINE_ENV_FILE:-.env.production}
+    environment:
+      <<: *app-environment
+      ADMIN_EMAIL: ${ADMIN_EMAIL:?Set ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD}
+    command:
+      - sh
+      - -c
+      - chown 1000:1000 /app/.data/knowledge && node --import tsx /app/packages/db/src/migrate.ts && node --import tsx /app/packages/db/src/seed.ts --preserve-existing && node --import tsx /app/packages/db/src/admin-init.ts
+    volumes:
+      - knowledge-data:/app/.data/knowledge
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: "no"
+
+  web:
+    image: ${ANSWERLINE_IMAGE_REGISTRY:-ghcr.io/khantseithu/answerline}/web:${ANSWERLINE_VERSION:-latest}
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    env_file: ${ANSWERLINE_ENV_FILE:-.env.production}
+    environment:
+      <<: *app-environment
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+    volumes:
+      - knowledge-data:/app/.data/knowledge
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+    restart: unless-stopped
+
+  worker:
+    image: ${ANSWERLINE_IMAGE_REGISTRY:-ghcr.io/khantseithu/answerline}/worker:${ANSWERLINE_VERSION:-latest}
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    env_file: ${ANSWERLINE_ENV_FILE:-.env.production}
+    environment:
+      <<: *app-environment
+      WORKER_HEALTH_PORT: 8080
+    volumes:
+      - knowledge-data:/app/.data/knowledge
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+    restart: unless-stopped
+
+  agent:
+    image: ${ANSWERLINE_IMAGE_REGISTRY:-ghcr.io/khantseithu/answerline}/agent:${ANSWERLINE_VERSION:-latest}
+    build:
+      context: .
+      dockerfile: apps/agent/Dockerfile
+    env_file: ${ANSWERLINE_ENV_FILE:-.env.production}
+    environment:
+      <<: *app-environment
+      LIVEKIT_URL: ws://livekit:7880
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      livekit:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "uv", "run", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8081/', timeout=3)"]
+    stop_grace_period: 20m
+    restart: unless-stopped
+
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: answerline
+      POSTGRES_DB: answerline
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD-SHELL", "pg_isready -U answerline -d answerline"]
+    restart: unless-stopped
+
+  redis:
+    image: redis:8-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "redis-cli", "ping"]
+    restart: unless-stopped
+
+  livekit:
+    image: livekit/livekit-server:latest
+    environment:
+      LIVEKIT_CONFIG: |
+        port: 7880
+        bind_addresses: [0.0.0.0]
+        rtc:
+          tcp_port: ${LIVEKIT_TCP_PORT:-7881}
+          port_range_start: ${LIVEKIT_RTC_PORT_START:-50000}
+          port_range_end: ${LIVEKIT_RTC_PORT_END:-50100}
+          use_external_ip: true
+          advertise_internal_ip: true
+        redis:
+          address: redis:6379
+        keys:
+          ${LIVEKIT_API_KEY:?Set LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET:?Set LIVEKIT_API_SECRET}
+        turn:
+          enabled: true
+          domain: ${TURN_DOMAIN:?Set TURN_DOMAIN}
+          udp_port: ${LIVEKIT_TURN_UDP_PORT:-3478}
+          tls_port: 443
+          external_tls: true
+        logging:
+          level: info
+    ports:
+      - "${LIVEKIT_TCP_PORT:-7881}:${LIVEKIT_TCP_PORT:-7881}"
+      - "${LIVEKIT_RTC_PORT_START:-50000}-${LIVEKIT_RTC_PORT_END:-50100}:${LIVEKIT_RTC_PORT_START:-50000}-${LIVEKIT_RTC_PORT_END:-50100}/udp"
+      - "${LIVEKIT_TURN_UDP_PORT:-3478}:${LIVEKIT_TURN_UDP_PORT:-3478}/udp"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:7880/"]
+    restart: unless-stopped
+
+  sip:
+    image: livekit/sip:latest
+    entrypoint: ["livekit-sip"]
+    environment:
+      SIP_CONFIG_BODY: |
+        log_level: info
+        api_key: ${LIVEKIT_API_KEY:?Set LIVEKIT_API_KEY}
+        api_secret: ${LIVEKIT_API_SECRET:?Set LIVEKIT_API_SECRET}
+        ws_url: ws://livekit:7880
+        redis:
+          address: redis:6379
+        sip_port: ${SIP_PORT:-5060}
+        rtp_port: ${SIP_RTP_PORT_START:-10000}-${SIP_RTP_PORT_END:-10100}
+        nat_1_to_1_ip: "${SIP_PUBLIC_IP:?Set SIP_PUBLIC_IP}"
+        health_port: 8080
+    ports:
+      - "${SIP_PORT:-5060}:${SIP_PORT:-5060}/udp"
+      - "${SIP_PORT:-5060}:${SIP_PORT:-5060}/tcp"
+      - "${SIP_RTP_PORT_START:-10000}-${SIP_RTP_PORT_END:-10100}:${SIP_RTP_PORT_START:-10000}-${SIP_RTP_PORT_END:-10100}/udp"
+    depends_on:
+      livekit:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET / HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q ' 200 ' <&3"]
+    restart: unless-stopped
+
+  egress:
+    image: livekit/egress:latest
+    environment:
+      EGRESS_CONFIG_BODY: |
+        log_level: info
+        api_key: ${LIVEKIT_API_KEY:?Set LIVEKIT_API_KEY}
+        api_secret: ${LIVEKIT_API_SECRET:?Set LIVEKIT_API_SECRET}
+        ws_url: ws://livekit:7880
+        insecure: true
+        redis:
+          address: redis:6379
+        health_port: 8080
+        storage:
+          s3:
+            access_key: ${S3_ACCESS_KEY:?Set S3_ACCESS_KEY}
+            secret: ${S3_SECRET_KEY:?Set S3_SECRET_KEY}
+            region: ${S3_REGION:-auto}
+            endpoint: ${S3_EGRESS_ENDPOINT:?Set S3_EGRESS_ENDPOINT}
+            bucket: ${S3_BUCKET:?Set S3_BUCKET}
+            force_path_style: true
+    shm_size: 1gb
+    depends_on:
+      livekit:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8080/"]
+    restart: unless-stopped
+
+  caddy:
+    image: livekit/caddyl4:latest
+    command: run --config /etc/caddy/production.yaml --adapter yaml
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?Set APP_DOMAIN}
+      LIVEKIT_DOMAIN: ${LIVEKIT_DOMAIN:?Set LIVEKIT_DOMAIN}
+      TURN_DOMAIN: ${TURN_DOMAIN:?Set TURN_DOMAIN}
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - ./infra/caddy/production.yaml:/etc/caddy/production.yaml:ro
+      - caddy-data:/data
+    depends_on:
+      web:
+        condition: service_healthy
+      livekit:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:2019/config/"]
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  redis-data:
+  knowledge-data:
+  caddy-data:

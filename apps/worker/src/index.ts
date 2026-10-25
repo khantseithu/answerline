@@ -1,3 +1,4 @@
+import { createServer } from "node:http";
 import { createDb } from "@answerline/db";
 import { type PostCallJob, QUEUES } from "@answerline/shared";
 import { type Job, Queue, Worker } from "bullmq";
@@ -41,7 +42,16 @@ const workers = Object.entries(handlers).map(
 
 console.log(`worker listening on queues: ${Object.keys(handlers).join(", ")}`);
 
+const healthServer = env.WORKER_HEALTH_PORT
+  ? createServer((_request, response) => {
+      const ready = connection.status === "ready" && workers.every((worker) => worker.isRunning());
+      response.writeHead(ready ? 200 : 503);
+      response.end(ready ? "OK" : "Not ready");
+    }).listen(env.WORKER_HEALTH_PORT, "0.0.0.0")
+  : undefined;
+
 async function shutdown() {
+  healthServer?.close();
   await Promise.all(workers.map((w) => w.close()));
   await postCallQueue.close();
   await connection.quit();

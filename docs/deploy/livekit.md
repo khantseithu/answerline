@@ -4,6 +4,36 @@ Use this guide to configure LiveKit for Answerline web and SIP calls. The root
 Compose file currently starts LiveKit in development mode. This configuration
 is a production template; it does not change that development service.
 
+## Use the bundled production stack
+
+`docker-compose.production.yml` runs the web, worker, agent, Postgres, Redis,
+LiveKit, SIP, Egress, and Caddy together. Copy `.env.production.example` to
+`.env.production` and fill every required value. Generate the Postgres password,
+LiveKit key/secret, and auth secret with `openssl rand -hex 32`; hex passwords
+also avoid URL-encoding issues in the database URL. Set a separate administrator
+password of at least 12 characters and your model provider keys.
+
+Point `APP_DOMAIN`, `LIVEKIT_DOMAIN`, and `TURN_DOMAIN` at the VPS, set
+`SIP_PUBLIC_IP` to its public IPv4 address, and configure external recording
+storage as described in [recording storage](recordings.md). Keep public TCP
+ports 80 and 443 available for Caddy. Open the RTC, TURN UDP, SIP, and RTP ports
+listed below in the host and cloud firewalls.
+
+```sh
+docker compose --env-file .env.production -f docker-compose.production.yml up -d --build --wait
+```
+
+The `migrate` service applies migrations, creates missing default agents without
+overwriting edits, and initializes the first administrator before web and worker
+start. Persistent volumes hold the database, Redis state, knowledge files, and
+Caddy certificates. The production stack has no MinIO service.
+
+Caddy obtains and renews certificates and routes the three domains on TCP 443.
+It terminates TURN TLS and forwards private TCP traffic to LiveKit. This stack
+generates LiveKit configuration from the deployment environment; it does not use
+`infra/livekit/livekit.yaml` or require manually mounted TURN certificates.
+The remaining configuration steps describe a separately managed LiveKit server.
+
 ## Prepare domains and certificates
 
 1. Create DNS records for `livekit.example.com` and `turn.example.com` that point

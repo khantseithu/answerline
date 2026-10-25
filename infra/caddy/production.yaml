@@ -1,0 +1,57 @@
+logging:
+  logs:
+    default:
+      level: INFO
+storage:
+  module: file_system
+  root: /data
+apps:
+  http:
+    servers:
+      redirect:
+        listen: [":80"]
+        routes:
+          - handle:
+              - handler: static_response
+                status_code: 308
+                headers:
+                  Location: ["https://{http.request.host}{http.request.uri}"]
+  tls:
+    certificates:
+      automate:
+        - "{env.APP_DOMAIN}"
+        - "{env.LIVEKIT_DOMAIN}"
+        - "{env.TURN_DOMAIN}"
+  layer4:
+    servers:
+      main:
+        listen: [":443"]
+        routes:
+          - match:
+              - tls:
+                  sni: ["{env.TURN_DOMAIN}"]
+            handle:
+              - handler: tls
+              - handler: proxy
+                upstreams:
+                  - dial: ["livekit:443"]
+          - match:
+              - tls:
+                  sni: ["{env.LIVEKIT_DOMAIN}"]
+            handle:
+              - handler: tls
+                connection_policies:
+                  - alpn: ["http/1.1"]
+              - handler: proxy
+                upstreams:
+                  - dial: ["livekit:7880"]
+          - match:
+              - tls:
+                  sni: ["{env.APP_DOMAIN}"]
+            handle:
+              - handler: tls
+                connection_policies:
+                  - alpn: ["http/1.1"]
+              - handler: proxy
+                upstreams:
+                  - dial: ["web:3000"]
