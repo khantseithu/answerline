@@ -8,7 +8,8 @@ is a production template; it does not change that development service.
 
 `docker-compose.production.yml` runs the web, worker, agent, Postgres, Redis,
 LiveKit, SIP, Egress, and Caddy together. Copy `.env.production.example` to
-`.env.production` and fill every required value. Generate the Postgres password,
+`.env.production` and fill every required value using the
+[environment reference](environment.md). Generate the Postgres password,
 LiveKit key/secret, and auth secret with `openssl rand -hex 32`; hex passwords
 also avoid URL-encoding issues in the database URL. Set a separate administrator
 password of at least 12 characters and your model provider keys.
