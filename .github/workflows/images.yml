@@ -1,0 +1,146 @@
+name: Images
+
+on:
+  push:
+    tags: ["*"]
+
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    if: ${{ !github.event.deleted }}
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [web, worker, agent]
+        architecture: [amd64, arm64]
+        include:
+          - architecture: amd64
+            runner: ubuntu-latest
+          - architecture: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set image name
+        env:
+          IMAGE: ${{ matrix.image }}
+        run: echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}/${IMAGE}" >> "$GITHUB_ENV"
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/metadata-action@v6
+        id: metadata
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value={{tag}}
+            type=semver,pattern={{version}}
+            type=sha
+      - uses: docker/build-push-action@v7
+        id: build
+        with:
+          context: .
+          file: apps/${{ matrix.image }}/Dockerfile
+          platforms: linux/${{ matrix.architecture }}
+          labels: ${{ steps.metadata.outputs.labels }}
+          outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=${{ matrix.image }}-${{ matrix.architecture }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}-${{ matrix.architecture }}
+      - name: Smoke-test native image
+        env:
+          IMAGE: ${{ matrix.image }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          ref="$IMAGE_NAME@$DIGEST"
+          docker pull "$ref"
+          case "$IMAGE" in
+            web)
+              container=$(docker run -d --network none "$ref")
+              trap 'docker rm -f "$container"' EXIT
+              for attempt in {1..30}; do
+                if docker exec "$container" node -e "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"; then
+                  exit 0
+                fi
+                sleep 1
+              done
+              docker logs "$container"
+              exit 1
+              ;;
+            worker)
+              docker run --rm --network none --workdir /app/apps/worker "$ref" node --import tsx --input-type=module -e "await import('./src/evals.ts'); await import('./src/ingestion.ts')"
+              docker run --rm --network none "$ref" uv run python -c 'import answerline_agent.eval_runner'
+              ;;
+            agent) docker run --rm --network none --entrypoint uv "$ref" run python -c 'from livekit.local_inference import init_eot; from livekit.plugins import silero; silero.VAD.load(); init_eot()' ;;
+          esac
+      - name: Export digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/digests"
+          touch "$RUNNER_TEMP/digests/${DIGEST#sha256:}"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: digests-${{ matrix.image }}-${{ matrix.architecture }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        image: [web, worker, agent]
+    steps:
+      - name: Set image name
+        env:
+          IMAGE: ${{ matrix.image }}
+        run: echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}/${IMAGE}" >> "$GITHUB_ENV"
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: digests-${{ matrix.image }}-*
+          path: ${{ runner.temp }}/digests
+          merge-multiple: true
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/metadata-action@v6
+        id: metadata
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value={{tag}}
+            type=semver,pattern={{version}}
+            type=sha
+      - name: Publish and verify multi-architecture manifest
+        env:
+          TAGS: ${{ steps.metadata.outputs.tags }}
+        run: |
+          set -euo pipefail
+          mapfile -t tags <<< "$TAGS"
+          tag_args=()
+          for tag in "${tags[@]}"; do
+            tag_args+=(-t "$tag")
+          done
+          sources=()
+          for file in "$RUNNER_TEMP/digests/"*; do
+            sources+=("$IMAGE_NAME@sha256:$(basename "$file")")
+          done
+          test "${#sources[@]}" -eq 2
+          docker buildx imagetools create "${tag_args[@]}" "${sources[@]}"
+          docker buildx imagetools inspect "${tags[0]}" --raw > "$RUNNER_TEMP/manifest.json"
+          jq -e '[.manifests[].platform | select(.os == "linux") | .architecture] | sort == ["amd64", "arm64"]' "$RUNNER_TEMP/manifest.json"
