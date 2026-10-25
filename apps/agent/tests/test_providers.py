@@ -2,11 +2,13 @@ import asyncio
 import json
 
 import httpx
+import httpx2
 import openai
 import pytest
 from answerline_agent.config import LLMModels, Models
 from answerline_agent.providers import build_embedder, build_llm_chain
 from livekit.agents import llm
+from pydantic import ValidationError
 
 STT = "deepgram/nova-3"
 TTS = "cartesia/sonic-3"
@@ -101,3 +103,60 @@ def test_build_embedder_embeds_gemini_embedding_2_input_as_a_query(monkeypatch):
 
     asyncio.run(scenario())
     assert texts == ["task: search result | query: hours"]
+
+
+@pytest.mark.parametrize(
+    ("endpoint", "expected_url"),
+    [
+        (None, "http://localhost:11434/v1/chat/completions"),
+        ("http://ollama.internal:11434", "http://ollama.internal:11434/v1/chat/completions"),
+        ("http://ollama.internal:11434/", "http://ollama.internal:11434/v1/chat/completions"),
+        ("http://ollama.internal:11434/v1", "http://ollama.internal:11434/v1/chat/completions"),
+        ("http://ollama.internal:11434/v1/", "http://ollama.internal:11434/v1/chat/completions"),
+    ],
+)
+def test_ollama_chat_uses_configured_endpoint(monkeypatch, endpoint, expected_url):
+    if endpoint is None:
+        monkeypatch.delenv("OLLAMA_BASE_URL", raising=False)
+    else:
+        monkeypatch.setenv("OLLAMA_BASE_URL", endpoint)
+    requests = []
+
+    async def respond(_transport, request):
+        requests.append(str(request.url))
+        chunk = {
+            "id": "test",
+            "object": "chat.completion.chunk",
+            "created": 0,
+            "model": "qwen3",
+            "choices": [{"index": 0, "delta": {"content": "Hello"}, "finish_reason": "stop"}],
+        }
+        return httpx2.Response(
+            200,
+            headers={"content-type": "text/event-stream"},
+            content=f"data: {json.dumps(chunk)}\n\ndata: [DONE]\n\n",
+            request=request,
+        )
+
+    monkeypatch.setattr(httpx2.AsyncHTTPTransport, "handle_async_request", respond)
+
+    async def scenario():
+        model = build_llm_chain(models("ollama/qwen3", []))
+        context = llm.ChatContext()
+        context.add_message(role="user", content="Hello")
+        try:
+            async with model.chat(chat_ctx=context) as stream:
+                async for _chunk in stream:
+                    pass
+        finally:
+            await model.aclose()
+
+    asyncio.run(scenario())
+    assert requests == [expected_url]
+
+
+@pytest.mark.parametrize("endpoint", ["invalid", "ftp://ollama.internal:11434"])
+def test_ollama_rejects_invalid_endpoint_before_chat(monkeypatch, endpoint):
+    monkeypatch.setenv("OLLAMA_BASE_URL", endpoint)
+    with pytest.raises(ValidationError):
+        build_llm_chain(models("ollama/qwen3", []))

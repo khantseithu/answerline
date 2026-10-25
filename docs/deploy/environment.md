@@ -118,7 +118,7 @@ connectivity alone does not prove audio works. See [LiveKit setup](livekit.md).
 | `DEEPSEEK_API_KEY` | DeepSeek LLM key when selected. |
 | `OPENROUTER_API_KEY` | OpenRouter LLM key when selected. |
 | `EMBEDDING_MODEL` | Provider/model reference, default `google/gemini-embedding-2`. Supported embedding providers: Google, OpenAI, Ollama. Keep ingestion and retrieval on the same embedding model; reingest after changing it. |
-| `OLLAMA_BASE_URL` | Ollama endpoint for embeddings and worker post-call analysis, default `http://localhost:11434`. A host's localhost is not the agent/worker container's localhost. Live-call LLM endpoint wiring is tracked in [#279](https://github.com/khantseithu/answerline/issues/279). |
+| `OLLAMA_BASE_URL` | Ollama service endpoint for live-call LLMs, embeddings, and worker post-call analysis, default `http://localhost:11434`. Use the service root without `/v1` when sharing it with embeddings. A host's localhost is not the agent/worker container's localhost. |
 | `POST_CALL_MODEL` | Optional provider/model override for summaries, outcome, and sentiment. If omitted, the worker uses the agent's LLM primary/fallback chain. |
 | `COST_PRICES_JSON` | Optional JSON array of price overrides with `stage`, `provider`, `model`, `unit`, and `unitPriceUsd`. The example file shows the format. |
 

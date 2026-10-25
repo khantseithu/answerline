@@ -1,9 +1,11 @@
 import logging
+import os
 
 import httpx
 from answerline_llm import EmbeddingProvider, EmbeddingSettings, parse_model_ref
 from livekit.agents import llm, stt, tts
 from livekit.plugins import anthropic, cartesia, deepgram, google, openai
+from pydantic import HttpUrl
 
 from .config import Models
 
@@ -36,7 +38,12 @@ def build_llm(ref: str) -> llm.LLM:
         case "deepseek":
             return openai.LLM.with_deepseek(model=m.model)
         case "ollama":
-            return openai.LLM.with_ollama(model=m.model)
+            base_url = str(HttpUrl(os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"))).rstrip(
+                "/"
+            )
+            if not base_url.endswith("/v1"):
+                base_url = f"{base_url}/v1"
+            return openai.LLM.with_ollama(model=m.model, base_url=base_url)
         case "openrouter":
             return openai.LLM.with_openrouter(model=m.model)
     raise ValueError(f"Unsupported LLM provider: {ref}")
