@@ -95,14 +95,24 @@ async function resolveRef(db: Database, event: CallEventJob, options: PersistOpt
   return { agentId, tenantId } satisfies Ref;
 }
 
-async function ensureCallId(db: Database, event: CallEventJob, ref: Ref, startedAt: Date) {
+async function ensureCallId(
+  db: Database,
+  event: CallEventJob,
+  ref: Ref,
+  startedAt: Date,
+  label: string = event.type
+) {
   const [row] = await db
     .insert(calls)
     .values({ ...ref, channel: "web", roomName: event.room_name, startedAt })
-    .onConflictDoUpdate({ set: { roomName: event.room_name }, target: calls.roomName })
+    .onConflictDoUpdate({
+      set: { roomName: event.room_name },
+      setWhere: and(eq(calls.tenantId, ref.tenantId), eq(calls.agentId, ref.agentId)),
+      target: calls.roomName,
+    })
     .returning({ id: calls.id });
   if (!row) {
-    throw new Error(`call "${event.room_name}" could not be resolved`);
+    throw new Error(`${label} call reference does not match the tenant and agent`);
   }
   return row.id;
 }
@@ -217,10 +227,14 @@ async function handleEnded(
       roomName: event.room_name,
       startedAt: new Date(endedAt.getTime() - event.duration_ms),
     })
-    .onConflictDoUpdate({ set: fields, target: calls.roomName })
+    .onConflictDoUpdate({
+      set: fields,
+      setWhere: and(eq(calls.tenantId, ref.tenantId), eq(calls.agentId, ref.agentId)),
+      target: calls.roomName,
+    })
     .returning({ id: calls.id });
   if (!call) {
-    throw new Error(`call "${event.room_name}" could not be resolved`);
+    throw new Error("call.ended call reference does not match the tenant and agent");
   }
   if (options.postCallQueue) {
     await options.postCallQueue.add(
@@ -238,31 +252,13 @@ async function handleEnded(
   }
 }
 
-async function ensureScopedCallId(
-  db: Database,
-  event: CallEventJob,
-  ref: Ref,
-  createdAt: Date,
-  label: string
-) {
-  const callId = await ensureCallId(db, event, ref, createdAt);
-  const [call] = await db
-    .select({ agentId: calls.agentId, tenantId: calls.tenantId })
-    .from(calls)
-    .where(eq(calls.id, callId));
-  if (call?.agentId !== ref.agentId || call.tenantId !== ref.tenantId) {
-    throw new Error(`${label} call reference does not match the tenant and agent`);
-  }
-  return callId;
-}
-
 async function handleVoicemail(
   db: Database,
   event: Extract<CallEventJob, { type: "voicemail.created" }>,
   ref: Ref
 ) {
   const createdAt = new Date(event.created_at);
-  const callId = await ensureScopedCallId(db, event, ref, createdAt, "voicemail");
+  const callId = await ensureCallId(db, event, ref, createdAt, "voicemail");
   await db
     .insert(voicemails)
     .values({
@@ -283,7 +279,7 @@ async function handleLead(
   ref: Ref
 ) {
   const createdAt = new Date(event.created_at);
-  const callId = await ensureScopedCallId(db, event, ref, createdAt, "lead");
+  const callId = await ensureCallId(db, event, ref, createdAt, "lead");
   await db
     .insert(leads)
     .values({

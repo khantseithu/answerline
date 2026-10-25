@@ -10,8 +10,10 @@ import {
   toolCalls,
   voicemails,
 } from "@answerline/db";
-import type { CallEventJob } from "@answerline/shared";
+import { type CallEventJob, type PostCallJob, QUEUES } from "@answerline/shared";
+import { Queue } from "bullmq";
 import { asc, eq } from "drizzle-orm";
+import { Redis } from "ioredis";
 import { persistCallEvent } from "./call-events.ts";
 
 const skip = process.env.DATABASE_URL ? false : "DATABASE_URL not set";
@@ -19,6 +21,7 @@ const AGENT = "bright-smile-dental";
 const LEAD_SCOPE_MISMATCH = /lead call reference does not match/;
 const VOICEMAIL_SCOPE_MISMATCH = /voicemail call reference does not match/;
 const START_SCOPE_MISMATCH = /call.started call reference does not match/;
+const CALL_SCOPE_MISMATCH = /call reference does not match the tenant and agent/;
 const MISSING_YAML = /agents\/no-such-agent\.yaml does not exist/;
 
 type EventOf<T extends CallEventJob["type"]> = Extract<CallEventJob, { type: T }>;
@@ -522,6 +525,103 @@ test("voicemail.created cannot attach a voicemail to another agent's call", { sk
     );
     assert.deepEqual(await db.select().from(voicemails).where(eq(voicemails.callId, call.id)), []);
   })
+);
+
+for (const scope of ["tenant", "agent"]) {
+  for (const type of ["call.turn", "call.tool", "call.ended"]) {
+    test(`${type} rejects a room owned by another ${scope}`, { skip }, () =>
+      withTenant(async ({ base, started, ended, turn, tool }, db) => {
+        await persistInOrder(db, [started, turn(0), tool(0)]);
+        const before = await getCall(db, base.room_name);
+        const beforeTurns = await getTurns(db, before.id);
+        const beforeTools = await getToolCalls(db, before.id);
+        const otherTenant = `other-${crypto.randomUUID()}`;
+        const [agent] = await db.select().from(agents).where(eq(agents.id, before.agentId));
+        assert.ok(agent);
+        if (scope === "agent") {
+          await db.insert(agents).values({
+            config: agent.config,
+            name: agent.name,
+            slug: "another-agent",
+            tenantId: agent.tenantId,
+          });
+        }
+        const event = [turn(1), tool(1), ended].find((candidate) => candidate.type === type);
+        assert.ok(event);
+        try {
+          await assert.rejects(
+            persistCallEvent(db, {
+              ...event,
+              ...(scope === "tenant" ? { tenant: otherTenant } : { agent: "another-agent" }),
+            }),
+            CALL_SCOPE_MISMATCH
+          );
+          assert.deepEqual(await getCall(db, base.room_name), before);
+          assert.deepEqual(await getTurns(db, before.id), beforeTurns);
+          assert.deepEqual(await getToolCalls(db, before.id), beforeTools);
+          await persistInOrder(db, [event, event]);
+          assert.equal((await getTurns(db, before.id)).length, type === "call.turn" ? 2 : 1);
+          assert.equal((await getToolCalls(db, before.id)).length, type === "call.tool" ? 2 : 1);
+          assert.equal(
+            (await getCall(db, base.room_name)).status,
+            type === "call.ended" ? "completed" : "in_progress"
+          );
+        } finally {
+          await db.delete(tenants).where(eq(tenants.slug, otherTenant));
+        }
+      })
+    );
+  }
+}
+
+test(
+  "rejected call.ended ownership does not enqueue post-call work",
+  {
+    skip:
+      process.env.DATABASE_URL && process.env.REDIS_URL
+        ? false
+        : "DATABASE_URL or REDIS_URL not set",
+  },
+  () =>
+    withTenant(async ({ base, started, ended, id }, db) => {
+      const redisUrl = process.env.REDIS_URL;
+      assert.ok(redisUrl);
+      const connection = new Redis(redisUrl, { maxRetriesPerRequest: null });
+      const queue = new Queue<PostCallJob>(QUEUES.postCall, {
+        connection,
+        prefix: `ownership-${id}`,
+      });
+      const otherTenant = `other-${crypto.randomUUID()}`;
+      try {
+        await persistCallEvent(db, started);
+        const before = await getCall(db, base.room_name);
+        const [agent] = await db.select().from(agents).where(eq(agents.id, before.agentId));
+        assert.ok(agent);
+        await db.insert(agents).values({
+          config: agent.config,
+          name: agent.name,
+          slug: "another-agent",
+          tenantId: agent.tenantId,
+        });
+        await Promise.all(
+          [{ tenant: otherTenant }, { agent: "another-agent" }].map((identity) =>
+            assert.rejects(
+              persistCallEvent(db, { ...ended, ...identity }, { postCallQueue: queue }),
+              CALL_SCOPE_MISMATCH
+            )
+          )
+        );
+        assert.equal(await queue.count(), 0);
+        assert.deepEqual(await getCall(db, base.room_name), before);
+        await persistCallEvent(db, ended, { postCallQueue: queue });
+        assert.equal(await queue.count(), 1);
+      } finally {
+        await queue.obliterate({ force: true });
+        await queue.close();
+        await connection.quit();
+        await db.delete(tenants).where(eq(tenants.slug, otherTenant));
+      }
+    })
 );
 
 for (const scope of ["tenant", "agent"]) {
