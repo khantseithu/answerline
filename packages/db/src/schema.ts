@@ -11,6 +11,7 @@ import {
   boolean,
   check,
   customType,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -19,6 +20,7 @@ import {
   pgTable,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
   vector,
@@ -183,7 +185,7 @@ export const agents = pgTable(
     updatedAt: updatedAt(),
     version: integer().notNull().default(1),
   },
-  (t) => [uniqueIndex().on(t.tenantId, t.slug)]
+  (t) => [uniqueIndex().on(t.tenantId, t.slug), unique().on(t.tenantId, t.id)]
 );
 
 export const agentVersions = pgTable(
@@ -203,9 +205,7 @@ export const agentVersions = pgTable(
 export const calls = pgTable(
   "calls",
   {
-    agentId: uuid()
-      .notNull()
-      .references(() => agents.id, { onDelete: "cascade" }),
+    agentId: uuid().notNull(),
     channel: callChannel().notNull(),
     costBreakdown: jsonb().$type<CostLine[]>(),
     costUsd: numeric({ precision: 12, scale: 6 }),
@@ -228,7 +228,15 @@ export const calls = pgTable(
     toNumber: text(),
     usage: jsonb().$type<Record<string, number>>(),
   },
-  (t) => [index().on(t.tenantId, t.startedAt), index().on(t.agentId, t.startedAt)]
+  (t) => [
+    index().on(t.tenantId, t.startedAt),
+    index().on(t.agentId, t.startedAt),
+    foreignKey({
+      columns: [t.tenantId, t.agentId],
+      foreignColumns: [agents.tenantId, agents.id],
+    }).onDelete("cascade"),
+    unique().on(t.tenantId, t.agentId, t.id),
+  ]
 );
 
 export const callTurns = pgTable(
@@ -271,7 +279,7 @@ export const toolCalls = pgTable(
 export const knowledgeSources = pgTable(
   "knowledge_sources",
   {
-    agentId: uuid().references(() => agents.id, { onDelete: "cascade" }),
+    agentId: uuid(),
     content: jsonb().$type<string | QuestionAnswerPairs>(),
     contentHash: text(),
     createdAt: createdAt(),
@@ -285,7 +293,15 @@ export const knowledgeSources = pgTable(
     updatedAt: updatedAt(),
     uri: text(),
   },
-  (t) => [index().on(t.tenantId), index().on(t.agentId)]
+  (t) => [
+    index().on(t.tenantId),
+    index().on(t.agentId),
+    foreignKey({
+      columns: [t.tenantId, t.agentId],
+      foreignColumns: [agents.tenantId, agents.id],
+    }).onDelete("cascade"),
+    unique().on(t.tenantId, t.id),
+  ]
 );
 
 export const knowledgeChunks = pgTable(
@@ -298,12 +314,14 @@ export const knowledgeChunks = pgTable(
     metadata: jsonb().$type<Record<string, unknown>>(),
     search: tsvector().generatedAlwaysAs(sql`to_tsvector('simple', content)`),
     seq: integer().notNull(),
-    sourceId: uuid()
-      .notNull()
-      .references(() => knowledgeSources.id, { onDelete: "cascade" }),
+    sourceId: uuid().notNull(),
     tenantId: tenantId(),
   },
   (t) => [
+    foreignKey({
+      columns: [t.tenantId, t.sourceId],
+      foreignColumns: [knowledgeSources.tenantId, knowledgeSources.id],
+    }).onDelete("cascade"),
     index().on(t.sourceId),
     index("knowledge_chunks_embedding_idx").using("hnsw", t.embedding.op("vector_cosine_ops")),
     index("knowledge_chunks_search_idx").using("gin", t.search),
@@ -313,9 +331,7 @@ export const knowledgeChunks = pgTable(
 export const bookings = pgTable(
   "bookings",
   {
-    agentId: uuid()
-      .notNull()
-      .references(() => agents.id, { onDelete: "cascade" }),
+    agentId: uuid().notNull(),
     callId: uuid().references(() => calls.id, { onDelete: "set null" }),
     createdAt: createdAt(),
     email: text(),
@@ -330,18 +346,24 @@ export const bookings = pgTable(
     status: bookingStatus().notNull().default("confirmed"),
     tenantId: tenantId(),
   },
-  (t) => [index().on(t.tenantId, t.startsAt)]
+  (t) => [
+    index().on(t.tenantId, t.startsAt),
+    foreignKey({
+      columns: [t.tenantId, t.agentId],
+      foreignColumns: [agents.tenantId, agents.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [t.tenantId, t.agentId, t.callId],
+      foreignColumns: [calls.tenantId, calls.agentId, calls.id],
+    }),
+  ]
 );
 
 export const leads = pgTable(
   "leads",
   {
-    agentId: uuid()
-      .notNull()
-      .references(() => agents.id, { onDelete: "cascade" }),
-    callId: uuid()
-      .notNull()
-      .references(() => calls.id, { onDelete: "cascade" }),
+    agentId: uuid().notNull(),
+    callId: uuid().notNull(),
     createdAt: createdAt(),
     id: id(),
     name: text().notNull(),
@@ -349,18 +371,24 @@ export const leads = pgTable(
     reason: text().notNull(),
     tenantId: tenantId(),
   },
-  (t) => [index().on(t.tenantId, t.createdAt)]
+  (t) => [
+    index().on(t.tenantId, t.createdAt),
+    foreignKey({
+      columns: [t.tenantId, t.agentId],
+      foreignColumns: [agents.tenantId, agents.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [t.tenantId, t.agentId, t.callId],
+      foreignColumns: [calls.tenantId, calls.agentId, calls.id],
+    }).onDelete("cascade"),
+  ]
 );
 
 export const voicemails = pgTable(
   "voicemails",
   {
-    agentId: uuid()
-      .notNull()
-      .references(() => agents.id, { onDelete: "cascade" }),
-    callId: uuid()
-      .notNull()
-      .references(() => calls.id, { onDelete: "cascade" }),
+    agentId: uuid().notNull(),
+    callId: uuid().notNull(),
     createdAt: createdAt(),
     id: id(),
     message: text().notNull(),
@@ -368,15 +396,23 @@ export const voicemails = pgTable(
     phone: text(),
     tenantId: tenantId(),
   },
-  (t) => [index().on(t.tenantId, t.createdAt)]
+  (t) => [
+    index().on(t.tenantId, t.createdAt),
+    foreignKey({
+      columns: [t.tenantId, t.agentId],
+      foreignColumns: [agents.tenantId, agents.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [t.tenantId, t.agentId, t.callId],
+      foreignColumns: [calls.tenantId, calls.agentId, calls.id],
+    }).onDelete("cascade"),
+  ]
 );
 
 export const evalRuns = pgTable(
   "eval_runs",
   {
-    agentId: uuid()
-      .notNull()
-      .references(() => agents.id, { onDelete: "cascade" }),
+    agentId: uuid().notNull(),
     avgLatencyMs: integer(),
     costUsd: numeric({ precision: 12, scale: 6 }),
     createdAt: createdAt(),
@@ -392,7 +428,13 @@ export const evalRuns = pgTable(
     tenantId: tenantId(),
     total: integer(),
   },
-  (t) => [index().on(t.agentId, t.createdAt)]
+  (t) => [
+    index().on(t.agentId, t.createdAt),
+    foreignKey({
+      columns: [t.tenantId, t.agentId],
+      foreignColumns: [agents.tenantId, agents.id],
+    }).onDelete("cascade"),
+  ]
 );
 
 export const evalResults = pgTable(

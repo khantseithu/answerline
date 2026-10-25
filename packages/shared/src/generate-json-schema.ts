@@ -1,6 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import { z } from "zod";
 import { agentConfigSchema } from "./agent-config.ts";
+import { callDispatchMetadataSchema } from "./call-dispatch.ts";
 import { callEventJob } from "./call-events.ts";
 import {
   evalExecutionInputSchema,
@@ -12,6 +13,7 @@ import {
 
 const schemas = {
   "agent-config": agentConfigSchema,
+  "call-dispatch": callDispatchMetadataSchema,
   "call-event": callEventJob,
   "eval-execution-input": evalExecutionInputSchema,
   "eval-execution-output": evalExecutionOutputSchema,

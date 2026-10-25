@@ -1,4 +1,5 @@
 export * from "./agent-config.ts";
+export * from "./call-dispatch.ts";
 export * from "./call-events.ts";
 export * from "./dashboard.ts";
 export * from "./eval-suite.ts";
