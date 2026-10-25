@@ -133,3 +133,32 @@ test("presigned URLs are signed with a short expiry and no network call", async 
   assert.equal(url.searchParams.get("X-Amz-Expires"), "300");
   assert.ok(url.searchParams.get("X-Amz-Signature"));
 });
+
+test("signs R2 recordings using the account endpoint and auto region", async () => {
+  const storage = createRecordingStorage({
+    accessKeyId: "r2-access-key",
+    bucket: "recordings",
+    endpoint: "https://account-id.r2.cloudflarestorage.com",
+    region: "auto",
+    secretAccessKey: "r2-test-secret",
+  });
+  const url = new URL(await storage.presignGet("acme/call-1.ogg"));
+  assert.equal(url.host, "account-id.r2.cloudflarestorage.com");
+  assert.equal(url.pathname, "/recordings/acme/call-1.ogg");
+  assert.ok(url.searchParams.get("X-Amz-Credential")?.endsWith("/auto/s3/aws4_request"));
+  assert.equal(url.searchParams.get("X-Amz-Expires"), "300");
+  assert.ok(url.searchParams.get("X-Amz-Signature"));
+});
+
+test("signs AWS S3 recordings without a custom endpoint", async () => {
+  const storage = createRecordingStorage({
+    accessKeyId: "aws-test-key",
+    bucket: "answerline-recordings",
+    region: "eu-west-1",
+    secretAccessKey: "aws-test-secret",
+  });
+  const url = new URL(await storage.presignGet("acme/call-1.ogg"));
+  assert.equal(url.host, "answerline-recordings.s3.eu-west-1.amazonaws.com");
+  assert.equal(url.pathname, "/acme/call-1.ogg");
+  assert.ok(url.searchParams.get("X-Amz-Credential")?.endsWith("/eu-west-1/s3/aws4_request"));
+});
