@@ -71,6 +71,13 @@
       "when": 1792856586200,
       "tag": "0009_eval_execution_input",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792945551652,
+      "tag": "0010_workspace_contracts",
+      "breakpoints": true
     }
   ]
 }

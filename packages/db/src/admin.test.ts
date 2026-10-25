@@ -12,7 +12,7 @@ import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import { initializeAuthEnvironment, initializeFirstAdmin, parseAdminEnvironment } from "./admin.ts";
 import { createDb } from "./client.ts";
-import { accounts, sessions, users, verifications } from "./schema.ts";
+import { accounts, sessions, tenants, users, verifications, workspaceMembers } from "./schema.ts";
 
 const databaseUrl = process.env.DATABASE_URL;
 const skipDatabase = databaseUrl ? false : "DATABASE_URL not set";
@@ -27,6 +27,7 @@ test("admin environment accepts a blank stored auth secret and preserves other s
       DATABASE_URL: "postgres://answerline:answerline@localhost:5432/answerline",
       PORT: "3013",
     });
+    assert.equal(environment.TENANT, "default");
     const result = await initializeAuthEnvironment(path, environment);
     const contents = await readFile(path, "utf8");
     const lines = contents.split("\n");
@@ -68,6 +69,7 @@ test("admin init creates one usable administrator and leaves it unchanged on rer
       ADMIN_EMAIL: email,
       DATABASE_URL: isolatedUrl.toString(),
       PORT: "3013",
+      TENANT: "initial-clinic",
     });
     const initialize = () =>
       initializeFirstAdmin({ credentialsPath, db: isolatedDb, environment, envPath });
@@ -77,6 +79,15 @@ test("admin init creates one usable administrator and leaves it unchanged on rer
     const [user] = await isolatedDb.select().from(users).where(eq(users.email, email));
     assert.ok(user);
     assert.equal(user.emailVerified, false);
+    const [membership] = await isolatedDb.select().from(workspaceMembers);
+    assert.ok(membership);
+    assert.equal(membership.userId, user.id);
+    assert.equal(membership.role, "owner");
+    const [workspace] = await isolatedDb
+      .select()
+      .from(tenants)
+      .where(eq(tenants.id, membership.tenantId));
+    assert.equal(workspace?.slug, "initial-clinic");
     assert.equal((await isolatedDb.select().from(users)).length, 1);
     const [account] = await isolatedDb.select().from(accounts).where(eq(accounts.userId, user.id));
     assert.ok(account?.password);

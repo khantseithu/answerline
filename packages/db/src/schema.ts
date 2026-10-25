@@ -5,9 +5,11 @@ import type {
   ModelUsage,
   QuestionAnswerPairs,
 } from "@answerline/shared";
+import { workspaceRoleSchema } from "@answerline/shared";
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   customType,
   index,
   integer,
@@ -39,6 +41,8 @@ const tenantId = () =>
   uuid()
     .notNull()
     .references(() => tenants.id, { onDelete: "cascade" });
+
+export const workspaceRole = pgEnum("workspace_role", workspaceRoleSchema.enum);
 
 export const callChannel = pgEnum("call_channel", ["web", "sip"]);
 export const callDirection = pgEnum("call_direction", ["inbound", "outbound"]);
@@ -81,6 +85,7 @@ export const users = pgTable("users", {
 export const sessions = pgTable(
   "sessions",
   {
+    activeTenantId: uuid().references(() => tenants.id, { onDelete: "set null" }),
     createdAt: createdAt(),
     expiresAt: timestamp({ withTimezone: true }).notNull(),
     id: id(),
@@ -93,6 +98,42 @@ export const sessions = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
   },
   (t) => [index().on(t.userId)]
+);
+
+export const workspaceMembers = pgTable(
+  "workspace_members",
+  {
+    createdAt: createdAt(),
+    id: id(),
+    role: workspaceRole().notNull(),
+    tenantId: tenantId(),
+    userId: uuid()
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+  },
+  (t) => [uniqueIndex().on(t.tenantId, t.userId), index().on(t.userId)]
+);
+
+export const workspaceInvitations = pgTable(
+  "workspace_invitations",
+  {
+    acceptedAt: timestamp({ withTimezone: true }),
+    createdAt: createdAt(),
+    email: text().notNull(),
+    expiresAt: timestamp({ withTimezone: true }).notNull(),
+    id: id(),
+    invitedBy: uuid()
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    role: workspaceRole().notNull(),
+    tenantId: tenantId(),
+    tokenHash: text().notNull().unique(),
+  },
+  (t) => [
+    index().on(t.tenantId),
+    check("workspace_invitations_token_hash", sql`${t.tokenHash} ~ '^[0-9a-f]{64}$'`),
+    check("workspace_invitations_expiry", sql`${t.expiresAt} > ${t.createdAt}`),
+  ]
 );
 
 export const accounts = pgTable(

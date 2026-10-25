@@ -225,7 +225,8 @@ Roadmap: *Multi-tenant workspaces and API keys*
 - [ ] Tenant scoping on every table and query (consider Postgres RLS) (#105)
   - [x] Reject call-start room ownership changes (#200)
   - [x] Reject cross-tenant turn, tool, and end call events (#282)
-- [ ] Workspaces: create, switch, invite members, roles (owner, admin, viewer)
+- [ ] Workspaces: create, switch, invite members, roles (owner, admin, viewer) (#106)
+  - [x] Define membership, invitation, role and API scope contracts (#284)
 - [ ] API keys: create, scope, hash at rest, last used, revoke
 - [ ] REST API v1: calls (list, get), agents (CRUD), knowledge (CRUD), evals (run, get)
 - [ ] OpenAPI spec generated from Zod, served at `/api/docs`
@@ -277,6 +278,9 @@ Roadmap: *Multilingual agents*
 ---
 
 ## Decisions
+
+- M9 workspace policy: any signed-in user can create workspaces; copyable invite links can provision password accounts while unrestricted signup stays disabled. Owners manage members/settings/API keys, admins manage agents/knowledge/evals/calls, and viewers read only (#106, #107, #284).
+- M9 provider credentials: dashboard-managed keys encrypted at rest with a deployment encryption key, with deployment credentials as an explicit fallback. Usage limits use UTC calendar-month call minutes and optional provider spend; exhaustion blocks new work (#111).
 
 - Default agent primary LLM: `openrouter/recursive/flint-v1.0:free` through OpenRouter (replaces Google Gemini 3.8 Flash); retain the existing fallback chain (#216, #222)
 

@@ -1,12 +1,13 @@
 import { randomBytes } from "node:crypto";
 import { chmod, mkdir, open, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
+import { workspaceSlugSchema } from "@answerline/shared";
 import { hashPassword } from "better-auth/crypto";
 import { parse } from "dotenv";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "./client.ts";
-import { accounts, users } from "./schema.ts";
+import { accounts, tenants, users, workspaceMembers } from "./schema.ts";
 
 const adminEnvironmentSchema = z.object({
   ADMIN_EMAIL: z.string().trim().toLowerCase().pipe(z.email()).default("admin@answerline.local"),
@@ -19,6 +20,7 @@ const adminEnvironmentSchema = z.object({
   BETTER_AUTH_URL: z.url().optional(),
   DATABASE_URL: z.url(),
   PORT: z.coerce.number().int().min(1).max(65_535).default(3000),
+  TENANT: workspaceSlugSchema.default("default"),
 });
 
 export const parseAdminEnvironment = (source: NodeJS.ProcessEnv) =>
@@ -110,6 +112,22 @@ export async function initializeFirstAdmin({
     if (!user) {
       throw new Error("Could not create initial administrator");
     }
+    await tx
+      .insert(tenants)
+      .values({ name: environment.TENANT, slug: environment.TENANT })
+      .onConflictDoNothing();
+    const [tenant] = await tx
+      .select({ id: tenants.id })
+      .from(tenants)
+      .where(eq(tenants.slug, environment.TENANT));
+    if (!tenant) {
+      throw new Error("Could not resolve initial administrator workspace");
+    }
+    await tx.insert(workspaceMembers).values({
+      role: "owner",
+      tenantId: tenant.id,
+      userId: user.id,
+    });
     await tx.insert(accounts).values({
       accountId: user.id,
       password: await hashPassword(password),

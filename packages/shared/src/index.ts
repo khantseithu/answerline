@@ -5,3 +5,4 @@ export * from "./eval-suite.ts";
 export * from "./events.ts";
 export * from "./ingestion.ts";
 export * from "./model-usage.ts";
+export * from "./workspaces.ts";
