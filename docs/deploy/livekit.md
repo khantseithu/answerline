@@ -27,6 +27,7 @@ The `migrate` service applies migrations, creates missing default agents without
 overwriting edits, and initializes the first administrator before web and worker
 start. Persistent volumes hold the database, Redis state, knowledge files, and
 Caddy certificates. The production stack has no MinIO service.
+Use the [backup and restore procedure](backups.md) before upgrading or moving the stack.
 
 Caddy obtains and renews certificates and routes the three domains on TCP 443.
 It terminates TURN TLS and forwards private TCP traffic to LiveKit. This stack
