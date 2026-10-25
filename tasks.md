@@ -191,7 +191,7 @@ Roadmap: *Docker Compose and Coolify deploys*
 
 - [x] Dockerfiles: `apps/web` (Next.js standalone), `apps/worker`, `apps/agent` (uv, model weights pre-downloaded) (#91)
 - [ ] Full `docker-compose.yml`: web, worker, agent, Postgres, Redis, LiveKit, LiveKit SIP, Egress, with healthchecks and migrations on start
-- [ ] Production LiveKit config (keys, TURN, UDP port range, domain/TLS notes)
+- [x] Production LiveKit config (keys, TURN, UDP port range, domain/TLS notes) (#93)
 - [ ] `.env.example` complete and documented
 - [ ] Recording storage: Cloudflare R2 as the primary target, with an adapter for other S3-compatible providers ([#153](https://github.com/khantseithu/answerline/issues/153))
 - [ ] Images published to GHCR on tag (multi-arch)
