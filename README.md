@@ -223,7 +223,7 @@ docker compose run --rm worker pnpm db:seed
 docker compose run --rm worker eval agents/bright-smile-dental.yaml
 ```
 
-The worker profile starts Postgres and Redis as needed. Container runs use the Compose database; point the dashboard at that database to view the same history. Full production deployment remains planned under M7. `--live-tools` can create real bookings and save messages in configured services.
+The worker profile starts Postgres and Redis as needed. Container runs use the Compose database; point the dashboard at that database to view the same history. The separate [production Compose stack](docs/deploy/livekit.md#use-the-bundled-production-stack) runs the full application. `--live-tools` can create real bookings and save messages in configured services.
 
 To run text evals on pull requests, enable the [opt-in GitHub Action](docs/evals-ci.md).
 
