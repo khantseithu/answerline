@@ -225,6 +225,7 @@ Roadmap: *Multi-tenant workspaces and API keys*
 - [ ] Tenant scoping on every table and query (consider Postgres RLS) (#105)
   - [x] Reject call-start room ownership changes (#200)
   - [x] Reject cross-tenant turn, tool, and end call events (#282)
+  - [x] Define tenant-safe parent links and workspace voice dispatch contracts (#287)
 - [ ] Workspaces: create, switch, invite members, roles (owner, admin, viewer) (#106)
   - [x] Define membership, invitation, role and API scope contracts (#284)
 - [ ] API keys: create, scope, hash at rest, last used, revoke
