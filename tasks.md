@@ -197,7 +197,7 @@ Roadmap: *Docker Compose and Coolify deploys*
 - [x] Images published to GHCR on tag (multi-arch) (#95)
 - [ ] `docs/deploy/docker.md`
 - [ ] Coolify template + `docs/deploy/coolify.md`
-- [ ] Backup/restore notes for Postgres and recordings
+- [x] Backup/restore notes for Postgres and recordings (#98)
 
 **Done when:** the README Quickstart works verbatim on a fresh VPS.
 
