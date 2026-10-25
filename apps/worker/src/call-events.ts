@@ -119,10 +119,18 @@ async function handleStarted(
     startedAt: new Date(event.started_at),
     toNumber: event.to_number,
   };
-  await db
+  const [call] = await db
     .insert(calls)
     .values({ ...ref, ...fields, roomName: event.room_name })
-    .onConflictDoUpdate({ set: { ...ref, ...fields }, target: calls.roomName });
+    .onConflictDoUpdate({
+      set: fields,
+      setWhere: and(eq(calls.tenantId, ref.tenantId), eq(calls.agentId, ref.agentId)),
+      target: calls.roomName,
+    })
+    .returning({ id: calls.id });
+  if (!call) {
+    throw new Error("call.started call reference does not match the tenant and agent");
+  }
 }
 
 async function handleTurn(

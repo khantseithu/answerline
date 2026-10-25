@@ -18,6 +18,7 @@ const skip = process.env.DATABASE_URL ? false : "DATABASE_URL not set";
 const AGENT = "bright-smile-dental";
 const LEAD_SCOPE_MISMATCH = /lead call reference does not match/;
 const VOICEMAIL_SCOPE_MISMATCH = /voicemail call reference does not match/;
+const START_SCOPE_MISMATCH = /call.started call reference does not match/;
 const MISSING_YAML = /agents\/no-such-agent\.yaml does not exist/;
 
 type EventOf<T extends CallEventJob["type"]> = Extract<CallEventJob, { type: T }>;
@@ -522,3 +523,43 @@ test("voicemail.created cannot attach a voicemail to another agent's call", { sk
     assert.deepEqual(await db.select().from(voicemails).where(eq(voicemails.callId, call.id)), []);
   })
 );
+
+for (const scope of ["tenant", "agent"]) {
+  test(`call.started rejects a room owned by another ${scope}`, { skip }, () =>
+    withTenant(async ({ base, started, turn }, db) => {
+      await persistCallEvent(db, turn(0));
+      const before = await getCall(db, base.room_name);
+      const otherTenant = `other-${crypto.randomUUID()}`;
+      const [agent] = await db.select().from(agents).where(eq(agents.id, before.agentId));
+      assert.ok(agent);
+      if (scope === "agent") {
+        await db.insert(agents).values({
+          config: agent.config,
+          name: agent.name,
+          slug: "another-agent",
+          tenantId: agent.tenantId,
+        });
+      }
+      try {
+        await assert.rejects(
+          persistCallEvent(db, {
+            ...started,
+            ...(scope === "tenant" ? { tenant: otherTenant } : { agent: "another-agent" }),
+          }),
+          START_SCOPE_MISMATCH
+        );
+        assert.deepEqual(await getCall(db, base.room_name), before);
+        assert.equal((await getTurns(db, before.id)).length, 1);
+        await persistCallEvent(db, started);
+        await persistCallEvent(db, started);
+        const completed = await getCall(db, base.room_name);
+        assert.equal(completed.id, before.id);
+        assert.equal(completed.tenantId, before.tenantId);
+        assert.equal(completed.agentId, before.agentId);
+        assert.equal(completed.channel, "sip");
+      } finally {
+        await db.delete(tenants).where(eq(tenants.slug, otherTenant));
+      }
+    })
+  );
+}
