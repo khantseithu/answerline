@@ -5,7 +5,7 @@ import type {
   ModelUsage,
   QuestionAnswerPairs,
 } from "@answerline/shared";
-import { workspaceRoleSchema } from "@answerline/shared";
+import { apiKeyScopeSchema, workspaceRoleSchema } from "@answerline/shared";
 import { sql } from "drizzle-orm";
 import {
   boolean,
@@ -45,6 +45,7 @@ const tenantId = () =>
     .references(() => tenants.id, { onDelete: "cascade" });
 
 export const workspaceRole = pgEnum("workspace_role", workspaceRoleSchema.enum);
+export const apiKeyScope = pgEnum("api_key_scope", apiKeyScopeSchema.enum);
 
 export const callChannel = pgEnum("call_channel", ["web", "sip"]);
 export const callDirection = pgEnum("call_direction", ["inbound", "outbound"]);
@@ -135,6 +136,30 @@ export const workspaceInvitations = pgTable(
     index().on(t.tenantId),
     check("workspace_invitations_token_hash", sql`${t.tokenHash} ~ '^[0-9a-f]{64}$'`),
     check("workspace_invitations_expiry", sql`${t.expiresAt} > ${t.createdAt}`),
+  ]
+);
+
+export const apiKeys = pgTable(
+  "api_keys",
+  {
+    createdAt: createdAt(),
+    digest: text().notNull().unique(),
+    id: id(),
+    lastUsedAt: timestamp({ withTimezone: true }),
+    name: text().notNull(),
+    prefix: text().notNull(),
+    revokedAt: timestamp({ withTimezone: true }),
+    scopes: apiKeyScope().array().notNull(),
+    tenantId: tenantId(),
+  },
+  (t) => [
+    index().on(t.tenantId),
+    check("api_keys_digest", sql`${t.digest} ~ '^[0-9a-f]{64}$'`),
+    check("api_keys_prefix", sql`char_length(${t.prefix}) between 1 and 16`),
+    check(
+      "api_keys_scopes",
+      sql`cardinality(${t.scopes}) > 0 and array_position(${t.scopes}, null) is null`
+    ),
   ]
 );
 

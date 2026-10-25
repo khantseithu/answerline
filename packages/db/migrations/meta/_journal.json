@@ -85,6 +85,13 @@
       "when": 1792946323034,
       "tag": "0011_tenant_isolation_contracts",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792946780185,
+      "tag": "0012_api_key_persistence",
+      "breakpoints": true
     }
   ]
 }
