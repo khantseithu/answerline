@@ -189,7 +189,7 @@ Roadmap: *Evals runner*
 
 Roadmap: *Docker Compose and Coolify deploys*
 
-- [ ] Dockerfiles: `apps/web` (Next.js standalone), `apps/worker`, `apps/agent` (uv, model weights pre-downloaded)
+- [x] Dockerfiles: `apps/web` (Next.js standalone), `apps/worker`, `apps/agent` (uv, model weights pre-downloaded) (#91)
 - [ ] Full `docker-compose.yml`: web, worker, agent, Postgres, Redis, LiveKit, LiveKit SIP, Egress, with healthchecks and migrations on start
 - [ ] Production LiveKit config (keys, TURN, UDP port range, domain/TLS notes)
 - [ ] `.env.example` complete and documented
