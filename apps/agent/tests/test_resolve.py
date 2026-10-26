@@ -7,7 +7,7 @@ import asyncpg
 import pytest
 from answerline_agent import resolve
 from answerline_agent.config import AgentConfig
-from answerline_agent.db import AgentNotFoundError
+from answerline_agent.db import AgentArchivedError, AgentNotFoundError
 from answerline_agent.resolve import (
     AgentConfigNotFoundError,
     resolve_agent,
@@ -110,6 +110,13 @@ def test_standalone_database_failure_can_use_yaml(monkeypatch, error):
     assert resolved.source == "yaml"
     assert resolved.tenant == "standalone"
     assert resolved.config.name == "Bright Smile Dental"
+
+
+def test_archived_database_agent_does_not_fall_back_to_yaml(monkeypatch):
+    _fake_database(monkeypatch, AgentArchivedError("archived"))
+    settings = _settings(database_url="postgres://db")
+    with pytest.raises(AgentArchivedError, match="archived"):
+        asyncio.run(resolve_agent(None, settings))
 
 
 def test_no_database_uses_yaml(monkeypatch):

@@ -10,7 +10,7 @@ import {
   type UpdateAgent,
   updateAgentSchema,
 } from "@answerline/shared";
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, isNull } from "drizzle-orm";
 
 export class AgentNotFoundError extends Error {}
 export class AgentConflictError extends Error {
@@ -44,7 +44,7 @@ export async function listAgents(deps: AgentDeps): Promise<AgentView[]> {
   const rows = await deps.db
     .select()
     .from(agents)
-    .where(eq(agents.tenantId, deps.tenantId))
+    .where(and(eq(agents.tenantId, deps.tenantId), isNull(agents.archivedAt)))
     .orderBy(asc(agents.name));
   return rows.map(agentView);
 }
@@ -54,7 +54,7 @@ export async function getAgent(deps: AgentDeps, rawId: string): Promise<AgentVie
   const [row] = await deps.db
     .select()
     .from(agents)
-    .where(and(eq(agents.id, id), eq(agents.tenantId, deps.tenantId)))
+    .where(and(eq(agents.id, id), eq(agents.tenantId, deps.tenantId), isNull(agents.archivedAt)))
     .limit(1);
   if (!row) {
     throw new AgentNotFoundError("Agent not found");
@@ -76,7 +76,7 @@ export async function listAgentVersions(
       version: agents.version,
     })
     .from(agents)
-    .where(and(eq(agents.id, id), eq(agents.tenantId, deps.tenantId)))
+    .where(and(eq(agents.id, id), eq(agents.tenantId, deps.tenantId), isNull(agents.archivedAt)))
     .limit(1);
   if (!agent) {
     throw new AgentNotFoundError("Agent not found");
@@ -154,7 +154,7 @@ export function updateAgent(deps: AgentDeps, rawId: string, rawInput: unknown): 
     const [current] = await tx
       .select()
       .from(agents)
-      .where(and(eq(agents.id, id), eq(agents.tenantId, deps.tenantId)))
+      .where(and(eq(agents.id, id), eq(agents.tenantId, deps.tenantId), isNull(agents.archivedAt)))
       .limit(1);
     if (!current) {
       throw new AgentNotFoundError("Agent not found");
@@ -171,7 +171,8 @@ export function updateAgent(deps: AgentDeps, rawId: string, rawInput: unknown): 
         and(
           eq(agents.id, id),
           eq(agents.tenantId, deps.tenantId),
-          eq(agents.version, input.version)
+          eq(agents.version, input.version),
+          isNull(agents.archivedAt)
         )
       )
       .returning();
@@ -197,4 +198,17 @@ export function updateAgent(deps: AgentDeps, rawId: string, rawInput: unknown): 
     });
     return agentView(updated);
   });
+}
+
+export async function archiveAgent(deps: AgentDeps, rawId: string): Promise<void> {
+  const id = agentIdSchema.parse(rawId);
+  const archivedAt = new Date();
+  const [archived] = await deps.db
+    .update(agents)
+    .set({ archivedAt, updatedAt: archivedAt })
+    .where(and(eq(agents.id, id), eq(agents.tenantId, deps.tenantId), isNull(agents.archivedAt)))
+    .returning({ id: agents.id });
+  if (!archived) {
+    throw new AgentNotFoundError("Agent not found");
+  }
 }

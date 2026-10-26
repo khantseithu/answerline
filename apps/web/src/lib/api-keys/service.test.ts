@@ -2,9 +2,17 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createDb, sessions, tenants, users } from "@answerline/db";
 import { eq, sql } from "drizzle-orm";
+import { DashboardAuthError } from "@/lib/dashboard/errors";
 import type { WorkspaceDeps } from "@/lib/workspaces/service";
 import { createWorkspace } from "@/lib/workspaces/service";
-import { authenticateApiKey, createApiKey, listApiKeys, revokeApiKey } from "./service";
+import { resolveApiKeyContext } from "./context";
+import {
+  ApiKeyScopeError,
+  authenticateApiKey,
+  createApiKey,
+  listApiKeys,
+  revokeApiKey,
+} from "./service";
 
 const skip = process.env.DATABASE_URL ? false : "DATABASE_URL not set";
 const tokenPattern = /^al_[A-Za-z0-9_-]{43}$/;
@@ -47,6 +55,18 @@ test("workspace API keys are owner-managed, scoped, one-time secrets with revoca
     const authenticated = await authenticateApiKey(db, created.token);
     assert.deepEqual(authenticated?.scopes, ["calls:read", "agents:read"]);
     assert.equal(authenticated?.tenantId, first.id);
+    assert.equal(
+      (await resolveApiKeyContext(db, `Bearer ${created.token}`, "agents:read")).tenantId,
+      first.id
+    );
+    await assert.rejects(
+      resolveApiKeyContext(db, `Bearer ${created.token}`, "agents:write"),
+      ApiKeyScopeError
+    );
+    await assert.rejects(
+      resolveApiKeyContext(db, "Bearer invalid", "agents:read"),
+      DashboardAuthError
+    );
 
     let releaseLock!: () => void;
     let signalLockAcquired!: () => void;

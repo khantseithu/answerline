@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
-import { agents, agentVersions, createDb, tenants } from "@answerline/db";
+import { agents, agentVersions, calls, createDb, knowledgeSources, tenants } from "@answerline/db";
 import { agentTemplateSchema, createAgentSchema, parseAgentConfig } from "@answerline/shared";
 import { eq } from "drizzle-orm";
 import { createAgentHandlers } from "./handlers.ts";
@@ -172,5 +172,52 @@ test("only one concurrent optimistic update commits and records history", { skip
       .from(agentVersions)
       .where(eq(agentVersions.agentId, agent.id));
     assert.deepEqual(history.map(({ version }) => version).sort(), [1, 2]);
+  })
+);
+
+test("archives agents without deleting call or knowledge history", { skip }, () =>
+  withHarness(async ({ config, deps, handlers }) => {
+    const [agent] = await deps.db
+      .insert(agents)
+      .values({ config, name: config.name, slug: "archived", tenantId: deps.tenantId })
+      .returning();
+    assert.ok(agent);
+    const [call] = await deps.db
+      .insert(calls)
+      .values({
+        agentId: agent.id,
+        channel: "web",
+        roomName: crypto.randomUUID(),
+        tenantId: deps.tenantId,
+      })
+      .returning();
+    const [source] = await deps.db
+      .insert(knowledgeSources)
+      .values({ agentId: agent.id, tenantId: deps.tenantId, title: "FAQ", type: "text" })
+      .returning();
+    assert.ok(call);
+    assert.ok(source);
+
+    const response = await handlers.delete(agent.id);
+    assert.equal(response.status, 204);
+    assert.equal((await handlers.delete(agent.id)).status, 404);
+    assert.equal((await handlers.detail(agent.id)).status, 404);
+    assert.equal((await handlers.versions(agent.id)).status, 404);
+    assert.equal((await handlers.update(request({ config, version: 1 }), agent.id)).status, 404);
+    assert.ok(
+      !(await responseBody<{ id: string }[]>(await handlers.list())).some(
+        ({ id }) => id === agent.id
+      )
+    );
+
+    const [archived] = await deps.db.select().from(agents).where(eq(agents.id, agent.id));
+    const [preservedCall] = await deps.db.select().from(calls).where(eq(calls.id, call.id));
+    const [preservedSource] = await deps.db
+      .select()
+      .from(knowledgeSources)
+      .where(eq(knowledgeSources.id, source.id));
+    assert.ok(archived?.archivedAt);
+    assert.equal(preservedCall?.id, call.id);
+    assert.equal(preservedSource?.id, source.id);
   })
 );

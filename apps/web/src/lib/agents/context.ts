@@ -1,9 +1,6 @@
-import { getDashboardContext } from "@/lib/dashboard/context";
-import { requireWorkspaceAccess, type WorkspaceAccess } from "@/lib/workspaces/permissions";
-import type { AgentDeps } from "./service";
-
-export async function getAgentDeps(access: WorkspaceAccess = "read"): Promise<AgentDeps> {
-  const { db, role, tenantId } = await getDashboardContext();
-  requireWorkspaceAccess(role, access);
-  return { db, tenantId };
+import { getWorkspaceApiContext } from "@/lib/api-keys/context";
+import type { WorkspaceAccess } from "@/lib/workspaces/permissions";
+export function getAgentDeps(access: WorkspaceAccess = "read") {
+  const scope = access === "read" ? "agents:read" : "agents:write";
+  return getWorkspaceApiContext(scope, access);
 }

@@ -5,7 +5,7 @@ import uuid
 
 import asyncpg
 import pytest
-from answerline_agent.db import AgentNotFoundError, fetch_agent_config
+from answerline_agent.db import AgentArchivedError, AgentNotFoundError, fetch_agent_config
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 pytestmark = pytest.mark.skipif(not DATABASE_URL, reason="DATABASE_URL not set")
@@ -40,6 +40,9 @@ async def _roundtrip() -> None:
         assert config.models.llm.fallback == []
         with pytest.raises(AgentNotFoundError):
             await fetch_agent_config(conn, "missing", tenant_slug)
+        await conn.execute("update agents set archived_at = now() where slug = $1", "clinic")
+        with pytest.raises(AgentArchivedError):
+            await fetch_agent_config(conn, "clinic", tenant_slug)
     finally:
         await conn.execute("delete from tenants where slug = $1", tenant_slug)
         await conn.close()

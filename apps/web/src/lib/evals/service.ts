@@ -1,6 +1,6 @@
 import { agents, type Database, evalResults, evalRuns, tenants } from "@answerline/db";
 import { type EvalJob, evalExecutionInputSchema, evalRunCreateSchema } from "@answerline/shared";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { compareEvalCases, compareEvalTotals } from "./compare";
 import { EvalSuiteNotFoundError, listEvalSuites, readEvalSuite } from "./suites";
@@ -102,7 +102,7 @@ export async function listEvalOptions(deps: EvalDeps) {
     deps.db
       .select({ id: agents.id, name: agents.name, slug: agents.slug })
       .from(agents)
-      .where(eq(agents.tenantId, deps.tenantId))
+      .where(and(eq(agents.tenantId, deps.tenantId), isNull(agents.archivedAt)))
       .orderBy(asc(agents.name), asc(agents.id)),
     listEvalSuites(deps.evalsDir),
   ]);
@@ -179,7 +179,13 @@ export async function createEvalRun(deps: EvalDeps, rawInput: unknown) {
     .select({ agentSlug: agents.slug, config: agents.config, tenantSlug: tenants.slug })
     .from(agents)
     .innerJoin(tenants, eq(agents.tenantId, tenants.id))
-    .where(and(eq(agents.id, input.agentId), eq(agents.tenantId, deps.tenantId)))
+    .where(
+      and(
+        eq(agents.id, input.agentId),
+        eq(agents.tenantId, deps.tenantId),
+        isNull(agents.archivedAt)
+      )
+    )
     .limit(1);
   if (!agent) {
     throw new EvalNotFoundError("Agent not found");

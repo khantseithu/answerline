@@ -2,8 +2,8 @@ import { type EvalJob, evalJobSchema, QUEUES } from "@answerline/shared";
 import { Queue } from "bullmq";
 import { Redis } from "ioredis";
 import { env } from "@/env";
-import { getDashboardContext } from "@/lib/dashboard/context";
-import { requireWorkspaceAccess, type WorkspaceAccess } from "@/lib/workspaces/permissions";
+import { getWorkspaceApiContext } from "@/lib/api-keys/context";
+import type { WorkspaceAccess } from "@/lib/workspaces/permissions";
 import { type EvalDeps, evalJobId } from "./service";
 import { findEvalsDir } from "./suites";
 
@@ -30,8 +30,8 @@ function runtime() {
 }
 
 export async function getEvalDeps(access: WorkspaceAccess = "read"): Promise<EvalDeps> {
-  const { db, role, tenantId } = await getDashboardContext();
-  requireWorkspaceAccess(role, access);
+  const scope = access === "read" ? "evals:read" : "evals:write";
+  const { db, tenantId } = await getWorkspaceApiContext(scope, access);
   const { evalsDir, queue } = runtime();
   return {
     db,

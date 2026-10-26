@@ -6,6 +6,7 @@ import {
   AgentConflictError,
   type AgentDeps,
   AgentNotFoundError,
+  archiveAgent,
   createAgent,
   getAgent,
   listAgents,
@@ -52,6 +53,14 @@ export function createAgentHandlers(getDeps: (access?: WorkspaceAccess) => Promi
           headers: noStore,
           status: 201,
         });
+      } catch (error) {
+        return agentErrorResponse(error) ?? dashboardErrorResponse(error);
+      }
+    },
+    async delete(rawId: string) {
+      try {
+        await archiveAgent(await getDeps("write"), rawId);
+        return new Response(null, { headers: noStore, status: 204 });
       } catch (error) {
         return agentErrorResponse(error) ?? dashboardErrorResponse(error);
       }

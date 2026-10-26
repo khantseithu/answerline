@@ -8,7 +8,7 @@ import {
   evalJobSchema,
 } from "@answerline/shared";
 import type { Job } from "bullmq";
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, isNull, ne } from "drizzle-orm";
 import { calculateCallCost, parseCostPrices } from "./costs.ts";
 import { executeEval } from "./eval-execution.ts";
 
@@ -83,7 +83,13 @@ function startEvalRun(db: Database, job: EvalJob) {
       .select({ agentSlug: agents.slug, tenantSlug: tenants.slug })
       .from(agents)
       .innerJoin(tenants, eq(agents.tenantId, tenants.id))
-      .where(and(eq(agents.id, job.agentId), eq(agents.tenantId, job.tenantId)));
+      .where(
+        and(
+          eq(agents.id, job.agentId),
+          eq(agents.tenantId, job.tenantId),
+          isNull(agents.archivedAt)
+        )
+      );
     if (
       !identity ||
       (input.liveTools && !input.context) ||
@@ -198,7 +204,7 @@ export async function findTenantAgent(db: Database, slug: string, tenantSlug: st
     })
     .from(agents)
     .innerJoin(tenants, eq(agents.tenantId, tenants.id))
-    .where(and(eq(agents.slug, slug), eq(tenants.slug, tenantSlug)));
+    .where(and(eq(agents.slug, slug), eq(tenants.slug, tenantSlug), isNull(agents.archivedAt)));
   return agent;
 }
 

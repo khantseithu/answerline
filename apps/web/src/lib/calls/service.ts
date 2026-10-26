@@ -1,6 +1,6 @@
 import { agents, calls, callTurns, type Database } from "@answerline/db";
 import type { CallsListQuery } from "@answerline/shared";
-import { and, asc, desc, eq, gte, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull, lt, sql } from "drizzle-orm";
 
 function callFilters(tenantId: string, query: CallsListQuery) {
   const filters = [eq(calls.tenantId, tenantId)];
@@ -61,7 +61,7 @@ export async function listCallFilters(db: Database, tenantId: string) {
     db
       .select({ id: agents.id, name: agents.name })
       .from(agents)
-      .where(eq(agents.tenantId, tenantId))
+      .where(and(eq(agents.tenantId, tenantId), isNull(agents.archivedAt)))
       .orderBy(asc(agents.name), asc(agents.id)),
     db
       .selectDistinct({ outcome: calls.outcome })
