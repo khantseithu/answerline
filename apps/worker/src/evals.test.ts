@@ -12,7 +12,13 @@ import {
 import { Queue, Worker } from "bullmq";
 import { eq, sql } from "drizzle-orm";
 import { Redis } from "ioredis";
-import { createEvalProcessor, normalizeEvalOutput, processEvalRun } from "./evals.ts";
+import { seedCallAgent } from "./call-event-test-fixtures.ts";
+import {
+  createEvalProcessor,
+  findTenantAgent,
+  normalizeEvalOutput,
+  processEvalRun,
+} from "./evals.ts";
 
 const skip =
   process.env.DATABASE_URL && process.env.REDIS_URL ? false : "DATABASE_URL or REDIS_URL not set";
@@ -324,6 +330,27 @@ test("persists eval runs, retries safely, and executes queue jobs", {
       await db.delete(evalRuns).where(eq(evalRuns.id, runId));
     }
     await db.delete(tenants).where(eq(tenants.slug, tenantSlug));
+    await db.$client.end();
+  }
+});
+
+test("eval agent lookup uses the selected workspace for identical slugs", { skip }, async () => {
+  const db = createDb();
+  const first = `eval-${crypto.randomUUID()}`;
+  const second = `eval-${crypto.randomUUID()}`;
+  try {
+    await seedCallAgent(db, first);
+    await seedCallAgent(db, second);
+    const one = await findTenantAgent(db, "bright-smile-dental", first);
+    const two = await findTenantAgent(db, "bright-smile-dental", second);
+    assert.ok(one && two);
+    assert.equal(one.tenantSlug, first);
+    assert.equal(two.tenantSlug, second);
+    assert.notEqual(one.agentId, two.agentId);
+    assert.equal(await findTenantAgent(db, "bright-smile-dental", "unknown-workspace"), undefined);
+  } finally {
+    await db.delete(tenants).where(eq(tenants.slug, first));
+    await db.delete(tenants).where(eq(tenants.slug, second));
     await db.$client.end();
   }
 });

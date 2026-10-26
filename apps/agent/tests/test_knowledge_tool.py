@@ -288,7 +288,7 @@ async def tenant_with_agents():
 
 
 def settings_for(slug: str) -> Settings:
-    return Settings(_env_file=None, database_url=DATABASE_URL, tenant=slug)
+    return Settings(_env_file=None, database_url=DATABASE_URL, tenant="deployment")
 
 
 @needs_database
@@ -335,16 +335,29 @@ def embedding_env(monkeypatch):
 def test_tool_registers_only_when_agent_has_ready_sources(embedding_env):
     async def scenario():
         async with tenant_with_agents() as (_, slug, _, source):
-            assert await open_knowledge_tools(settings_for(slug), "alpha", ToolLog()) is None
+            assert (
+                await open_knowledge_tools(settings_for(slug), "alpha", ToolLog(), tenant_slug=slug)
+                is None
+            )
             await source("pending", status="pending")
-            assert await open_knowledge_tools(settings_for(slug), "alpha", ToolLog()) is None
+            assert (
+                await open_knowledge_tools(settings_for(slug), "alpha", ToolLog(), tenant_slug=slug)
+                is None
+            )
             await source("theirs", agent="beta")
-            assert await open_knowledge_tools(settings_for(slug), "alpha", ToolLog()) is None
-            beta = await open_knowledge_tools(settings_for(slug), "beta", ToolLog())
+            assert (
+                await open_knowledge_tools(settings_for(slug), "alpha", ToolLog(), tenant_slug=slug)
+                is None
+            )
+            beta = await open_knowledge_tools(
+                settings_for(slug), "beta", ToolLog(), tenant_slug=slug
+            )
             assert beta is not None
             await beta.close()
             await source("shared")
-            alpha = await open_knowledge_tools(settings_for(slug), "alpha", ToolLog())
+            alpha = await open_knowledge_tools(
+                settings_for(slug), "alpha", ToolLog(), tenant_slug=slug
+            )
             assert alpha is not None
             assert [t.info.name for t in alpha.tools] == ["search_knowledge"]
             await alpha.close()
@@ -354,13 +367,19 @@ def test_tool_registers_only_when_agent_has_ready_sources(embedding_env):
 
 def test_tool_is_not_registered_without_database_url():
     settings = Settings(_env_file=None, database_url=None)
-    assert asyncio.run(open_knowledge_tools(settings, "alpha", ToolLog())) is None
+    assert (
+        asyncio.run(open_knowledge_tools(settings, "alpha", ToolLog(), tenant_slug=settings.tenant))
+        is None
+    )
 
 
 @needs_database
 def test_tool_is_not_registered_when_tenant_is_unknown(embedding_env):
     settings = Settings(_env_file=None, database_url=DATABASE_URL, tenant="no-such-tenant")
-    assert asyncio.run(open_knowledge_tools(settings, "alpha", ToolLog())) is None
+    assert (
+        asyncio.run(open_knowledge_tools(settings, "alpha", ToolLog(), tenant_slug=settings.tenant))
+        is None
+    )
 
 
 @needs_database
@@ -371,7 +390,10 @@ def test_tool_is_not_registered_when_embedding_provider_cannot_be_built(monkeypa
     async def scenario():
         async with tenant_with_agents() as (_, slug, _, source):
             await source("shared")
-            assert await open_knowledge_tools(settings_for(slug), "alpha", ToolLog()) is None
+            assert (
+                await open_knowledge_tools(settings_for(slug), "alpha", ToolLog(), tenant_slug=slug)
+                is None
+            )
 
     asyncio.run(scenario())
     assert "search_knowledge unavailable" in caplog.text
@@ -418,7 +440,9 @@ def test_search_returns_the_scoped_answer_end_to_end(monkeypatch, embedding_env)
                 {"title": "Secret"},
             )
             tool_log = ToolLog()
-            tools = await open_knowledge_tools(settings_for(slug), "alpha", tool_log)
+            tools = await open_knowledge_tools(
+                settings_for(slug), "alpha", tool_log, tenant_slug=slug
+            )
             assert tools is not None
             try:
                 tool = tools.tools[0]
@@ -470,7 +494,9 @@ def test_relevance_floor_makes_out_of_scope_queries_return_no_results(monkeypatc
                 {"title": "Hours"},
             )
             tool_log = ToolLog()
-            tools = await open_knowledge_tools(settings_for(slug), "alpha", tool_log)
+            tools = await open_knowledge_tools(
+                settings_for(slug), "alpha", tool_log, tenant_slug=slug
+            )
             assert tools is not None
             try:
                 tool = tools.tools[0]

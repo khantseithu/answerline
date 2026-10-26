@@ -12,6 +12,7 @@ import {
 import { type Job, Queue, Worker } from "bullmq";
 import { eq } from "drizzle-orm";
 import { Redis } from "ioredis";
+import { seedCallAgent } from "./call-event-test-fixtures.ts";
 import { createCallEventProcessor, persistCallEvent } from "./call-events.ts";
 import { createPostCallProcessor } from "./post-call.ts";
 
@@ -128,6 +129,7 @@ test("call.ended enqueues a delayed post-call analysis that persists once throug
   const context = events();
   const tenantSlug = context.ref.tenant;
   const db = createDb();
+  await seedCallAgent(db, context.ref.tenant, context.ref.agent);
   const prefix = `post-call-test-${context.id}`;
   const connection = new Redis(process.env.REDIS_URL as string, { maxRetriesPerRequest: null });
   const callQueue = new Queue(QUEUES.callEvents, { connection, prefix });
@@ -217,6 +219,7 @@ test("call.ended enqueues a delayed post-call analysis that persists once throug
 test("no-transcript analysis is deterministic and failed calls stay failed", { skip }, async () => {
   const context = events();
   const db = createDb();
+  await seedCallAgent(db, context.ref.tenant, context.ref.agent);
   try {
     await persistCallEvent(db, context.started);
     await persistCallEvent(db, { ...context.ended, model_usage: undefined, status: "failed" });
@@ -237,6 +240,7 @@ test("no-transcript analysis is deterministic and failed calls stay failed", { s
 test("failed model output does not write partial analysis", { skip }, async () => {
   const context = events();
   const db = createDb();
+  await seedCallAgent(db, context.ref.tenant, context.ref.agent);
   try {
     await persistCallEvent(db, context.started);
     await persistCallEvent(db, context.turns[0] as CallEventJob);
@@ -262,6 +266,7 @@ test("failed model output does not write partial analysis", { skip }, async () =
 test("post-call analysis leaves the cost written on call.ended untouched", { skip }, async () => {
   const context = events();
   const db = createDb();
+  await seedCallAgent(db, context.ref.tenant, context.ref.agent);
   const fixture = await startHttpFixture({
     outcome: "resolved",
     sentiment: "neutral",
@@ -292,6 +297,7 @@ test("post-call analysis leaves the cost written on call.ended untouched", { ski
 test("confirmed booking evidence overrides the model's outcome", { skip }, async () => {
   const context = events();
   const db = createDb();
+  await seedCallAgent(db, context.ref.tenant, context.ref.agent);
   const fixture = await startHttpFixture({
     outcome: "unresolved",
     sentiment: "neutral",
@@ -326,6 +332,7 @@ test("confirmed booking evidence overrides the model's outcome", { skip }, async
 test("a stale tenant identity cannot analyze another tenant's call", { skip }, async () => {
   const context = events();
   const db = createDb();
+  await seedCallAgent(db, context.ref.tenant, context.ref.agent);
   try {
     await persistCallEvent(db, context.started);
     await persistCallEvent(db, context.ended);

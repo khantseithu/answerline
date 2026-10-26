@@ -188,7 +188,7 @@ export function createEvalProcessor(db: Database, options: EvalProcessorOptions 
   return async (job: Job) => processEvalRun(db, job.data, options);
 }
 
-export async function findDefaultTenantAgent(db: Database, slug: string) {
+export async function findTenantAgent(db: Database, slug: string, tenantSlug: string) {
   const [agent] = await db
     .select({
       agentId: agents.id,
@@ -198,7 +198,7 @@ export async function findDefaultTenantAgent(db: Database, slug: string) {
     })
     .from(agents)
     .innerJoin(tenants, eq(agents.tenantId, tenants.id))
-    .where(and(eq(agents.slug, slug), eq(tenants.slug, "default")));
+    .where(and(eq(agents.slug, slug), eq(tenants.slug, tenantSlug)));
   return agent;
 }
 

@@ -6,6 +6,7 @@ import { type CallEventJob, callEventJob, callEventJobId, QUEUES } from "@answer
 import { Queue, Worker } from "bullmq";
 import { eq } from "drizzle-orm";
 import { Redis } from "ioredis";
+import { seedCallAgent } from "./call-event-test-fixtures.ts";
 import { createCallEventProcessor } from "./call-events.ts";
 
 const skip =
@@ -39,6 +40,7 @@ test("processes call events end to end through bullmq", { skip, timeout: 30_000 
     ].map((name) => loadFixture(name, room, tenant))
   );
 
+  await seedCallAgent(db, tenant);
   const processor = createCallEventProcessor(db);
   let worker: Worker | undefined;
   try {

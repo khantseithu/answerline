@@ -124,7 +124,9 @@ def test_entrypoint_registers_configured_tools_alongside_knowledge(
     monkeypatch.setattr(
         main,
         "resolve_agent",
-        AsyncMock(return_value=SimpleNamespace(config=agent_config, slug="a")),
+        AsyncMock(
+            return_value=SimpleNamespace(config=agent_config, slug="a", tenant="workspace-two")
+        ),
     )
     monkeypatch.setattr(main, "open_knowledge_tools", AsyncMock(return_value=knowledge))
     monkeypatch.setattr(main, "open_booking_provider", AsyncMock(return_value=None))
@@ -132,9 +134,19 @@ def test_entrypoint_registers_configured_tools_alongside_knowledge(
     monkeypatch.setattr(main, "AgentSession", lambda **kwargs: session)
     for name in ("build_stt", "build_llm_chain", "build_tts", "build_turn_handling"):
         monkeypatch.setattr(main, name, lambda value: None)
-    monkeypatch.setattr(main, "build_call_recording", lambda *args: None)
+    recorded = []
+    event_context = {}
+    tool_context = {}
+    configure_tools = main.build_configured_tools
+
+    def capture_tools(*args, **kwargs):
+        tool_context.update(kwargs)
+        return configure_tools(*args, **kwargs)
+
+    monkeypatch.setattr(main, "build_configured_tools", capture_tools)
+    monkeypatch.setattr(main, "build_call_recording", lambda *args: recorded.append(args))
     monkeypatch.setattr(main, "CallEventPublisher", lambda *args: None)
-    monkeypatch.setattr(main, "CallSessionEvents", lambda **kwargs: None)
+    monkeypatch.setattr(main, "CallSessionEvents", lambda **kwargs: event_context.update(kwargs))
     ctx = SimpleNamespace(
         room=SimpleNamespace(name="room"),
         job=SimpleNamespace(metadata=""),
@@ -143,6 +155,13 @@ def test_entrypoint_registers_configured_tools_alongside_knowledge(
     )
     with pytest.raises(RuntimeError, match="registration captured"):
         asyncio.run(main.entrypoint(ctx))
+    assert event_context["tenant"] == "workspace-two"
+    assert tool_context["lead_context"].tenant == "workspace-two"
+    assert recorded[0][2] == "workspace-two"
+    main.open_booking_provider.assert_awaited_once_with(
+        agent_config, main.settings, "a", "room", tenant_slug="workspace-two"
+    )
+    assert main.open_knowledge_tools.await_args.kwargs["tenant_slug"] == "workspace-two"
     agent = session.start.call_args.kwargs["agent"]
     registered = agent.tools
     assert [tool.id for tool in registered] == [

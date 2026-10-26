@@ -113,7 +113,7 @@ class NativeBookingProvider:
 
 
 async def open_booking_provider(
-    config: AgentConfig, settings: Settings, agent_slug: str, room_name: str
+    config: AgentConfig, settings: Settings, agent_slug: str, room_name: str, *, tenant_slug: str
 ) -> NativeBookingProvider | None:
     spec = next((tool for tool in config.tools if isinstance(tool, BookAppointmentTool)), None)
     if (
@@ -132,7 +132,7 @@ async def open_booking_provider(
             max_size=POOL_MAX_SIZE,
             timeout=DB_CONNECT_TIMEOUT,
         )
-        row = await pool.fetchrow(AGENT_SQL, settings.tenant, agent_slug)
+        row = await pool.fetchrow(AGENT_SQL, tenant_slug, agent_slug)
     except Exception:
         logger.warning("native booking unavailable for agent %s", agent_slug, exc_info=True)
     if pool is None or row is None:

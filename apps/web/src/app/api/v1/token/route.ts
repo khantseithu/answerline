@@ -1,4 +1,4 @@
-import { agents } from "@answerline/db";
+import { agents, tenants } from "@answerline/db";
 import { and, eq } from "drizzle-orm";
 import { env } from "@/env";
 import { AGENT_SLUG_PATTERN, createCallToken, DEFAULT_AGENT_SLUG } from "@/lib/call-token";
@@ -16,8 +16,9 @@ export async function POST(request: Request) {
     }
 
     const [agent] = await db
-      .select({ id: agents.id })
+      .select({ id: agents.id, tenantSlug: tenants.slug })
       .from(agents)
+      .innerJoin(tenants, eq(tenants.id, agents.tenantId))
       .where(and(eq(agents.tenantId, tenantId), eq(agents.slug, agentSlug)));
     if (!agent) {
       return Response.json({ error: "Agent not found" }, { status: 404 });
@@ -28,6 +29,7 @@ export async function POST(request: Request) {
       apiKey: env.LIVEKIT_API_KEY,
       apiSecret: env.LIVEKIT_API_SECRET,
       serverUrl: env.LIVEKIT_URL,
+      tenantSlug: agent.tenantSlug,
     });
 
     return Response.json(details, { headers: { "Cache-Control": "no-store" } });

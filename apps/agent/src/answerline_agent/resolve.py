@@ -1,20 +1,17 @@
 import asyncio
-import json
 import logging
-import re
 from dataclasses import dataclass
 from typing import Literal
 
 import asyncpg
 from pydantic import ValidationError
 
+from .call_dispatch import CallDispatchMetadata
 from .config import AgentConfig, load_agent_config
 from .db import AgentNotFoundError, fetch_agent_config
 from .settings import Settings
 
 logger = logging.getLogger("answerline.agent")
-
-SLUG_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
 DB_CONNECT_TIMEOUT = 5.0
 
 
@@ -25,25 +22,9 @@ class AgentConfigNotFoundError(LookupError):
 @dataclass(frozen=True)
 class ResolvedAgent:
     slug: str
+    tenant: str
     config: AgentConfig
     source: Literal["database", "yaml"]
-
-
-def parse_agent_slug(metadata: str | None, default: str) -> str:
-    if not metadata:
-        return default
-    try:
-        payload = json.loads(metadata)
-    except ValueError:
-        logger.warning("dispatch metadata is not valid JSON, using default agent")
-        return default
-    slug = payload.get("agent") if isinstance(payload, dict) else None
-    if slug is None:
-        return default
-    if not isinstance(slug, str) or not SLUG_PATTERN.fullmatch(slug):
-        logger.warning("dispatch metadata has an invalid agent slug, using default agent")
-        return default
-    return slug
 
 
 async def _load_from_database(database_url: str, slug: str, tenant: str) -> AgentConfig:
@@ -55,22 +36,31 @@ async def _load_from_database(database_url: str, slug: str, tenant: str) -> Agen
 
 
 async def resolve_agent(metadata: str | None, settings: Settings) -> ResolvedAgent:
-    slug = parse_agent_slug(metadata, settings.default_agent)
+    dispatch = (
+        CallDispatchMetadata.model_validate_json(metadata)
+        if metadata
+        else CallDispatchMetadata(agent=settings.default_agent, tenant=settings.tenant)
+    )
+    slug, tenant = dispatch.agent, dispatch.tenant
+    if metadata:
+        if not settings.database_url:
+            raise AgentConfigNotFoundError("workspace dispatch requires a database")
+        config = await _load_from_database(settings.database_url, slug, tenant)
+        return ResolvedAgent(slug=slug, tenant=tenant, config=config, source="database")
 
     if settings.database_url:
         try:
-            config = await _load_from_database(settings.database_url, slug, settings.tenant)
+            config = await _load_from_database(settings.database_url, slug, tenant)
         except AgentNotFoundError:
-            logger.info("agent %s not in database, trying yaml", slug)
+            logger.info("agent %s/%s not in database, trying yaml", tenant, slug)
         except (OSError, asyncpg.PostgresError, ValidationError, TimeoutError):
             logger.warning("database lookup for agent %s failed, trying yaml", slug, exc_info=True)
         else:
-            logger.info("loaded agent %s from database", slug)
-            return ResolvedAgent(slug=slug, config=config, source="database")
+            return ResolvedAgent(slug=slug, tenant=tenant, config=config, source="database")
 
     path = settings.agents_dir / f"{slug}.yaml"
     if not path.is_file():
         raise AgentConfigNotFoundError(f"agent {slug} not found in database or at {path}")
     config = await asyncio.to_thread(load_agent_config, path)
     logger.info("loaded agent %s from %s", slug, path)
-    return ResolvedAgent(slug=slug, config=config, source="yaml")
+    return ResolvedAgent(slug=slug, tenant=tenant, config=config, source="yaml")

@@ -129,9 +129,9 @@ def test_sdk_call_stages_export_over_otlp_with_parentage_and_content_removed(spe
             if specific_endpoint
             else None,
             otel_service_name="answerline-test",
-            tenant="test-tenant",
+            tenant="deployment",
         )
-        provider = configure_tracing(settings, "test-room", "test-agent")
+        provider = configure_tracing(settings, "test-room", "test-agent", "test-tenant")
         assert provider is not None
         recognizer = LocalSTT()
         session = AgentSession(
@@ -212,7 +212,7 @@ def test_tracing_is_disabled_without_an_endpoint(monkeypatch):
         otel_exporter_otlp_endpoint=None,
         otel_exporter_otlp_traces_endpoint=None,
     )
-    assert configure_tracing(settings, "room", "agent") is None
+    assert configure_tracing(settings, "room", "agent", settings.tenant) is None
 
 
 def test_flush_runs_outside_the_event_loop():
