@@ -133,7 +133,8 @@ async function sendWebhookDelivery(
       })
       .where(eq(webhookDeliveries.id, deliveryId));
   } catch (error) {
-    const details = error as Error & { responseBody?: string; responseStatus?: number };
+    const details = error instanceof Error ? error : new Error("Unknown webhook delivery failure");
+    const response = details as Error & { responseBody?: string; responseStatus?: number };
     const terminal = attemptCount >= attempts;
     await db
       .update(webhookDeliveries)
@@ -143,12 +144,12 @@ async function sendWebhookDelivery(
         nextAttemptAt: terminal
           ? null
           : new Date(Date.now() + webhookRetryDelayMs * 2 ** attemptsMade),
-        responseBody: details.responseBody,
-        responseStatus: details.responseStatus,
+        responseBody: response.responseBody,
+        responseStatus: response.responseStatus,
         status: terminal ? "failed" : "pending",
       })
       .where(eq(webhookDeliveries.id, deliveryId));
-    throw error;
+    throw details;
   }
 }
 

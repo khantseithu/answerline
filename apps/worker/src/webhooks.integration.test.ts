@@ -16,6 +16,7 @@ const encryptionKey = "0123456789abcdef".repeat(4);
 const signaturePattern = /^t=(\d+),v1=([0-9a-f]{64})$/;
 const signatureHeaderPattern = /^t=\d+,v1=[0-9a-f]{64}$/;
 const http503Pattern = /HTTP 503/;
+const unknownWebhookFailurePattern = /Unknown webhook delivery failure/;
 
 test("webhook enqueue is tenant scoped and delivery retries with signed payloads", {
   skip,
@@ -134,6 +135,20 @@ test("webhook enqueue is tenant scoped and delivery retries with signed payloads
     assert.equal(delivered?.attemptCount, 2);
     assert.equal(delivered?.responseStatus, 200);
     assert.equal(requestBody, JSON.stringify(event));
+
+    await db
+      .update(webhookDeliveries)
+      .set({ status: "pending" })
+      .where(eq(webhookDeliveries.id, delivery.id));
+    const rejectNonError = createWebhookDeliveryProcessor(db, encryptionKey, () =>
+      Promise.reject("network failed")
+    );
+    await assert.rejects(rejectNonError(job), unknownWebhookFailurePattern);
+    const [retryingNonError] = await db
+      .select()
+      .from(webhookDeliveries)
+      .where(eq(webhookDeliveries.id, delivery.id));
+    assert.equal(retryingNonError?.lastError, "Unknown webhook delivery failure");
   } finally {
     if (ownTenantId) {
       await db.delete(tenants).where(eq(tenants.id, ownTenantId));
