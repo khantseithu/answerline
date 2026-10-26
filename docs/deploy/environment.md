@@ -94,6 +94,7 @@ constraints, and [backup/restore](backups.md) for persistent state.
 | --- | --- |
 | `LIVEKIT_URL` | Local default `ws://localhost:7880`. Production web/CLI uses `wss://<LIVEKIT_DOMAIN>`; agent/SIP/Egress use private signaling. |
 | `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | Matching credentials across LiveKit and all clients. Development uses `devkey`/`secret`; replace both in production. |
+| `LIVEKIT_SIP_OUTBOUND_TRUNK_ID` | Optional stored LiveKit outbound SIP trunk ID used for outbound calls. Create the trunk in LiveKit and keep carrier credentials there; one deployment trunk is shared by workspaces. |
 | `LIVEKIT_TCP_PORT` | Production direct ICE/TCP port, default 7881. Host/container ports match. |
 | `LIVEKIT_RTC_PORT_START`, `LIVEKIT_RTC_PORT_END` | Production ICE/UDP range, default 50000–50100, forwarded unchanged. Development uses UDP mux port 7882 instead. |
 | `LIVEKIT_TURN_UDP_PORT` | Production TURN/UDP port, default 3478. TURN/TLS shares public TCP 443 through Caddy. |

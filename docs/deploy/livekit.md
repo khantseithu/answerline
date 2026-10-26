@@ -93,6 +93,11 @@ SIP and Egress can use `ws://livekit:7880` on the private Compose network, with
 the same API key and secret. Serve the dashboard over HTTPS so browsers permit
 microphone access.
 
+For outbound calls, create a stored outbound SIP trunk in LiveKit and set
+`LIVEKIT_SIP_OUTBOUND_TRUNK_ID` in the Answerline web service to its ID. The
+deployment shares this trunk across workspaces; provider credentials stay in
+LiveKit. Use `lk sip outbound list` to find the trunk ID.
+
 If a layer 4 load balancer terminates TURN TLS instead of passing it through,
 set `turn.external_tls: true`, remove `cert_file` and `key_file`, and forward
 unencrypted TCP to the configured `turn.tls_port`. Keep the advertised public
