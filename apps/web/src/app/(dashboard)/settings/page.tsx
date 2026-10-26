@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { PageContainer, PageHeader } from "@/components/shell/page-header";
 import { ThemeSelect } from "@/components/theme/theme-toggle";
+import { WorkspaceSettingsManager } from "@/components/workspaces/workspace-settings";
+import { getDashboardContext } from "@/lib/dashboard/context";
+import { getWorkspaceSettings } from "@/lib/workspaces/service";
 
 export const instant = false;
 export const metadata: Metadata = { title: "Settings" };
@@ -32,14 +35,33 @@ function SettingsSection({
   );
 }
 
-export default function SettingsPage() {
+export default async function SettingsPage() {
+  const context = await getDashboardContext();
+  const settings =
+    context.role === "owner" ? await getWorkspaceSettings(context, context.tenantId) : null;
   return (
     <PageContainer>
       <PageHeader
-        description="Preferences for this dashboard and this deployment."
+        description="Manage your workspace, team and dashboard preferences."
         title="Settings"
       />
       <div className="flex flex-col divide-y">
+        <SettingsSection
+          description="A shared space for your agents, calls and knowledge."
+          title="Workspace"
+        >
+          {settings ? (
+            <WorkspaceSettingsManager settings={settings} userId={context.user.id} />
+          ) : (
+            <div className="flex flex-col gap-2">
+              <h3 className="font-medium text-sm">{context.workspace.name}</h3>
+              <p className="text-muted-foreground text-sm">
+                Your role is <span className="capitalize">{context.role}</span>. Only workspace
+                owners can manage members and settings.
+              </p>
+            </div>
+          )}
+        </SettingsSection>
         <SettingsSection
           description="Match your system, or pick a theme for this browser."
           title="Appearance"

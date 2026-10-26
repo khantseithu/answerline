@@ -1,6 +1,12 @@
 import { phoneNumberSchema } from "@answerline/worker/phone-numbers";
 import { z } from "zod";
-import { DashboardAuthError, dashboardErrorResponse } from "@/lib/dashboard/errors";
+import {
+  DashboardAuthError,
+  DashboardForbiddenError,
+  dashboardErrorResponse,
+  WorkspaceRequiredError,
+} from "@/lib/dashboard/errors";
+import type { WorkspaceAccess } from "@/lib/workspaces/permissions";
 import { assignPhoneNumber, createPhoneNumber } from "./schemas";
 import {
   connectPhoneNumber,
@@ -17,7 +23,11 @@ import {
 const noStore = { "Cache-Control": "no-store" };
 
 export function phoneNumberErrorResponse(error: unknown) {
-  if (error instanceof DashboardAuthError) {
+  if (
+    error instanceof DashboardAuthError ||
+    error instanceof DashboardForbiddenError ||
+    error instanceof WorkspaceRequiredError
+  ) {
     return dashboardErrorResponse(error);
   }
   if (error instanceof z.ZodError) {
@@ -62,13 +72,16 @@ function parseNumber(raw: string) {
   }
 }
 
-export function createPhoneNumberHandlers(getDeps: () => Promise<PhoneNumberDeps>) {
+export function createPhoneNumberHandlers(
+  getDeps: (access?: WorkspaceAccess) => Promise<PhoneNumberDeps>
+) {
   return {
     async assign(request: Request, rawNumber: string) {
       try {
+        const deps = await getDeps("write");
         const number = parseNumber(rawNumber);
         const { agent } = assignPhoneNumber.parse(await readJson(request));
-        const result = await reassignPhoneNumber(await getDeps(), number, agent);
+        const result = await reassignPhoneNumber(deps, number, agent);
         return Response.json(result, { headers: noStore });
       } catch (error) {
         return phoneNumberErrorResponse(error);
@@ -76,8 +89,9 @@ export function createPhoneNumberHandlers(getDeps: () => Promise<PhoneNumberDeps
     },
     async create(request: Request) {
       try {
+        const deps = await getDeps("write");
         const input = createPhoneNumber.parse(await readJson(request));
-        const result = await connectPhoneNumber(await getDeps(), input);
+        const result = await connectPhoneNumber(deps, input);
         return Response.json(result, { headers: noStore, status: 201 });
       } catch (error) {
         return phoneNumberErrorResponse(error);
@@ -93,7 +107,8 @@ export function createPhoneNumberHandlers(getDeps: () => Promise<PhoneNumberDeps
     },
     async remove(_request: Request, rawNumber: string) {
       try {
-        await disconnectPhoneNumber(await getDeps(), parseNumber(rawNumber));
+        const deps = await getDeps("write");
+        await disconnectPhoneNumber(deps, parseNumber(rawNumber));
         return new Response(null, { headers: noStore, status: 204 });
       } catch (error) {
         return phoneNumberErrorResponse(error);

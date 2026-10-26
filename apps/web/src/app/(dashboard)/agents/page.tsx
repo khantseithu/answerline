@@ -9,7 +9,7 @@ export const instant = false;
 export const metadata: Metadata = { title: "Agents" };
 
 export default async function AgentsPage() {
-  const { db, tenantId } = await getDashboardContext();
+  const { db, role, tenantId } = await getDashboardContext();
   const [agents, templates] = await Promise.all([
     listAgents({ db, tenantId }),
     listAgentTemplates(),
@@ -20,7 +20,7 @@ export default async function AgentsPage() {
         description="Build and tune the voice receptionist your business needs. Every change is validated and versioned."
         title="Agents"
       />
-      <AgentList agents={agents} templates={templates} />
+      <AgentList agents={agents} readOnly={role === "viewer"} templates={templates} />
     </PageContainer>
   );
 }

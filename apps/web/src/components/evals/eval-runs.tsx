@@ -70,9 +70,11 @@ function CompareForm({ runs }: { runs: EvalRunView[] }) {
 export function EvalRuns({
   initialRuns,
   options,
+  readOnly = false,
 }: {
   initialRuns: EvalRunView[];
   options: EvalRunOptions;
+  readOnly?: boolean;
 }) {
   const [runs, setRuns] = useState(initialRuns);
   const inFlight = runs.some((run) => isEvalRunInFlight(run.status));
@@ -111,7 +113,7 @@ export function EvalRuns({
           {runs.length} {runs.length === 1 ? "run" : "runs"}
           {inFlight ? " · updating while runs are in progress" : ""}
         </p>
-        <NewRunDialog onCreated={handleCreated} options={options} />
+        {readOnly ? null : <NewRunDialog onCreated={handleCreated} options={options} />}
       </div>
       {runs.length === 0 ? (
         <EmptyPanel

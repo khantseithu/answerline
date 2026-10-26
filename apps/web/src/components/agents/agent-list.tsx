@@ -25,9 +25,11 @@ import { createAgent } from "@/lib/agents/client";
 export function AgentList({
   agents,
   templates,
+  readOnly = false,
 }: {
   agents: AgentView[];
   templates: AgentTemplate[];
+  readOnly?: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -67,6 +69,7 @@ export function AgentList({
       const agent = await createAgent({ config: selected.config, slug });
       setOpen(false);
       router.push(`/agents/${agent.id}`);
+      router.refresh();
     } catch (error) {
       toast.error("Could not create agent", {
         description: error instanceof Error ? error.message : "Try again.",
@@ -114,11 +117,12 @@ export function AgentList({
                 className="inline-flex items-center gap-1 font-medium text-foreground/80 text-sm transition-colors hover:text-foreground"
                 href={`/agents/${agent.id}`}
               >
-                Configure <ArrowUpRightIcon className="size-3.5" />
+                {readOnly ? "View agent" : "Configure"} <ArrowUpRightIcon className="size-3.5" />
               </Link>
               <TalkToAgentButton
                 agentName={agent.name}
                 agentSlug={agent.slug}
+                disabled={readOnly}
                 size="sm"
                 variant="outline"
               />
@@ -127,6 +131,7 @@ export function AgentList({
         ))}
         <button
           className="group flex min-h-56 flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-card/50 p-6 text-center transition-colors hover:border-primary/35 hover:bg-primary/[0.025]"
+          disabled={readOnly}
           onClick={openTemplatePicker}
           type="button"
         >

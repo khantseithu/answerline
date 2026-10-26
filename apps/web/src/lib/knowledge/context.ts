@@ -4,6 +4,7 @@ import { Queue } from "bullmq";
 import { Redis } from "ioredis";
 import { env } from "@/env";
 import { getDashboardContext } from "@/lib/dashboard/context";
+import { requireWorkspaceAccess, type WorkspaceAccess } from "@/lib/workspaces/permissions";
 import type { KnowledgeDeps } from "./service";
 
 interface KnowledgeRuntime {
@@ -26,8 +27,9 @@ function runtime() {
   return globalForKnowledge.knowledgeRuntime;
 }
 
-export async function getKnowledgeDeps(): Promise<KnowledgeDeps> {
-  const { db, tenantId } = await getDashboardContext();
+export async function getKnowledgeDeps(access: WorkspaceAccess = "read"): Promise<KnowledgeDeps> {
+  const { db, role, tenantId } = await getDashboardContext();
+  requireWorkspaceAccess(role, access);
   const { queue } = runtime();
   return {
     db,

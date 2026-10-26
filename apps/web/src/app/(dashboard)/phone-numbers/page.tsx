@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { PhoneNumberManager } from "@/components/phone-numbers/phone-number-manager";
 import { PageContainer, PageHeader } from "@/components/shell/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getDashboardContext } from "@/lib/dashboard/context";
 import { getPhoneNumberDeps } from "@/lib/phone-numbers/context";
 import { listPhoneNumberView, PhoneNumberUnavailableError } from "@/lib/phone-numbers/service";
 
@@ -12,12 +13,21 @@ export const metadata: Metadata = { title: "Phone numbers" };
 
 async function PhoneNumbersContent() {
   await connection();
+  const { role } = await getDashboardContext();
   try {
     const list = await listPhoneNumberView(await getPhoneNumberDeps());
-    return <PhoneNumberManager initialError={null} initialList={list} />;
+    return (
+      <PhoneNumberManager initialError={null} initialList={list} readOnly={role === "viewer"} />
+    );
   } catch (error) {
     if (error instanceof PhoneNumberUnavailableError) {
-      return <PhoneNumberManager initialError={error.message} initialList={null} />;
+      return (
+        <PhoneNumberManager
+          initialError={error.message}
+          initialList={null}
+          readOnly={role === "viewer"}
+        />
+      );
     }
     throw error;
   }

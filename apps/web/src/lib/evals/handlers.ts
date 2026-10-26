@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { dashboardErrorResponse } from "@/lib/dashboard/errors";
+import type { WorkspaceAccess } from "@/lib/workspaces/permissions";
 import {
   createEvalRun,
   EvalBadRequestError,
@@ -40,11 +41,12 @@ async function readJson(request: Request) {
   }
 }
 
-export function createEvalHandlers(getDeps: () => Promise<EvalDeps>) {
+export function createEvalHandlers(getDeps: (access?: WorkspaceAccess) => Promise<EvalDeps>) {
   return {
     async create(request: Request) {
       try {
-        const run = await createEvalRun(await getDeps(), await readJson(request));
+        const deps = await getDeps("write");
+        const run = await createEvalRun(deps, await readJson(request));
         return Response.json({ run }, { headers: noStore, status: 202 });
       } catch (error) {
         return evalErrorResponse(error) ?? dashboardErrorResponse(error);

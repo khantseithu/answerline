@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { EvalRuns } from "@/components/evals/eval-runs";
 import { PageContainer, PageHeader } from "@/components/shell/page-header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { getDashboardContext } from "@/lib/dashboard/context";
 import { getEvalDeps } from "@/lib/evals/context";
 import { listEvalOptions, listEvalRuns } from "@/lib/evals/service";
 
@@ -12,6 +13,7 @@ export const metadata: Metadata = { title: "Evals" };
 const DESCRIPTION = "Scripted test calls, scored for accuracy, tool use, latency, and cost.";
 
 export default async function EvalsPage() {
+  const { role } = await getDashboardContext();
   let loaded: {
     options: Awaited<ReturnType<typeof listEvalOptions>>;
     runs: Awaited<ReturnType<typeof listEvalRuns>>;
@@ -36,7 +38,7 @@ export default async function EvalsPage() {
   return (
     <PageContainer>
       <PageHeader description={DESCRIPTION} title="Evals" />
-      <EvalRuns initialRuns={loaded.runs} options={loaded.options} />
+      <EvalRuns initialRuns={loaded.runs} options={loaded.options} readOnly={role === "viewer"} />
     </PageContainer>
   );
 }

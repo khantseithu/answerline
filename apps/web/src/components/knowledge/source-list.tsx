@@ -68,9 +68,11 @@ function sourceName(source: KnowledgeSourceView) {
 function SourceRow({
   onChange,
   source,
+  readOnly,
 }: {
   onChange: () => Promise<void>;
   source: KnowledgeSourceView;
+  readOnly: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -146,7 +148,7 @@ function SourceRow({
         <div className="flex justify-end gap-1">
           <Button
             aria-label={`Re-sync ${name}`}
-            disabled={busy || isInFlight(source.status)}
+            disabled={readOnly || busy || isInFlight(source.status)}
             onClick={handleResync}
             size="sm"
             variant="ghost"
@@ -156,7 +158,7 @@ function SourceRow({
           </Button>
           <Button
             aria-label={`Delete ${name}`}
-            disabled={busy}
+            disabled={readOnly || busy}
             onClick={openConfirm}
             size="icon-sm"
             variant="ghost"
@@ -188,9 +190,11 @@ function SourceRow({
 export function SourceList({
   onChange,
   sources,
+  readOnly = false,
 }: {
   onChange: () => Promise<void>;
   sources: KnowledgeSourceView[];
+  readOnly?: boolean;
 }) {
   if (!sources.length) {
     return (
@@ -220,7 +224,7 @@ export function SourceList({
           </TableHeader>
           <TableBody>
             {sources.map((source) => (
-              <SourceRow key={source.id} onChange={onChange} source={source} />
+              <SourceRow key={source.id} onChange={onChange} readOnly={readOnly} source={source} />
             ))}
           </TableBody>
         </Table>

@@ -33,10 +33,12 @@ function NumberRow({
   agents,
   onChange,
   phone,
+  readOnly,
 }: {
   agents: AgentOption[];
   onChange: () => Promise<void>;
   phone: PhoneNumberView;
+  readOnly: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -76,7 +78,7 @@ function NumberRow({
       <TableCell>
         <AgentSelect
           agents={agents}
-          disabled={busy}
+          disabled={readOnly || busy}
           label={`Agent answering ${phone.number}`}
           onChange={handleAssign}
           size="sm"
@@ -87,7 +89,7 @@ function NumberRow({
         <div className="flex justify-end">
           <Button
             aria-label={`Remove ${phone.number}`}
-            disabled={busy}
+            disabled={readOnly || busy}
             onClick={openConfirm}
             size="icon-sm"
             variant="ghost"
@@ -120,9 +122,11 @@ export function NumberList({
   agents,
   numbers,
   onChange,
+  readOnly = false,
 }: {
   agents: AgentOption[];
   numbers: PhoneNumberView[];
+  readOnly?: boolean;
   onChange: () => Promise<void>;
 }) {
   if (!numbers.length) {
@@ -165,7 +169,13 @@ export function NumberList({
           </TableHeader>
           <TableBody>
             {numbers.map((phone) => (
-              <NumberRow agents={agents} key={phone.number} onChange={onChange} phone={phone} />
+              <NumberRow
+                agents={agents}
+                key={phone.number}
+                onChange={onChange}
+                phone={phone}
+                readOnly={readOnly}
+              />
             ))}
           </TableBody>
         </Table>

@@ -24,6 +24,8 @@ import {
   SidebarRail,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { WorkspaceSwitcher } from "@/components/workspaces/workspace-switcher";
+import type { WorkspaceView } from "@/lib/workspaces/types";
 
 function NavMenu({ items, pathname }: { items: NavItem[]; pathname: string }) {
   const { isMobile, setOpenMobile } = useSidebar();
@@ -56,12 +58,18 @@ function NavMenu({ items, pathname }: { items: NavItem[]; pathname: string }) {
   );
 }
 
-export function AppSidebar() {
+export function AppSidebar({
+  workspace,
+  workspaces,
+}: {
+  workspace: WorkspaceView;
+  workspaces: WorkspaceView[];
+}) {
   const pathname = usePathname();
 
   return (
     <Sidebar collapsible="icon" variant="inset">
-      <SidebarHeader className="h-14 justify-center px-3 group-data-[collapsible=icon]:px-2">
+      <SidebarHeader className="gap-4 px-3 py-3 group-data-[collapsible=icon]:px-2">
         <Link
           aria-label="Answerline home"
           className="flex h-9 items-center rounded-lg px-1 outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
@@ -70,6 +78,7 @@ export function AppSidebar() {
           <Logo className="group-data-[collapsible=icon]:hidden" />
           <LogoMark className="hidden text-sidebar-primary group-data-[collapsible=icon]:block" />
         </Link>
+        <WorkspaceSwitcher workspace={workspace} workspaces={workspaces} />
       </SidebarHeader>
       <SidebarContent className="gap-1 px-1">
         <SidebarGroup>

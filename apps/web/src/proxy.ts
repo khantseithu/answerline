@@ -39,5 +39,6 @@ export const config = {
     "/knowledge/:path*",
     "/phone-numbers/:path*",
     "/settings/:path*",
+    "/workspaces/:path*",
   ],
 };

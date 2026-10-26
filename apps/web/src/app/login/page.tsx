@@ -7,11 +7,18 @@ import { LoginForm } from "@/components/auth/login-form";
 import { Logo } from "@/components/brand/logo";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { env } from "@/env";
+import { loginDestination } from "@/lib/auth/redirect";
 import { getAuth } from "@/lib/auth/server";
 
 export const metadata: Metadata = { title: "Sign in" };
 
-async function LoginView({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+async function LoginView({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string; returnTo?: string }>;
+}) {
+  const params = await searchParams;
+  const destination = loginDestination(params.returnTo);
   const ready = Boolean(env.DATABASE_URL && env.BETTER_AUTH_SECRET);
   if (
     ready &&
@@ -20,9 +27,8 @@ async function LoginView({ searchParams }: { searchParams: Promise<{ error?: str
       query: { disableRefresh: true },
     }))
   ) {
-    redirect("/overview");
+    redirect(destination);
   }
-  const params = await searchParams;
   return (
     <main className="relative flex min-h-dvh flex-col bg-background">
       <header className="flex items-center justify-between px-6 py-5 sm:px-10">
@@ -43,6 +49,7 @@ async function LoginView({ searchParams }: { searchParams: Promise<{ error?: str
             Sign in to review calls and manage your agents.
           </p>
           <LoginForm
+            destination={destination}
             githubEnabled={Boolean(env.AUTH_GITHUB_CLIENT_ID && env.AUTH_GITHUB_CLIENT_SECRET)}
             oauthError={Boolean(params.error)}
             ready={ready}
@@ -59,7 +66,9 @@ async function LoginView({ searchParams }: { searchParams: Promise<{ error?: str
   );
 }
 
-export default function LoginPage(props: { searchParams: Promise<{ error?: string }> }) {
+export default function LoginPage(props: {
+  searchParams: Promise<{ error?: string; returnTo?: string }>;
+}) {
   return (
     <Suspense fallback={<p className="p-6 text-muted-foreground text-sm">Loading sign-in…</p>}>
       <LoginView {...props} />

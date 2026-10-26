@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { dashboardErrorResponse } from "@/lib/dashboard/errors";
+import type { WorkspaceAccess } from "@/lib/workspaces/permissions";
 import {
   AgentBadRequestError,
   AgentConflictError,
@@ -42,11 +43,12 @@ async function readJson(request: Request) {
   }
 }
 
-export function createAgentHandlers(getDeps: () => Promise<AgentDeps>) {
+export function createAgentHandlers(getDeps: (access?: WorkspaceAccess) => Promise<AgentDeps>) {
   return {
     async create(request: Request) {
       try {
-        return Response.json(await createAgent(await getDeps(), await readJson(request)), {
+        const deps = await getDeps("write");
+        return Response.json(await createAgent(deps, await readJson(request)), {
           headers: noStore,
           status: 201,
         });
@@ -77,7 +79,8 @@ export function createAgentHandlers(getDeps: () => Promise<AgentDeps>) {
     },
     async update(request: Request, rawId: string) {
       try {
-        return Response.json(await updateAgent(await getDeps(), rawId, await readJson(request)), {
+        const deps = await getDeps("write");
+        return Response.json(await updateAgent(deps, rawId, await readJson(request)), {
           headers: noStore,
         });
       } catch (error) {

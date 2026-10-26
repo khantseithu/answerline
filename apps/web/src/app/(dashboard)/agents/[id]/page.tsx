@@ -13,13 +13,13 @@ export default async function AgentPage({ params }: PageProps<"/agents/[id]">) {
   if (!agentIdSchema.safeParse(id).success) {
     notFound();
   }
-  const { db, tenantId } = await getDashboardContext();
+  const { db, role, tenantId } = await getDashboardContext();
   try {
     const deps = { db, tenantId };
     const [agent, versions] = await Promise.all([getAgent(deps, id), listAgentVersions(deps, id)]);
     return (
       <PageContainer>
-        <AgentEditor agent={agent} initialVersions={versions} />
+        <AgentEditor agent={agent} initialVersions={versions} readOnly={role === "viewer"} />
       </PageContainer>
     );
   } catch (error) {
