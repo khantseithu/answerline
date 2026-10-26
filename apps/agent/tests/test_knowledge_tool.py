@@ -404,7 +404,9 @@ def test_search_returns_the_scoped_answer_end_to_end(monkeypatch, embedding_env)
     embedder = FakeEmbedder(
         {"when are you open": axis((1, 1.0)), "how much is a cleaning": axis((2, 1.0))}
     )
-    monkeypatch.setattr(knowledge_tool, "build_embedder", lambda client: embedder)
+    monkeypatch.setattr(
+        knowledge_tool, "build_embedder", lambda client, provider_keys=None: embedder
+    )
 
     async def scenario():
         async with tenant_with_agents() as (admin, slug, tenant_id, source):
@@ -478,7 +480,9 @@ def test_relevance_floor_makes_out_of_scope_queries_return_no_results(monkeypatc
     embedder = FakeEmbedder(
         {"when are you open": axis((1, 1.0)), "do you do botox": axis((7, 1.0))}
     )
-    monkeypatch.setattr(knowledge_tool, "build_embedder", lambda client: embedder)
+    monkeypatch.setattr(
+        knowledge_tool, "build_embedder", lambda client, provider_keys=None: embedder
+    )
     monkeypatch.setenv("KNOWLEDGE_MIN_SIMILARITY", "0.5")
 
     async def scenario():

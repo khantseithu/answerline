@@ -61,10 +61,9 @@ test(
           .values({ email: "legacy@example.com", name: "Legacy" })
           .returning();
         assert.ok(legacy);
-        const [unrelated] = await db
-          .insert(tenants)
-          .values({ name: "Unrelated", slug: "unrelated" })
-          .returning();
+        const [unrelated] = await db.$client<{ id: string }[]>`
+          insert into tenants (name, slug) values ('Unrelated', 'unrelated') returning id
+        `;
         assert.ok(unrelated);
         await db.$client`insert into sessions (expires_at, token, user_id)
           values (${new Date(Date.now() + 60_000).toISOString()}, ${crypto.randomUUID()}, ${legacy.id})`;

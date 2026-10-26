@@ -13,18 +13,21 @@ export class WorkspaceUsageLimitError extends Error {
 export async function getWorkspaceUsage(db: Database, tenantId: string, now = new Date()) {
   const periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const periodEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+  const nowIso = now.toISOString();
+  const periodStartIso = periodStart.toISOString();
+  const periodEndIso = periodEnd.toISOString();
   const [[usage], [evalUsage], [workspace]] = await Promise.all([
     db
       .select({
-        callSeconds: sql<string>`coalesce(sum(extract(epoch from (least(coalesce(${calls.endedAt}, ${now}::timestamptz), ${periodEnd}::timestamptz) - greatest(${calls.startedAt}, ${periodStart}::timestamptz)))), 0)::text`,
-        providerSpendUsd: sql<string>`coalesce(sum(case when ${calls.startedAt} >= ${periodStart} and ${calls.startedAt} < ${periodEnd} then ${calls.costUsd} else 0 end), 0)::text`,
+        callSeconds: sql<string>`coalesce(sum(extract(epoch from (least(coalesce(${calls.endedAt}, ${nowIso}::timestamptz), ${periodEndIso}::timestamptz) - greatest(${calls.startedAt}, ${periodStartIso}::timestamptz)))), 0)::text`,
+        providerSpendUsd: sql<string>`coalesce(sum(case when ${calls.startedAt} >= ${periodStartIso}::timestamptz and ${calls.startedAt} < ${periodEndIso}::timestamptz then ${calls.costUsd} else 0 end), 0)::text`,
       })
       .from(calls)
       .where(
         and(
           eq(calls.tenantId, tenantId),
           lt(calls.startedAt, periodEnd),
-          gt(sql`coalesce(${calls.endedAt}, ${now}::timestamptz)`, periodStart)
+          gt(sql`coalesce(${calls.endedAt}, ${nowIso}::timestamptz)`, periodStartIso)
         )
       ),
     db
