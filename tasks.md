@@ -246,6 +246,7 @@ Roadmap: *Outbound calls and webhooks*
 - [x] Outbound SIP trunk config
 - [x] Shared `calls:write` API key scope (#302)
 - [x] Shared outbound call request/response contracts (#306)
+  - [x] Define shared outbound dial queue job contract (#317)
 - [x] Use trunk caller ID by default for workspace isolation (#308)
 - [x] `POST /api/v1/calls` starts an outbound call (create room, dispatch agent, create SIP participant)
 - [ ] Outbound-specific config: first message, voicemail detection (AMD), retry policy, calling-hours guard

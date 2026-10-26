@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { jsonSchema, schemaPath } from "./generate-json-schema.ts";
-import { outboundCallRequestSchema, outboundCallResponseSchema } from "./outbound-calls.ts";
+import {
+  outboundCallRequestSchema,
+  outboundCallResponseSchema,
+  outboundDialJobSchema,
+} from "./outbound-calls.ts";
 
 test("outbound call request validates agent and E.164 phone numbers", () => {
   assert.deepEqual(
@@ -42,4 +46,18 @@ test("committed outbound call JSON Schemas match Zod", async () => {
     await readFile(schemaPath("outbound-call-response"), "utf8"),
     jsonSchema("outbound-call-response")
   );
+});
+
+test("outbound dial jobs validate routing data and reject extra fields", () => {
+  const job = {
+    agent: "front-desk",
+    callId: "123e4567-e89b-42d3-a456-426614174000",
+    roomName: "call-123e4567-e89b-42d3-a456-426614174000",
+    tenant: "dental",
+    toNumber: "+15551234567",
+    waitForAgentReady: true,
+  };
+  assert.deepEqual(outboundDialJobSchema.parse(job), job);
+  assert.equal(outboundDialJobSchema.safeParse({ ...job, trunkId: "secret" }).success, false);
+  assert.equal(outboundDialJobSchema.safeParse({ ...job, toNumber: "5551234567" }).success, false);
 });

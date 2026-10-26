@@ -38,5 +38,6 @@ export const QUEUES = {
   callEvents: "call-events",
   evals: "evals",
   ingestion: "ingestion",
+  outboundCalls: "outbound-calls",
   postCall: "post-call",
 } as const;
