@@ -46,13 +46,16 @@ test("invitation acceptance requires a full random token and signup credentials"
 
 test("API keys require explicit supported scopes without duplicates", () => {
   assert.deepEqual(
-    createApiKeySchema.parse({ name: " Integration ", scopes: ["calls:read", "evals:write"] }),
+    createApiKeySchema.parse({
+      name: " Integration ",
+      scopes: ["calls:read", "calls:write", "evals:write"],
+    }),
     {
       name: "Integration",
-      scopes: ["calls:read", "evals:write"],
+      scopes: ["calls:read", "calls:write", "evals:write"],
     }
   );
-  for (const scopes of [[], ["*"], ["calls:write"], ["calls:read", "calls:read"]]) {
+  for (const scopes of [[], ["*"], ["calls:read", "calls:read"]]) {
     assert.equal(createApiKeySchema.safeParse({ name: "Integration", scopes }).success, false);
   }
 });
