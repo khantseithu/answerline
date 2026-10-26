@@ -104,7 +104,7 @@ test("webhook enqueue is tenant scoped and delivery retries with signed payloads
       requestBody = init?.body as string;
       const signature = new Headers(init?.headers).get("x-answerline-signature");
       assert.match(signature ?? "", signatureHeaderPattern);
-      const [timestamp, digest] = signaturePattern.exec(signature ?? "") ?? [];
+      const [, timestamp, digest] = signaturePattern.exec(signature ?? "") ?? [];
       assert.equal(digest, signWebhookPayload("hook-secret", timestamp ?? "", requestBody));
       sendCount += 1;
       return Promise.resolve(
