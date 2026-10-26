@@ -222,7 +222,7 @@ Roadmap: *Terraform modules for Azure and AWS*
 
 Roadmap: *Multi-tenant workspaces and API keys*
 
-- [ ] Tenant scoping on every table and query (consider Postgres RLS) (#105)
+- [x] Tenant scoping on every table and query (consider Postgres RLS) (#105)
   - [x] Reject call-start room ownership changes (#200)
   - [x] Reject cross-tenant turn, tool, and end call events (#282)
   - [x] Define tenant-safe parent links and workspace voice dispatch contracts (#287)
