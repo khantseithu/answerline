@@ -17,12 +17,17 @@ test("the docs route serves an OpenAPI spec generated from the API Zod schemas",
   const spec = (await response.json()) as {
     components: { schemas: Record<string, unknown> };
     openapi: string;
-    paths: Record<string, Record<string, { operationId?: string; requestBody?: unknown }>>;
+    paths: Record<
+      string,
+      Record<string, { operationId?: string; requestBody?: unknown; security?: unknown }>
+    >;
   };
   assert.equal(spec.openapi, "3.1.0");
   assert.equal(spec.paths["/api/v1/agents"].post.operationId, "createAgent");
   assert.equal(spec.paths["/api/v1/agents/{id}"].patch.operationId, "updateAgent");
+  assert.equal(spec.paths["/api/v1/agents/{id}"].delete.operationId, "archiveAgent");
   assert.equal(spec.paths["/api/v1/calls"].get.operationId, "listCalls");
+  assert.equal(spec.paths["/api/v1/calls/{id}"].get.operationId, "getCall");
   assert.equal(spec.paths["/api/v1/knowledge"].post.operationId, "createKnowledgeSource");
   assert.equal(spec.paths["/api/v1/evals/{id}"].get.operationId, "getEvalRun");
 
@@ -61,4 +66,8 @@ test("the docs route serves an OpenAPI spec generated from the API Zod schemas",
     );
   }
   assert.equal(spec.paths["/api/v1/agents/templates"].get.operationId, "listAgentTemplates");
+  assert.deepEqual(spec.paths["/api/v1/calls"].get.security, [
+    { sessionCookie: [] },
+    { bearerAuth: [] },
+  ]);
 });

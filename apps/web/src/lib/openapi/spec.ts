@@ -4,6 +4,7 @@ import {
   agentVersionViewSchema,
   agentViewSchema,
   callsListQuerySchema,
+  costLineSchema,
   createAgentSchema,
   evalRunCreateSchema,
   updateAgentSchema,
@@ -30,6 +31,50 @@ const callsListResponse = z.object({
   pageSize: z.number().int().positive(),
   total: z.number().int().nonnegative(),
 });
+const callDetailResponse = z.object({
+  agentName: z.string(),
+  channel: z.enum(["web", "sip"]),
+  costBreakdown: z.array(costLineSchema).nullable(),
+  costUsd: z.string().nullable(),
+  direction: z.string(),
+  durationMs: z.number().nullable(),
+  endedAt: z.iso.datetime().nullable(),
+  fromNumber: z.string().nullable(),
+  hasRecording: z.boolean(),
+  id: z.uuid(),
+  outcome: z.string().nullable(),
+  recordingStartedAt: z.iso.datetime().nullable(),
+  sentiment: z.string().nullable(),
+  startedAt: z.iso.datetime(),
+  status: z.enum(["in_progress", "completed", "failed"]),
+  summary: z.string().nullable(),
+  toNumber: z.string().nullable(),
+  toolCalls: z.array(
+    z.object({
+      args: z.unknown(),
+      createdAt: z.iso.datetime(),
+      error: z.string().nullable(),
+      id: z.uuid(),
+      latencyMs: z.number().nullable(),
+      name: z.string(),
+      result: z.unknown().nullable(),
+      seq: z.number().int(),
+      status: z.string(),
+    })
+  ),
+  turns: z.array(
+    z.object({
+      endedAt: z.iso.datetime().nullable(),
+      id: z.uuid(),
+      interrupted: z.boolean(),
+      latency: z.number().nullable(),
+      role: z.string(),
+      seq: z.number().int(),
+      startedAt: z.iso.datetime().nullable(),
+      text: z.string(),
+    })
+  ),
+});
 const evalResult = z.object({
   caseName: z.string(),
   costUsd: z.string().nullable(),
@@ -51,6 +96,7 @@ const schemas = {
   AgentTemplateList: agentTemplateSchema.array(),
   AgentVersion: agentVersionViewSchema,
   AgentVersionList: agentVersionViewSchema.array(),
+  CallDetail: callDetailResponse,
   CallList: callsListResponse,
   CreateAgent: createAgentSchema,
   CreateEvalRun: evalRunCreateSchema,
@@ -92,10 +138,10 @@ const idParameter = (name = "id", schema: z.ZodType = agentIdSchema) => ({
   required: true,
   schema: jsonSchema(schema),
 });
-const sessionSecurity = [{ sessionCookie: [] }];
+const workspaceSecurity = [{ sessionCookie: [] }, { bearerAuth: [] }];
 const commonErrors = {
   "400": jsonResponse("The request is invalid.", "Error"),
-  "401": jsonResponse("A signed-in session is required.", "Error"),
+  "401": jsonResponse("A valid workspace session or API key is required.", "Error"),
   "403": jsonResponse("The workspace role does not allow this operation.", "Error"),
 };
 
@@ -104,7 +150,7 @@ const paths = {
     get: {
       operationId: "listAgents",
       responses: { "200": jsonResponse("Workspace agents.", "AgentList"), ...commonErrors },
-      security: sessionSecurity,
+      security: workspaceSecurity,
       summary: "List agents",
       tags: ["Agents"],
     },
@@ -118,12 +164,24 @@ const paths = {
         "403": commonErrors["403"],
         "409": jsonResponse("An agent with this slug already exists.", "Error"),
       },
-      security: sessionSecurity,
+      security: workspaceSecurity,
       summary: "Create an agent",
       tags: ["Agents"],
     },
   },
   "/api/v1/agents/{id}": {
+    delete: {
+      operationId: "archiveAgent",
+      parameters: [idParameter()],
+      responses: {
+        "204": { description: "The agent was archived; call and knowledge history is preserved." },
+        ...commonErrors,
+        "404": jsonResponse("Agent not found.", "Error"),
+      },
+      security: workspaceSecurity,
+      summary: "Archive an agent",
+      tags: ["Agents"],
+    },
     get: {
       operationId: "getAgent",
       parameters: [idParameter()],
@@ -132,7 +190,7 @@ const paths = {
         ...commonErrors,
         "404": jsonResponse("Agent not found.", "Error"),
       },
-      security: sessionSecurity,
+      security: workspaceSecurity,
       summary: "Get an agent",
       tags: ["Agents"],
     },
@@ -145,7 +203,7 @@ const paths = {
         ...commonErrors,
         "404": jsonResponse("Agent not found.", "Error"),
       },
-      security: sessionSecurity,
+      security: workspaceSecurity,
       summary: "Update an agent",
       tags: ["Agents"],
     },
@@ -159,7 +217,7 @@ const paths = {
         ...commonErrors,
         "404": jsonResponse("Agent not found.", "Error"),
       },
-      security: sessionSecurity,
+      security: workspaceSecurity,
       summary: "List agent versions",
       tags: ["Agents"],
     },
@@ -169,7 +227,9 @@ const paths = {
       operationId: "listAgentTemplates",
       responses: {
         "200": jsonResponse("Available agent templates.", "AgentTemplateList"),
+        ...commonErrors,
       },
+      security: workspaceSecurity,
       summary: "List agent templates",
       tags: ["Agents"],
     },
@@ -181,8 +241,22 @@ const paths = {
         ([name, schema]) => ({ in: "query", name, required: false, schema })
       ),
       responses: { "200": jsonResponse("A page of calls.", "CallList"), ...commonErrors },
-      security: sessionSecurity,
+      security: workspaceSecurity,
       summary: "List calls",
+      tags: ["Calls"],
+    },
+  },
+  "/api/v1/calls/{id}": {
+    get: {
+      operationId: "getCall",
+      parameters: [idParameter("id", z.uuid())],
+      responses: {
+        "200": jsonResponse("The call, transcript turns, and tool calls.", "CallDetail"),
+        ...commonErrors,
+        "404": jsonResponse("Call not found.", "Error"),
+      },
+      security: workspaceSecurity,
+      summary: "Get a call",
       tags: ["Calls"],
     },
   },
@@ -193,7 +267,7 @@ const paths = {
         "200": jsonResponse("Workspace evaluation runs.", "EvalRunList"),
         ...commonErrors,
       },
-      security: sessionSecurity,
+      security: workspaceSecurity,
       summary: "List evaluation runs",
       tags: ["Evaluations"],
     },
@@ -205,7 +279,7 @@ const paths = {
         ...commonErrors,
         "404": jsonResponse("Agent not found.", "Error"),
       },
-      security: sessionSecurity,
+      security: workspaceSecurity,
       summary: "Start an evaluation run",
       tags: ["Evaluations"],
     },
@@ -219,7 +293,7 @@ const paths = {
         ...commonErrors,
         "404": jsonResponse("Evaluation run not found.", "Error"),
       },
-      security: sessionSecurity,
+      security: workspaceSecurity,
       summary: "Get an evaluation run",
       tags: ["Evaluations"],
     },
@@ -231,7 +305,7 @@ const paths = {
         "200": jsonResponse("Workspace knowledge sources.", "KnowledgeSourceList"),
         ...commonErrors,
       },
-      security: sessionSecurity,
+      security: workspaceSecurity,
       summary: "List knowledge sources",
       tags: ["Knowledge"],
     },
@@ -242,7 +316,7 @@ const paths = {
         "201": jsonResponse("The created source identifier.", "Id"),
         ...commonErrors,
       },
-      security: sessionSecurity,
+      security: workspaceSecurity,
       summary: "Create a knowledge source",
       tags: ["Knowledge"],
     },
@@ -256,7 +330,7 @@ const paths = {
         ...commonErrors,
         "404": jsonResponse("Knowledge source not found.", "Error"),
       },
-      security: sessionSecurity,
+      security: workspaceSecurity,
       summary: "Delete a knowledge source",
       tags: ["Knowledge"],
     },
@@ -270,7 +344,7 @@ const paths = {
         ...commonErrors,
         "404": jsonResponse("Knowledge source not found.", "Error"),
       },
-      security: sessionSecurity,
+      security: workspaceSecurity,
       summary: "Sync a knowledge source",
       tags: ["Knowledge"],
     },
@@ -281,6 +355,12 @@ export const openApiSpec = {
   components: {
     schemas: components,
     securitySchemes: {
+      bearerAuth: {
+        description:
+          "Workspace API key. Include it as `Authorization: Bearer <key>` with the scope required by the operation.",
+        scheme: "bearer",
+        type: "http",
+      },
       sessionCookie: {
         description:
           "Better Auth session cookie. Secure deployments may prefix its name with __Secure-.",
@@ -292,7 +372,7 @@ export const openApiSpec = {
   },
   info: {
     description:
-      "Workspace data reads and writes require a signed-in workspace member; writes require an admin or owner. Agent templates are public.",
+      "Workspace operations accept a signed-in session or a scoped workspace API key. Session writes require an admin or owner; API key operations require the matching key scope.",
     title: "Answerline API",
     version: "1.0.0",
   },
