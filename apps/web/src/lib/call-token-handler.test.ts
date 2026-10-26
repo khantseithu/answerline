@@ -39,6 +39,13 @@ test("call token requests reject other-workspace agents and dispatch the active 
       { config, name: config.name, slug: "desk", tenantId: workspaceId },
       { config, name: config.name, slug: "desk", tenantId: foreignId },
       { config, name: config.name, slug: "foreign-only", tenantId: foreignId },
+      {
+        archivedAt: new Date(),
+        config,
+        name: config.name,
+        slug: "archived",
+        tenantId: workspaceId,
+      },
     ]);
     const handler = createCallTokenHandler(
       () => Promise.resolve({ db, role: "owner", tenantId: workspaceId }),
@@ -56,6 +63,10 @@ test("call token requests reject other-workspace agents and dispatch the active 
     });
     assert.equal(
       (await handler(new Request("http://localhost/api/v1/token?agent=foreign-only"))).status,
+      404
+    );
+    assert.equal(
+      (await handler(new Request("http://localhost/api/v1/token?agent=archived"))).status,
       404
     );
     assert.equal(

@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
-import { agents, agentVersions, createDb, tenants } from "@answerline/db";
+import { agents, agentVersions, calls, createDb, knowledgeSources, tenants } from "@answerline/db";
 import { agentTemplateSchema, createAgentSchema, parseAgentConfig } from "@answerline/shared";
 import { eq } from "drizzle-orm";
+import { DashboardAuthError } from "@/lib/dashboard/errors";
 import { createAgentHandlers } from "./handlers.ts";
 import type { AgentDeps } from "./service.ts";
 
@@ -62,15 +63,24 @@ async function responseBody<T>(response: Response) {
   return (await response.json()) as T;
 }
 
-test("lists the 30 valid template configs", async () => {
-  const handlers = createAgentHandlers(() =>
-    Promise.reject(new Error("template listing must not need a tenant"))
-  );
-  const response = await handlers.templates();
-  assert.equal(response.status, 200);
-  const templates = agentTemplateSchema.array().parse(await response.json());
-  assert.equal(templates.length, 30);
-  assert.ok(templates.every((template) => template.config.instructions.length > 0));
+test("lists the 30 valid template configs for an authorized workspace", { skip }, () =>
+  withHarness(async ({ handlers }) => {
+    const response = await handlers.templates();
+    assert.equal(response.status, 200);
+    const templates = agentTemplateSchema.array().parse(await response.json());
+    assert.equal(templates.length, 30);
+    assert.ok(templates.every((template) => template.config.instructions.length > 0));
+  })
+);
+
+test("agent templates require workspace authentication", async () => {
+  let checked = false;
+  const handlers = createAgentHandlers(() => {
+    checked = true;
+    return Promise.reject(new DashboardAuthError());
+  });
+  assert.equal((await handlers.templates()).status, 401);
+  assert.ok(checked);
 });
 
 test(
@@ -172,5 +182,52 @@ test("only one concurrent optimistic update commits and records history", { skip
       .from(agentVersions)
       .where(eq(agentVersions.agentId, agent.id));
     assert.deepEqual(history.map(({ version }) => version).sort(), [1, 2]);
+  })
+);
+
+test("archives agents without deleting call or knowledge history", { skip }, () =>
+  withHarness(async ({ config, deps, handlers }) => {
+    const [agent] = await deps.db
+      .insert(agents)
+      .values({ config, name: config.name, slug: "archived", tenantId: deps.tenantId })
+      .returning();
+    assert.ok(agent);
+    const [call] = await deps.db
+      .insert(calls)
+      .values({
+        agentId: agent.id,
+        channel: "web",
+        roomName: crypto.randomUUID(),
+        tenantId: deps.tenantId,
+      })
+      .returning();
+    const [source] = await deps.db
+      .insert(knowledgeSources)
+      .values({ agentId: agent.id, tenantId: deps.tenantId, title: "FAQ", type: "text" })
+      .returning();
+    assert.ok(call);
+    assert.ok(source);
+
+    const response = await handlers.delete(agent.id);
+    assert.equal(response.status, 204);
+    assert.equal((await handlers.delete(agent.id)).status, 404);
+    assert.equal((await handlers.detail(agent.id)).status, 404);
+    assert.equal((await handlers.versions(agent.id)).status, 404);
+    assert.equal((await handlers.update(request({ config, version: 1 }), agent.id)).status, 404);
+    assert.ok(
+      !(await responseBody<{ id: string }[]>(await handlers.list())).some(
+        ({ id }) => id === agent.id
+      )
+    );
+
+    const [archived] = await deps.db.select().from(agents).where(eq(agents.id, agent.id));
+    const [preservedCall] = await deps.db.select().from(calls).where(eq(calls.id, call.id));
+    const [preservedSource] = await deps.db
+      .select()
+      .from(knowledgeSources)
+      .where(eq(knowledgeSources.id, source.id));
+    assert.ok(archived?.archivedAt);
+    assert.equal(preservedCall?.id, call.id);
+    assert.equal(preservedSource?.id, source.id);
   })
 );

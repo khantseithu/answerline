@@ -8,7 +8,7 @@ from pydantic import ValidationError
 
 from .call_dispatch import CallDispatchMetadata
 from .config import AgentConfig, load_agent_config
-from .db import AgentNotFoundError, fetch_agent_config
+from .db import AgentArchivedError, AgentNotFoundError, fetch_agent_config
 from .settings import Settings
 
 logger = logging.getLogger("answerline.agent")
@@ -51,6 +51,8 @@ async def resolve_agent(metadata: str | None, settings: Settings) -> ResolvedAge
     if settings.database_url:
         try:
             config = await _load_from_database(settings.database_url, slug, tenant)
+        except AgentArchivedError:
+            raise
         except AgentNotFoundError:
             logger.info("agent %s/%s not in database, trying yaml", tenant, slug)
         except (OSError, asyncpg.PostgresError, ValidationError, TimeoutError):

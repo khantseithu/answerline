@@ -1,6 +1,6 @@
 import { agents, type Database, tenants } from "@answerline/db";
 import type { WorkspaceRole } from "@answerline/shared";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { AGENT_SLUG_PATTERN, createCallToken, DEFAULT_AGENT_SLUG } from "@/lib/call-token";
 import { dashboardErrorResponse } from "@/lib/dashboard/errors";
 import { requireWorkspaceAccess } from "@/lib/workspaces/permissions";
@@ -30,7 +30,9 @@ export function createCallTokenHandler(
         .select({ tenantSlug: tenants.slug })
         .from(agents)
         .innerJoin(tenants, eq(tenants.id, agents.tenantId))
-        .where(and(eq(agents.tenantId, tenantId), eq(agents.slug, agentSlug)));
+        .where(
+          and(eq(agents.tenantId, tenantId), eq(agents.slug, agentSlug), isNull(agents.archivedAt))
+        );
       if (!agent) {
         return Response.json({ error: "Agent not found" }, { status: 404 });
       }

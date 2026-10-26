@@ -201,6 +201,7 @@ export const verifications = pgTable(
 export const agents = pgTable(
   "agents",
   {
+    archivedAt: timestamp({ withTimezone: true }),
     config: jsonb().$type<AgentConfig>().notNull(),
     createdAt: createdAt(),
     id: id(),

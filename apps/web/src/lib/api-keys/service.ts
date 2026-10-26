@@ -7,6 +7,7 @@ import {
   workspaceIdSchema,
 } from "@answerline/shared";
 import { and, eq, isNull } from "drizzle-orm";
+import { DashboardForbiddenError } from "@/lib/dashboard/errors";
 import {
   lockOwnerWorkspace,
   requireOwnerWorkspace,
@@ -16,7 +17,7 @@ import {
 const tokenSchema = /^al_[A-Za-z0-9_-]{43}$/;
 
 export class ApiKeyNotFoundError extends Error {}
-export class ApiKeyScopeError extends Error {}
+export class ApiKeyScopeError extends DashboardForbiddenError {}
 
 function digest(token: string) {
   return createHash("sha256").update(token).digest("hex");

@@ -88,6 +88,24 @@ test("only provisioned credentials can sign in and revoked or expired sessions f
       new Request(`${baseURL}/api/v1/knowledge`, { headers });
     assert.equal((await guardApiRequest(apiRequest(), resolveSession, baseURL))?.status, 401);
     assert.equal(
+      await guardApiRequest(
+        apiRequest({ authorization: `Bearer al_${"a".repeat(43)}` }),
+        resolveSession,
+        baseURL
+      ),
+      undefined
+    );
+    assert.equal(
+      (
+        await guardApiRequest(
+          apiRequest({ authorization: "Basic invalid" }),
+          resolveSession,
+          baseURL
+        )
+      )?.status,
+      401
+    );
+    assert.equal(
       (
         await guardApiRequest(
           apiRequest({ cookie: "better-auth.session_token=forged" }),

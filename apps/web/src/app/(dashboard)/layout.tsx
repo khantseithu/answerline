@@ -1,5 +1,5 @@
 import { agents } from "@answerline/db";
-import { asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { type ReactNode, Suspense } from "react";
 import { CallApp } from "@/components/call/call-app";
@@ -31,7 +31,7 @@ async function AuthenticatedDashboard({ children }: { children: ReactNode }) {
   const [callAgent] = await context.db
     .select({ name: agents.name, slug: agents.slug })
     .from(agents)
-    .where(eq(agents.tenantId, context.tenantId))
+    .where(and(eq(agents.tenantId, context.tenantId), isNull(agents.archivedAt)))
     .orderBy(
       asc(sql`case when ${agents.slug} = ${DEFAULT_AGENT_SLUG} then 0 else 1 end`),
       asc(agents.name)

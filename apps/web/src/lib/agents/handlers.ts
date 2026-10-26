@@ -6,6 +6,7 @@ import {
   AgentConflictError,
   type AgentDeps,
   AgentNotFoundError,
+  archiveAgent,
   createAgent,
   getAgent,
   listAgents,
@@ -56,6 +57,14 @@ export function createAgentHandlers(getDeps: (access?: WorkspaceAccess) => Promi
         return agentErrorResponse(error) ?? dashboardErrorResponse(error);
       }
     },
+    async delete(rawId: string) {
+      try {
+        await archiveAgent(await getDeps("write"), rawId);
+        return new Response(null, { headers: noStore, status: 204 });
+      } catch (error) {
+        return agentErrorResponse(error) ?? dashboardErrorResponse(error);
+      }
+    },
     async detail(rawId: string) {
       try {
         return Response.json(await getAgent(await getDeps(), rawId), { headers: noStore });
@@ -72,6 +81,7 @@ export function createAgentHandlers(getDeps: (access?: WorkspaceAccess) => Promi
     },
     async templates() {
       try {
+        await getDeps();
         return Response.json(await listAgentTemplates(), { headers: noStore });
       } catch (error) {
         return agentErrorResponse(error) ?? dashboardErrorResponse(error);

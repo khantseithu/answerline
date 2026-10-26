@@ -1,6 +1,6 @@
 import { agents, tenants } from "@answerline/db";
 import { createPhoneNumberClient } from "@answerline/worker/phone-numbers";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import { env } from "@/env";
 import { getDashboardContext } from "@/lib/dashboard/context";
 import { requireWorkspaceAccess, type WorkspaceAccess } from "@/lib/workspaces/permissions";
@@ -26,7 +26,7 @@ export async function getPhoneNumberDeps(
       db
         .select({ name: agents.name, slug: agents.slug })
         .from(agents)
-        .where(eq(agents.tenantId, tenantId))
+        .where(and(eq(agents.tenantId, tenantId), isNull(agents.archivedAt)))
         .orderBy(asc(agents.name), asc(agents.slug)),
     tenant: workspace.slug,
   };

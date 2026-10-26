@@ -3,8 +3,8 @@ import { enqueueIngestion } from "@answerline/worker/ingestion";
 import { Queue } from "bullmq";
 import { Redis } from "ioredis";
 import { env } from "@/env";
-import { getDashboardContext } from "@/lib/dashboard/context";
-import { requireWorkspaceAccess, type WorkspaceAccess } from "@/lib/workspaces/permissions";
+import { getWorkspaceApiContext } from "@/lib/api-keys/context";
+import type { WorkspaceAccess } from "@/lib/workspaces/permissions";
 import type { KnowledgeDeps } from "./service";
 
 interface KnowledgeRuntime {
@@ -28,8 +28,8 @@ function runtime() {
 }
 
 export async function getKnowledgeDeps(access: WorkspaceAccess = "read"): Promise<KnowledgeDeps> {
-  const { db, role, tenantId } = await getDashboardContext();
-  requireWorkspaceAccess(role, access);
+  const scope = access === "read" ? "knowledge:read" : "knowledge:write";
+  const { db, tenantId } = await getWorkspaceApiContext(scope, access);
   const { queue } = runtime();
   return {
     db,

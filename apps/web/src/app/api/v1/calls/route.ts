@@ -1,7 +1,7 @@
 import { connection } from "next/server";
+import { getWorkspaceApiContext } from "@/lib/api-keys/context";
 import { parseCallsQuery } from "@/lib/calls/query";
 import { listCalls } from "@/lib/calls/service";
-import { getDashboardContext } from "@/lib/dashboard/context";
 import { dashboardErrorResponse } from "@/lib/dashboard/errors";
 
 const noStore = { "Cache-Control": "no-store" };
@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     );
   }
   try {
-    const { db, tenantId } = await getDashboardContext();
+    const { db, tenantId } = await getWorkspaceApiContext("calls:read", "read");
     return Response.json(await listCalls(db, tenantId, parsed.data), { headers: noStore });
   } catch (error) {
     return dashboardErrorResponse(error);

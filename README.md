@@ -239,20 +239,23 @@ To run text evals on pull requests, enable the [opt-in GitHub Action](docs/evals
 
 The Terraform modules provision container apps for each service, managed Postgres and Redis, secrets, autoscaling for workers, and a GitHub Actions pipeline that promotes builds from dev to staging to prod.
 
-## API *(planned)*
+## API
+
+Create a workspace API key with `calls:read` and `agents:read` access in workspace settings, then use it as a Bearer token.
 
 ```bash
 # List recent calls
 curl https://your-host/api/v1/calls \
   -H "Authorization: Bearer $ANSWERLINE_API_KEY"
 
-# Start an outbound call
-curl -X POST https://your-host/api/v1/calls \
-  -H "Authorization: Bearer $ANSWERLINE_API_KEY" \
-  -d '{"agent_id": "bright-smile-dental", "to": "+15555550123"}'
-```
+# Get a call by ID from the list response
+curl "https://your-host/api/v1/calls/$CALL_ID" \
+  -H "Authorization: Bearer $ANSWERLINE_API_KEY"
 
-The full reference is at `/api/docs` on your instance (OpenAPI).
+# List workspace agents
+curl https://your-host/api/v1/agents \
+  -H "Authorization: Bearer $ANSWERLINE_API_KEY"
+```
 
 ## Project structure
 

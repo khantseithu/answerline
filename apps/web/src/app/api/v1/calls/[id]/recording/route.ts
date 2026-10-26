@@ -1,6 +1,6 @@
 import { env } from "@/env";
+import { getWorkspaceApiContext } from "@/lib/api-keys/context";
 import { createRecordingStorage, getCallRecordingUrl } from "@/lib/calls/recording";
-import { getDashboardContext } from "@/lib/dashboard/context";
 import { dashboardErrorResponse } from "@/lib/dashboard/errors";
 
 const storage = createRecordingStorage({
@@ -14,7 +14,7 @@ const storage = createRecordingStorage({
 export async function GET(_request: Request, ctx: RouteContext<"/api/v1/calls/[id]/recording">) {
   const { id } = await ctx.params;
   try {
-    const { db, tenantId } = await getDashboardContext();
+    const { db, tenantId } = await getWorkspaceApiContext("calls:read", "read");
     const url = await getCallRecordingUrl(db, tenantId, id, storage);
     if (!url) {
       return Response.json(
