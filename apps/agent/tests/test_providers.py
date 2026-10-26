@@ -6,7 +6,13 @@ import openai
 import pytest
 from answerline_agent import providers
 from answerline_agent.config import LLMModels, Models
-from answerline_agent.providers import build_embedder, build_llm, build_llm_chain
+from answerline_agent.providers import (
+    build_embedder,
+    build_llm,
+    build_llm_chain,
+    build_stt,
+    build_tts,
+)
 from livekit.agents import llm
 
 STT = "deepgram/nova-3"
@@ -118,3 +124,22 @@ def test_build_embedder_embeds_gemini_embedding_2_input_as_a_query(monkeypatch):
 
     asyncio.run(scenario())
     assert texts == ["task: search result | query: hours"]
+
+
+def test_language_drives_stt_and_tts(monkeypatch):
+    monkeypatch.setattr(providers.deepgram, "STT", lambda **kwargs: kwargs)
+    monkeypatch.setattr(providers.cartesia, "TTS", lambda **kwargs: kwargs)
+
+    stt = build_stt(STT, {"deepgram": "key"}, language="es-MX")
+    tts = build_tts(TTS, {"cartesia": "key"}, language="es-MX")
+
+    assert stt["language"] == "es-MX"
+    assert tts["language"] == "es"
+
+
+def test_stt_and_tts_default_to_english(monkeypatch):
+    monkeypatch.setattr(providers.deepgram, "STT", lambda **kwargs: kwargs)
+    monkeypatch.setattr(providers.cartesia, "TTS", lambda **kwargs: kwargs)
+
+    assert build_stt(STT)["language"] == "en"
+    assert build_tts(TTS)["language"] == "en"
