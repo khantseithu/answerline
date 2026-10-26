@@ -311,9 +311,9 @@ def test_audio_eval_runs_stt_tools_llm_and_tts_without_rtc(monkeypatch):
     providers = iter([_FakeTTS(), _FakeTTS()])
     agent_tts, caller_tts = next(providers), next(providers)
     stt_provider = _FakeSTT()
-    monkeypatch.setattr(eval_runner, "build_tts", lambda _ref: agent_tts)
-    monkeypatch.setattr(eval_runner, "build_stt", lambda _ref: stt_provider)
-    monkeypatch.setattr(eval_runner, "_build_caller_tts", lambda _ref: caller_tts)
+    monkeypatch.setattr(eval_runner, "build_tts", lambda _ref, **_kwargs: agent_tts)
+    monkeypatch.setattr(eval_runner, "build_stt", lambda _ref, **_kwargs: stt_provider)
+    monkeypatch.setattr(eval_runner, "_build_caller_tts", lambda _ref, **_kwargs: caller_tts)
     result = asyncio.run(
         run_case(
             _config(),
@@ -367,9 +367,9 @@ def test_audio_eval_timeout_closes_session_and_providers(monkeypatch):
         closed.append(provider)
 
     monkeypatch.setattr(eval_runner, "EVAL_PHASE_TIMEOUT", 0.01)
-    monkeypatch.setattr(eval_runner, "build_stt", lambda _ref: stt_provider)
-    monkeypatch.setattr(eval_runner, "build_tts", lambda _ref: agent_tts)
-    monkeypatch.setattr(eval_runner, "_build_caller_tts", lambda _ref: caller_tts)
+    monkeypatch.setattr(eval_runner, "build_stt", lambda _ref, **_kwargs: stt_provider)
+    monkeypatch.setattr(eval_runner, "build_tts", lambda _ref, **_kwargs: agent_tts)
+    monkeypatch.setattr(eval_runner, "_build_caller_tts", lambda _ref, **_kwargs: caller_tts)
     monkeypatch.setattr(caller_tts, "aclose", lambda: close(caller_tts))
     monkeypatch.setattr(agent_tts, "aclose", lambda: close(agent_tts))
     monkeypatch.setattr(stt_provider, "aclose", lambda: close(stt_provider))

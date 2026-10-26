@@ -133,7 +133,7 @@ def test_entrypoint_registers_configured_tools_alongside_knowledge(
     session = SimpleNamespace(start=AsyncMock(side_effect=RuntimeError("registration captured")))
     monkeypatch.setattr(main, "AgentSession", lambda **kwargs: session)
     for name in ("build_stt", "build_llm_chain", "build_tts", "build_turn_handling"):
-        monkeypatch.setattr(main, name, lambda value: None)
+        monkeypatch.setattr(main, name, lambda *_args, **_kwargs: None)
     recorded = []
     event_context = {}
     tool_context = {}

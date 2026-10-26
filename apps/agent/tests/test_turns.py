@@ -2,7 +2,11 @@ import numpy as np
 import pytest
 from answerline_agent import turns
 from answerline_agent.settings import Settings
-from answerline_agent.turns import build_turn_detection, build_turn_handling
+from answerline_agent.turns import (
+    build_turn_detection,
+    build_turn_handling,
+    turn_detection_mode,
+)
 from livekit.agents import inference
 from pydantic import ValidationError
 
@@ -85,3 +89,21 @@ def test_settings_read_turn_environment(monkeypatch):
     settings = Settings(_env_file=None)
     assert settings.turn_detection == "stt"
     assert settings.interruption_mode == "adaptive"
+
+
+@pytest.mark.parametrize("language", ["en", "es", "es-MX", "fr", "pt-BR"])
+def test_supported_languages_keep_the_turn_detector(language):
+    assert turn_detection_mode("local", language) == "local"
+    assert turn_detection_mode("cloud", language) == "cloud"
+
+
+@pytest.mark.parametrize("language", ["sw", "uk", "fil"])
+def test_unsupported_languages_use_stt_endpointing(language):
+    assert turn_detection_mode("local", language) == "stt"
+    assert turn_detection_mode("cloud", language) == "stt"
+    assert turn_detection_mode("vad", language) == "vad"
+
+
+def test_turn_handling_follows_the_agent_language():
+    options = build_turn_handling(_settings(turn_detection="local"), "sw")
+    assert options["turn_detection"] == "stt"

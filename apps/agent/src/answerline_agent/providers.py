@@ -11,21 +11,30 @@ from livekit.agents import llm, stt, tts
 from livekit.plugins import anthropic, cartesia, deepgram, google, openai
 
 from .config import Models
+from .languages import base_language
 
 logger = logging.getLogger("answerline.agent")
 
 
-def build_stt(ref: str, provider_keys: dict[str, str] | None = None) -> stt.STT:
+def build_stt(
+    ref: str, provider_keys: dict[str, str] | None = None, *, language: str = "en"
+) -> stt.STT:
     provider, _, model = ref.partition("/")
     if provider == "deepgram":
-        return deepgram.STT(model=model, **_api_key("deepgram", provider_keys))
+        return deepgram.STT(model=model, language=language, **_api_key("deepgram", provider_keys))
     raise ValueError(f"Unsupported STT provider: {ref}")
 
 
-def build_tts(ref: str, provider_keys: dict[str, str] | None = None) -> tts.TTS:
+def build_tts(
+    ref: str, provider_keys: dict[str, str] | None = None, *, language: str = "en"
+) -> tts.TTS:
     provider, _, model = ref.partition("/")
     if provider == "cartesia":
-        return cartesia.TTS(model=model, **_api_key("cartesia", provider_keys))
+        return cartesia.TTS(
+            model=model,
+            language=base_language(language),
+            **_api_key("cartesia", provider_keys),
+        )
     raise ValueError(f"Unsupported TTS provider: {ref}")
 
 

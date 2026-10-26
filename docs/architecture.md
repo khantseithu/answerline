@@ -149,6 +149,8 @@ Python 3.13 on [LiveKit Agents](https://docs.livekit.io/agents/) 1.8.8. `pnpm ag
 | `TURN_DETECTION` | `local`: `inference.TurnDetector(version="v1-mini")`, runs in-process with weights shipped in the wheel | `cloud` (LiveKit Cloud `v1`), `stt`, `vad` |
 | `INTERRUPTION_MODE` | `vad` | `adaptive` (LiveKit Cloud only) |
 
+The agent's `language` (a BCP-47 code such as `es` or `es-MX`) is passed to Deepgram as the recognition language and to Cartesia as the synthesis language (base code, e.g. `es`). The turn detector covers Arabic, Chinese, Dutch, English, French, German, Hindi, Indonesian, Italian, Japanese, Korean, Portuguese, Spanish, and Turkish; for any other language `local` and `cloud` fall back to `stt`, so turns end on Deepgram endpointing.
+
 Interruptions need at least 0.6 s and one word of caller speech. A false interruption resumes the agent's speech after 1.5 s. Preemptive generation is on, so the LLM starts before the turn is confirmed final. The turn detector weights use the LiveKit Model License: free to use with LiveKit Agents, but not OSI open source.
 
 **Call lifecycle.** `CallLifecycle` ends a call once, for the first of:
@@ -209,7 +211,7 @@ Latency: with an instant local embedder and a 5,000-chunk corpus on a local Post
 
 **Tool execution policy.** Configured tools run under a total `TOOL_TIMEOUT_SECONDS` budget (default 10 seconds). Transport failures and connection loss are retried up to `TOOL_RETRIES` times (default 1, maximum 3) only when the implementation explicitly marks the operation safe to retry. Backoff is inside the total budget; validation/programming errors and unsafe writes are not automatically retried. Cancellation propagates. Failures become a sanitized LiveKit `ToolError` so the model cannot claim success. `search_knowledge` keeps its tighter `KNOWLEDGE_SEARCH_TIMEOUT_SECONDS` budget, including safe read retries, and its structured citation results. Both tool paths use LiveKit’s `RunContext.with_filler` with a single “One moment, please.” after `TOOL_FILLER_DELAY_SECONDS` (default 0.8) of continuous idle time; completion/cancellation closes the scheduler. Filler waits while the caller or agent speaks.
 
-Not yet in the agent: warm transfer ([#226](https://github.com/khantseithu/answerline/issues/226)), HTTP and MCP tools, noise cancellation ([#21](https://github.com/khantseithu/answerline/issues/21)), and `language` driving model choice ([#117](https://github.com/khantseithu/answerline/issues/117)). The `knowledge` config field is validated but ingestion sources are managed through the knowledge API; `tools` and `hours` drive the configured tool registration described above.
+Not yet in the agent: warm transfer ([#226](https://github.com/khantseithu/answerline/issues/226)), HTTP and MCP tools, noise cancellation ([#21](https://github.com/khantseithu/answerline/issues/21)). The `knowledge` config field is validated but ingestion sources are managed through the knowledge API; `tools` and `hours` drive the configured tool registration described above.
 
 ### Worker (`apps/worker`)
 
@@ -407,7 +409,7 @@ The agent name keeps dispatch separate: a slot's web app issues tokens for `answ
 |---|---|---|
 | Web calls | Token endpoint, Talk to agent, live transcript, agent state, visualizer | Agent picker, embeddable widget |
 | Phone calls | Channel and caller ID fields in events and schema | LiveKit SIP, trunks, dispatch rules (M4, [#63](https://github.com/khantseithu/answerline/issues/63)-[#71](https://github.com/khantseithu/answerline/issues/71)) |
-| Voice loop | STT, LLM fallback, TTS, local turn detection, interruption tuning, call limits | Noise cancellation, multilingual model choice (M11) |
+| Voice loop | STT, LLM fallback, TTS, local turn detection, interruption tuning, call limits | Noise cancellation, auto language detection and per-language prompts (M11) |
 | Call log | Calls and turns with latency and usage in Postgres | Calls UI, call detail, post-call summary and cost (M5) |
 | Recording | Opt-in egress to local MinIO via the S3 API, URL on the call | Cloudflare R2 primary storage and an adapter for other S3-compatible providers ([#153](https://github.com/khantseithu/answerline/issues/153)); playback in the dashboard |
 | Knowledge base | Loaders, chunking, model-aware hash-based ingestion, env-configured embedding providers, atomic chunk/vector replacement, persisted status/errors, dashboard knowledge page, agent-side hybrid search (vector + full-text, RRF), `search_knowledge` tool with a timeout budget, citations in the tool call log | Relevance threshold for out-of-scope queries ([#180](https://github.com/khantseithu/answerline/issues/180)), reranking (M2) |

@@ -77,9 +77,9 @@ async def entrypoint(ctx: JobContext) -> None:
     )
     session = AgentSession(
         stt=(
-            build_stt(config.models.stt, provider_keys)
+            build_stt(config.models.stt, provider_keys, language=config.language)
             if provider_keys is not None
-            else build_stt(config.models.stt)
+            else build_stt(config.models.stt, language=config.language)
         ),
         llm=(
             build_llm_chain(config.models, provider_keys)
@@ -87,12 +87,12 @@ async def entrypoint(ctx: JobContext) -> None:
             else build_llm_chain(config.models)
         ),
         tts=(
-            build_tts(config.models.tts, provider_keys)
+            build_tts(config.models.tts, provider_keys, language=config.language)
             if provider_keys is not None
-            else build_tts(config.models.tts)
+            else build_tts(config.models.tts, language=config.language)
         ),
         vad=ctx.proc.userdata["vad"],
-        turn_handling=build_turn_handling(settings),
+        turn_handling=build_turn_handling(settings, config.language),
         user_away_timeout=settings.idle_timeout_seconds or None,
     )
     tool_log = ToolLog()

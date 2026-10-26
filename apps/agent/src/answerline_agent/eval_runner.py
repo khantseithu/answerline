@@ -32,8 +32,10 @@ REPO_ROOT = Path(__file__).resolve().parents[4]
 EVAL_PHASE_TIMEOUT = 30
 
 
-def _build_caller_tts(ref: str, provider_keys: dict[str, str] | None = None) -> tts.TTS:
-    return build_tts(ref, provider_keys)
+def _build_caller_tts(
+    ref: str, provider_keys: dict[str, str] | None = None, *, language: str = "en"
+) -> tts.TTS:
+    return build_tts(ref, provider_keys, language=language)
 
 
 def _validate_wire_payload(payload: Any, schema_name: str) -> None:
@@ -440,19 +442,19 @@ async def run_case(
         if mode == "audio":
             audio_output = _CapturedAudioOutput()
             stt_provider = (
-                build_stt(models.stt, provider_keys)
+                build_stt(models.stt, provider_keys, language=config.language)
                 if provider_keys is not None
-                else build_stt(models.stt)
+                else build_stt(models.stt, language=config.language)
             )
             tts_provider = (
-                build_tts(models.tts, provider_keys)
+                build_tts(models.tts, provider_keys, language=config.language)
                 if provider_keys is not None
-                else build_tts(models.tts)
+                else build_tts(models.tts, language=config.language)
             )
             caller_tts_provider = (
-                _build_caller_tts(models.tts, provider_keys)
+                _build_caller_tts(models.tts, provider_keys, language=config.language)
                 if provider_keys is not None
-                else _build_caller_tts(models.tts)
+                else _build_caller_tts(models.tts, language=config.language)
             )
             session = AgentSession(
                 llm=provider,
