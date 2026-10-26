@@ -27,6 +27,10 @@ class FakeSession:
         self.said.append(text)
         return FakeHandle()
 
+    def generate_reply(self, *, instructions, **kwargs):
+        self.said.append(("generated", instructions, kwargs))
+        return FakeHandle()
+
     async def aclose(self):
         return None
 
@@ -137,3 +141,17 @@ def test_failed_transfer_offers_a_message(monkeypatch):
     said = greet(plan, transfer)
     assert transfer.calls == 1
     assert said[-1] == SETTINGS.after_hours_transfer_failed_message
+
+
+def test_localized_agents_have_the_llm_speak_after_hours_messages(monkeypatch):
+    at(monkeypatch, CLOSED)
+    session = FakeSession()
+    plan = AfterHours(hours("voicemail"), "Clinic", SETTINGS, localize=True)
+
+    asyncio.run(plan.greet(session, "Hola", None))
+
+    [(kind, instructions, kwargs)] = session.said
+    assert kind == "generated"
+    assert "in the language they are using" in instructions
+    assert "Thanks for calling Clinic. We're closed right now" in instructions
+    assert kwargs == {"tool_choice": "none"}

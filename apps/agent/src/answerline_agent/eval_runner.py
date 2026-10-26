@@ -20,7 +20,7 @@ from .call_events import model_usage_lines, parse_tool_args
 from .capture_lead import LeadCaptureContext
 from .config import AgentConfig, BookAppointmentTool, HttpTool, McpTool, TransferCallTool
 from .knowledge_tool import QUERY_DESCRIPTION, TOOL_DESCRIPTION, open_knowledge_tools
-from .languages import language_instructions, stt_language
+from .languages import language_instructions, localizes_messages, stt_language
 from .native_booking import open_booking_provider
 from .prompts import compose_instructions
 from .providers import build_llm_chain, build_stt, build_tts
@@ -163,7 +163,9 @@ async def _build_live_tools(
     room_name = f"eval-{agent_slug}-{uuid4().hex}"
     closers = []
     try:
-        after_hours = AfterHours(config.hours, config.name, settings)
+        after_hours = AfterHours(
+            config.hours, config.name, settings, localize=localizes_messages(config)
+        )
         needs_publisher = (
             any(
                 getattr(spec, "builtin", None) in {"capture_lead", "voicemail"}
@@ -390,7 +392,9 @@ async def run_case(
         else build_llm_chain(models)
     )
     runtime_settings = settings or Settings()
-    after_hours = AfterHours(config.hours, config.name, runtime_settings)
+    after_hours = AfterHours(
+        config.hours, config.name, runtime_settings, localize=localizes_messages(config)
+    )
     calls: list[dict[str, Any]] = []
     if live_tools:
         if context is None:
