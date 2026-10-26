@@ -11,6 +11,7 @@ import { workspaceRequest } from "@/lib/workspaces/client";
 
 const scopes: { label: string; value: ApiKeyScope }[] = [
   { label: "Read calls", value: "calls:read" },
+  { label: "Place calls", value: "calls:write" },
   { label: "Read agents", value: "agents:read" },
   { label: "Manage agents", value: "agents:write" },
   { label: "Read knowledge", value: "knowledge:read" },

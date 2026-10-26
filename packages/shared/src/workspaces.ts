@@ -14,6 +14,7 @@ export const providerCredentialProviderSchema = z.enum([
 ]);
 export const apiKeyScopeSchema = z.enum([
   "calls:read",
+  "calls:write",
   "agents:read",
   "agents:write",
   "knowledge:read",
