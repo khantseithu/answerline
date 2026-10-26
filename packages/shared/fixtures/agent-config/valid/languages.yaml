@@ -1,0 +1,16 @@
+name: Bright Smile Dental
+greeting: Thanks for calling Bright Smile Dental. How can I help you today?
+language: en
+instructions: You are the receptionist for Bright Smile Dental.
+languages:
+  es:
+    greeting: Gracias por llamar a Bright Smile Dental. ¿En qué puedo ayudarle?
+    instructions: Responde siempre en español.
+  fr-CA:
+    greeting: Merci d'avoir appelé Bright Smile Dental. Comment puis-je vous aider?
+  pt: {}
+models:
+  stt: deepgram/nova-3
+  llm:
+    primary: anthropic/claude-sonnet-4-6
+  tts: cartesia/sonic-3

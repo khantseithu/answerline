@@ -8,6 +8,7 @@ from pydantic import AnyUrl, BaseModel, ConfigDict, Field, StringConstraints
 ModelRef = Annotated[str, StringConstraints(pattern=r"^[a-z0-9-]+/(?:[\w.:-]+/)?[\w.:-]+$")]
 NonEmpty = Annotated[str, StringConstraints(min_length=1)]
 TimeRange = Annotated[str, StringConstraints(pattern=r"^\d{2}:\d{2}-\d{2}:\d{2}$")]
+LanguageCode = Annotated[str, StringConstraints(pattern=r"^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$")]
 
 
 class LLMModels(BaseModel):
@@ -107,10 +108,16 @@ class Recording(BaseModel):
     notice: NonEmpty = DEFAULT_RECORDING_NOTICE
 
 
+class LanguageOverride(BaseModel):
+    greeting: NonEmpty | None = None
+    instructions: NonEmpty | None = None
+
+
 class AgentConfig(BaseModel):
     name: NonEmpty
     greeting: NonEmpty
     language: str = "en"
+    languages: dict[LanguageCode, LanguageOverride] = Field(default_factory=dict)
     instructions: NonEmpty
     models: Models
     knowledge: Knowledge | None = None

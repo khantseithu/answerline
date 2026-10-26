@@ -24,8 +24,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { updateAgent } from "@/lib/agents/client";
 import { parseAgentYaml } from "@/lib/agents/config";
 
-type ComplexKey = "hours" | "knowledge" | "recording" | "tools";
-const COMPLEX_KEYS: ComplexKey[] = ["tools", "knowledge", "hours", "recording"];
+type ComplexKey = "hours" | "knowledge" | "languages" | "recording" | "tools";
+const COMPLEX_KEYS: ComplexKey[] = ["tools", "knowledge", "hours", "languages", "recording"];
 
 function yamlFor(config: AgentConfig) {
   return stringify(config, { lineWidth: 100 });
@@ -40,6 +40,7 @@ function sectionDraftsFor(config: AgentConfig): Record<ComplexKey, string> {
   return {
     hours: sectionValue(config, "hours"),
     knowledge: sectionValue(config, "knowledge"),
+    languages: sectionValue(config, "languages"),
     recording: sectionValue(config, "recording"),
     tools: sectionValue(config, "tools"),
   };
@@ -51,6 +52,8 @@ function sectionConfig(config: AgentConfig, key: ComplexKey, value: unknown): Ag
       return { ...config, hours: agentConfigSchema.shape.hours.parse(value) };
     case "knowledge":
       return { ...config, knowledge: agentConfigSchema.shape.knowledge.parse(value) };
+    case "languages":
+      return { ...config, languages: agentConfigSchema.shape.languages.parse(value) };
     case "recording":
       return { ...config, recording: agentConfigSchema.shape.recording.parse(value) };
     case "tools":
