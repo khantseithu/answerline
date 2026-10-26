@@ -257,11 +257,12 @@ Zod schemas that every TypeScript package imports as source, and the source of t
 
 | File | Contract |
 |---|---|
-| [`agent-config.ts`](../packages/shared/src/agent-config.ts) | Agent YAML / `agents.config` JSON: name, greeting, language, languages, instructions, models, knowledge, tools, hours, recording |
+| [`agent-config.ts`](../packages/shared/src/agent-config.ts) | Agent YAML / `agents.config` JSON: name, greeting, language, languages, instructions, models, knowledge, tools, hours, recording, outbound policy |
 | [`call-events.ts`](../packages/shared/src/call-events.ts) | `callEventJob` (agent to worker) and `callEventJobId` |
+| [`outbound-calls.ts`](../packages/shared/src/outbound-calls.ts) | Outbound REST payloads and the durable outbound dial job |
 | [`eval-suite.ts`](../packages/shared/src/eval-suite.ts) | Eval suite YAML, execution snapshots, queue jobs, and validated per-case results |
 | [`ingestion.ts`](../packages/shared/src/ingestion.ts) | Tenant-scoped ingestion jobs and validated Q&A pairs |
-| [`events.ts`](../packages/shared/src/events.ts) | `QUEUES` names, and webhook payloads (`call.started`, `call.ended`, `booking.created`). The webhook schemas are not used yet; webhooks are **Planned** ([#115](https://github.com/khantseithu/answerline/issues/115)). |
+| [`events.ts`](../packages/shared/src/events.ts) | `QUEUES` names and webhook payloads (`call.started`, `call.ended`, `booking.created`). The webhook schemas are not used yet; webhooks are **Planned** ([#115](https://github.com/khantseithu/answerline/issues/115)). |
 
 Generated JSON Schemas live in [`schema/`](../packages/shared/schema) and fixtures in [`fixtures/`](../packages/shared/fixtures). See [Contracts and parity](#contracts-and-parity).
 
@@ -412,7 +413,7 @@ The agent name keeps dispatch separate: a slot's web app issues tokens for `answ
 | Area | Built | Planned |
 |---|---|---|
 | Web calls | Token endpoint, Talk to agent, live transcript, agent state, visualizer | Agent picker, embeddable widget |
-| Phone calls | Inbound LiveKit SIP trunks and dispatch rules; outbound REST calls through a deployment-configured stored trunk | Voicemail detection, retry policy, and calling-hours guard (M10, [#114](https://github.com/khantseithu/answerline/issues/114)) |
+| Phone calls | Inbound LiveKit SIP trunks and dispatch rules; outbound REST calls through a deployment-configured stored trunk, with queued dialing, first-message overrides, optional AMD, retry backoff, and calling-hours enforcement | — |
 | API and webhooks | Workspace-scoped calls, agents, knowledge, and eval APIs; OpenAPI docs; outbound call creation | Signed webhooks and event delivery (M10, [#115](https://github.com/khantseithu/answerline/issues/115), [#116](https://github.com/khantseithu/answerline/issues/116)) |
 | Voice loop | STT, LLM fallback, TTS, local turn detection, interruption tuning, call limits | Noise cancellation, auto language detection and per-language prompts (M11) |
 | Call log | Calls and turns with latency and usage in Postgres | Calls UI, call detail, post-call summary and cost (M5) |

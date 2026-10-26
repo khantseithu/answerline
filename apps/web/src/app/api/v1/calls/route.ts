@@ -1,4 +1,7 @@
-import { AgentDispatchClient, RoomServiceClient, SipClient } from "livekit-server-sdk";
+import { type OutboundDialJob, QUEUES } from "@answerline/shared";
+import { Queue } from "bullmq";
+import { Redis } from "ioredis";
+import { AgentDispatchClient, RoomServiceClient } from "livekit-server-sdk";
 import { connection } from "next/server";
 import { env } from "@/env";
 import { getWorkspaceApiContext } from "@/lib/api-keys/context";
@@ -19,7 +22,17 @@ const agentDispatchClient = new AgentDispatchClient(
   env.LIVEKIT_API_KEY,
   env.LIVEKIT_API_SECRET
 );
-const sipClient = new SipClient(livekitHost, env.LIVEKIT_API_KEY, env.LIVEKIT_API_SECRET);
+const globalForOutboundDial = globalThis as typeof globalThis & {
+  outboundDialQueue?: Queue<OutboundDialJob>;
+};
+let { outboundDialQueue } = globalForOutboundDial;
+if (!outboundDialQueue) {
+  outboundDialQueue = new Queue<OutboundDialJob>(QUEUES.outboundCalls, {
+    connection: new Redis(env.REDIS_URL, { maxRetriesPerRequest: 1 }),
+    prefix: env.REDIS_PREFIX,
+  });
+  globalForOutboundDial.outboundDialQueue = outboundDialQueue;
+}
 
 const outboundCallHandlers = createOutboundCallHandlers(async () => {
   const context = await getWorkspaceApiContext("calls:write", "write");
@@ -27,9 +40,19 @@ const outboundCallHandlers = createOutboundCallHandlers(async () => {
     agentDispatchClient,
     agentName: env.AGENT_NAME,
     db: context.db,
+    enqueueDial: (job, options) =>
+      outboundDialQueue.add("dial", job, {
+        attempts: options.attempts,
+        backoff: { delay: options.delayMs, type: "exponential" },
+        jobId: job.callId,
+        removeOnComplete: 1000,
+        removeOnFail: 1000,
+      }),
     livekitTrunkId: env.LIVEKIT_SIP_OUTBOUND_TRUNK_ID,
-    roomServiceClient,
-    sipClient,
+    roomServiceClient: {
+      createRoom: (options) => roomServiceClient.createRoom(options),
+      deleteRoom: (roomName) => roomServiceClient.deleteRoom(roomName),
+    },
     tenantId: context.tenantId,
   };
 });

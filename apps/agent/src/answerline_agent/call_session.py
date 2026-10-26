@@ -30,11 +30,15 @@ class EventPublisher(Protocol):
     async def close(self) -> None: ...
 
 
-async def wait_for_caller(ctx: JobContext) -> rtc.RemoteParticipant | None:
+async def wait_for_caller(
+    ctx: JobContext, timeout: float | None = PARTICIPANT_WAIT
+) -> rtc.RemoteParticipant | None:
+    if timeout is None:
+        return await ctx.wait_for_participant()
     try:
-        return await asyncio.wait_for(ctx.wait_for_participant(), PARTICIPANT_WAIT)
+        return await asyncio.wait_for(ctx.wait_for_participant(), timeout)
     except TimeoutError:
-        logger.warning("no participant joined within %.0fs", PARTICIPANT_WAIT)
+        logger.warning("no participant joined within %.0fs", timeout)
         return None
 
 
