@@ -10,6 +10,9 @@ import {
   outboundCallRequestSchema,
   outboundCallResponseSchema,
   updateAgentSchema,
+  webhookEndpointCreateSchema,
+  webhookEndpointUpdateSchema,
+  webhookEventSchema,
 } from "@answerline/shared";
 import { z } from "zod";
 import { evalRunList, evalRunView } from "@/lib/evals/types";
@@ -90,6 +93,31 @@ const evalRunDetail = z.object({ results: z.array(evalResult), run: evalRunView 
 const errorResponse = z.object({ error: z.string() });
 const idResponse = z.object({ id: z.uuid() });
 const evalRunCreateResponse = z.object({ run: evalRunView });
+const webhookEndpoint = z.object({
+  createdAt: z.iso.datetime(),
+  deletedAt: z.iso.datetime().nullable(),
+  enabled: z.boolean(),
+  events: z.array(z.string()),
+  id: z.uuid(),
+  name: z.string(),
+  updatedAt: z.iso.datetime(),
+  url: z.url(),
+});
+const webhookDelivery = z.object({
+  attemptCount: z.number().int(),
+  createdAt: z.iso.datetime(),
+  deliveredAt: z.iso.datetime().nullable(),
+  eventId: z.string(),
+  eventType: z.string(),
+  id: z.uuid(),
+  lastError: z.string().nullable(),
+  nextAttemptAt: z.iso.datetime().nullable(),
+  payload: webhookEventSchema,
+  replayCount: z.number().int(),
+  responseBody: z.string().nullable(),
+  responseStatus: z.number().int().nullable(),
+  status: z.enum(["pending", "delivered", "failed"]),
+});
 
 const schemas = {
   Agent: agentViewSchema,
@@ -104,6 +132,7 @@ const schemas = {
   CreateEvalRun: evalRunCreateSchema,
   CreateKnowledgeSource: createKnowledgeSource,
   CreateOutboundCall: outboundCallRequestSchema,
+  CreateWebhookEndpoint: webhookEndpointCreateSchema,
   Error: errorResponse,
   EvalRun: evalRunView,
   EvalRunCreateResponse: evalRunCreateResponse,
@@ -113,6 +142,16 @@ const schemas = {
   KnowledgeSourceList: knowledgeSourceList,
   OutboundCallCreateResponse: outboundCallResponseSchema,
   UpdateAgent: updateAgentSchema,
+  UpdateWebhookEndpoint: webhookEndpointUpdateSchema,
+  WebhookDeliveryList: z.object({ deliveries: webhookDelivery.array() }),
+  WebhookEndpoint: webhookEndpoint,
+  WebhookEndpointCreated: webhookEndpoint.extend({ secret: z.string() }),
+  WebhookEndpointList: z.object({ endpoints: webhookEndpoint.array() }),
+  WebhookReplay: z.object({
+    deliveryId: z.uuid(),
+    replayCount: z.number().int(),
+    status: z.literal("pending"),
+  }),
 };
 
 const jsonSchema = (schema: z.ZodType) => {
@@ -365,6 +404,97 @@ const paths = {
       security: workspaceSecurity,
       summary: "Sync a knowledge source",
       tags: ["Knowledge"],
+    },
+  },
+  "/api/v1/webhooks": {
+    get: {
+      operationId: "listWebhookEndpoints",
+      responses: {
+        "200": jsonResponse("Workspace webhook endpoints.", "WebhookEndpointList"),
+        ...commonErrors,
+      },
+      security: [{ sessionCookie: [] }],
+      summary: "List webhook endpoints",
+      tags: ["Webhooks"],
+    },
+    post: {
+      operationId: "createWebhookEndpoint",
+      requestBody: requestBody("CreateWebhookEndpoint"),
+      responses: {
+        "201": jsonResponse(
+          "The endpoint and its secret, which is shown only once.",
+          "WebhookEndpointCreated"
+        ),
+        ...commonErrors,
+        "503": jsonResponse("Webhook secret encryption is not configured.", "Error"),
+      },
+      security: [{ sessionCookie: [] }],
+      summary: "Create a webhook endpoint",
+      tags: ["Webhooks"],
+    },
+  },
+  "/api/v1/webhooks/{id}": {
+    delete: {
+      operationId: "deleteWebhookEndpoint",
+      parameters: [idParameter()],
+      responses: { "200": jsonResponse("The endpoint was archived.", "Id"), ...commonErrors },
+      security: [{ sessionCookie: [] }],
+      summary: "Archive a webhook endpoint",
+      tags: ["Webhooks"],
+    },
+    get: {
+      operationId: "getWebhookEndpoint",
+      parameters: [idParameter()],
+      responses: {
+        "200": jsonResponse("The requested endpoint.", "WebhookEndpoint"),
+        ...commonErrors,
+      },
+      security: [{ sessionCookie: [] }],
+      summary: "Get a webhook endpoint",
+      tags: ["Webhooks"],
+    },
+    patch: {
+      operationId: "updateWebhookEndpoint",
+      parameters: [idParameter()],
+      requestBody: requestBody("UpdateWebhookEndpoint"),
+      responses: {
+        "200": jsonResponse("The updated endpoint.", "WebhookEndpoint"),
+        ...commonErrors,
+      },
+      security: [{ sessionCookie: [] }],
+      summary: "Update a webhook endpoint",
+      tags: ["Webhooks"],
+    },
+  },
+  "/api/v1/webhooks/{id}/deliveries": {
+    get: {
+      operationId: "listWebhookDeliveries",
+      parameters: [
+        idParameter(),
+        { in: "query", name: "limit", schema: { maximum: 100, minimum: 1, type: "integer" } },
+        { in: "query", name: "offset", schema: { minimum: 0, type: "integer" } },
+      ],
+      responses: {
+        "200": jsonResponse("Delivery history for the endpoint.", "WebhookDeliveryList"),
+        ...commonErrors,
+      },
+      security: [{ sessionCookie: [] }],
+      summary: "List webhook deliveries",
+      tags: ["Webhooks"],
+    },
+  },
+  "/api/v1/webhooks/{id}/deliveries/{deliveryId}/replay": {
+    post: {
+      operationId: "replayWebhookDelivery",
+      parameters: [idParameter(), idParameter("deliveryId", z.uuid())],
+      responses: {
+        "202": jsonResponse("The delivery was queued for replay.", "WebhookReplay"),
+        ...commonErrors,
+        "409": jsonResponse("The delivery is already pending.", "Error"),
+      },
+      security: [{ sessionCookie: [] }],
+      summary: "Replay a webhook delivery",
+      tags: ["Webhooks"],
     },
   },
 } as const;

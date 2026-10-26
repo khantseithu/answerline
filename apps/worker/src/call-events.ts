@@ -11,19 +11,26 @@ import {
 import {
   type CallEventJob,
   callEventJob,
+  callEventJobId,
   type PostCallJob,
   postCallJobSchema,
+  type WebhookDeliveryJob,
+  type WebhookEvent,
 } from "@answerline/shared";
 import type { Job, Queue } from "bullmq";
 import { and, eq } from "drizzle-orm";
 import { calculateCallCost, parseCostPrices } from "./costs.ts";
+import { enqueueWebhookEvent } from "./webhooks.ts";
 
 export interface PersistOptions {
   postCallDelayMs?: number;
   postCallQueue?: Queue<PostCallJob>;
+  webhookBaseUrl?: string;
+  webhookQueue?: Queue<WebhookDeliveryJob>;
 }
 
 const POST_CALL_DELAY_MS = 5000;
+const TRAILING_SLASH = /\/$/;
 
 interface Ref {
   agentId: string;
@@ -268,6 +275,76 @@ export async function persistCallEvent(
       break;
     default:
       break;
+  }
+  if (options.webhookQueue) {
+    const call = await db
+      .select({ id: calls.id })
+      .from(calls)
+      .where(and(eq(calls.roomName, event.room_name), eq(calls.tenantId, ref.tenantId)))
+      .limit(1)
+      .then(([row]) => row);
+    const webhookEvent = toWebhookEvent(event, call?.id, options.webhookBaseUrl);
+    if (webhookEvent) {
+      await enqueueWebhookEvent(db, options.webhookQueue, ref.tenantId, webhookEvent);
+    }
+  }
+}
+
+export function toWebhookEvent(
+  event: CallEventJob,
+  callId: string | undefined,
+  webhookBaseUrl = "http://localhost:3000"
+): WebhookEvent | undefined {
+  if (!callId) {
+    return;
+  }
+  const base = webhookBaseUrl.replace(TRAILING_SLASH, "");
+  if (event.type === "call.started") {
+    return {
+      created_at: event.started_at,
+      data: {
+        agent: event.agent,
+        call_id: callId,
+        channel: event.channel,
+        direction: event.direction,
+        from_number: event.from_number,
+        started_at: event.started_at,
+        to_number: event.to_number,
+      },
+      id: callEventJobId(event),
+      type: event.type,
+    };
+  }
+  if (event.type === "call.ended") {
+    return {
+      created_at: event.ended_at,
+      data: {
+        agent: event.agent,
+        call_id: callId,
+        duration_ms: event.duration_ms,
+        ended_at: event.ended_at,
+        ...(event.recording_url ? { recording_url: event.recording_url } : {}),
+        status: event.status,
+        transcript_url: `${base}/api/v1/calls/${callId}`,
+      },
+      id: callEventJobId(event),
+      type: event.type,
+    };
+  }
+  if (event.type === "lead.created") {
+    return {
+      created_at: event.created_at,
+      data: {
+        agent: event.agent,
+        call_id: callId,
+        lead_id: event.lead_id,
+        name: event.name,
+        phone: event.phone,
+        reason: event.reason,
+      },
+      id: callEventJobId(event),
+      type: event.type,
+    };
   }
 }
 
