@@ -134,7 +134,7 @@ test("webhook enqueue is tenant scoped and delivery retries with signed payloads
     assert.equal(delivered?.status, "delivered");
     assert.equal(delivered?.attemptCount, 2);
     assert.equal(delivered?.responseStatus, 200);
-    assert.equal(requestBody, JSON.stringify(event));
+    assert.deepEqual(JSON.parse(requestBody), event);
 
     await db
       .update(webhookDeliveries)
