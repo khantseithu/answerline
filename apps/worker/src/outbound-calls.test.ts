@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { agents, calls, createDb, tenants } from "@answerline/db";
-import { type OutboundDialJob, parseAgentConfig } from "@answerline/shared";
+import { agentConfigSchema, type OutboundDialJob, parseAgentConfig } from "@answerline/shared";
 import { eq } from "drizzle-orm";
 import {
   createOutboundDialProcessor,
@@ -41,7 +41,12 @@ async function withOutboundCall(
     job: OutboundDialJob;
     tenantId: string;
   }) => Promise<void>,
-  configSuffix = "outbound:\n  respect_calling_hours: false\n"
+  configOverrides: {
+    hours?: { timezone: string; weekdays: string };
+    respectCallingHours?: boolean;
+  } = {
+    respectCallingHours: false,
+  }
 ) {
   const db = createDb();
   const slug = `dial-${crypto.randomUUID()}`;
@@ -54,7 +59,17 @@ async function withOutboundCall(
       new URL("../../../agents/bright-smile-dental.yaml", import.meta.url),
       "utf8"
     );
-    const config = parseAgentConfig(`${source}\n${configSuffix}`);
+    const baseConfig = parseAgentConfig(source);
+    const config = agentConfigSchema.parse({
+      ...baseConfig,
+      hours: configOverrides.hours
+        ? { ...baseConfig.hours, ...configOverrides.hours }
+        : baseConfig.hours,
+      outbound: {
+        ...baseConfig.outbound,
+        respect_calling_hours: configOverrides.respectCallingHours ?? false,
+      },
+    });
     const [agent] = await db
       .insert(agents)
       .values({ config, name: config.name, slug: "front-desk", tenantId })
@@ -159,24 +174,27 @@ test("outbound dial retries and only marks the call failed after the final attem
 );
 
 test("outbound retry fails permanently after calling hours close", { skip }, () =>
-  withOutboundCall(async ({ callId, db, job }) => {
-    const processor = createOutboundDialProcessor({
-      db,
-      livekit: {
-        roomServiceClient: {
-          deleteRoom: () => Promise.resolve(),
-          listParticipants: () => Promise.resolve([]),
-          listRooms: () => Promise.resolve([]),
+  withOutboundCall(
+    async ({ callId, db, job }) => {
+      const processor = createOutboundDialProcessor({
+        db,
+        livekit: {
+          roomServiceClient: {
+            deleteRoom: () => Promise.resolve(),
+            listParticipants: () => Promise.resolve([]),
+            listRooms: () => Promise.resolve([]),
+          },
+          sipClient: { createSipParticipant: () => Promise.reject(new Error("must not dial")) },
+          trunkId: "trunk-1",
         },
-        sipClient: { createSipParticipant: () => Promise.reject(new Error("must not dial")) },
-        trunkId: "trunk-1",
-      },
-    });
-    await assert.rejects(
-      processor({ attemptsMade: 0, data: job, opts: { attempts: 3 } }),
-      callingHoursPattern
-    );
-    const [failedCall] = await db.select().from(calls).where(eq(calls.id, callId));
-    assert.equal(failedCall?.status, "failed");
-  }, "hours:\n  timezone: UTC\n  weekdays: 25:00-25:00\noutbound:\n  respect_calling_hours: true\n")
+      });
+      await assert.rejects(
+        processor({ attemptsMade: 0, data: job, opts: { attempts: 3 } }),
+        callingHoursPattern
+      );
+      const [failedCall] = await db.select().from(calls).where(eq(calls.id, callId));
+      assert.equal(failedCall?.status, "failed");
+    },
+    { hours: { timezone: "UTC", weekdays: "00:00-00:00" }, respectCallingHours: true }
+  )
 );
