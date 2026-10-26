@@ -33,6 +33,7 @@ class ResolvedAgent:
     config: AgentConfig
     provider_keys: dict[str, str]
     source: Literal["database", "yaml"]
+    language: str | None = None
 
 
 def deployment_provider_keys(settings: Settings) -> dict[str, str]:
@@ -101,6 +102,7 @@ async def resolve_agent(metadata: str | None, settings: Settings) -> ResolvedAge
             config=config,
             provider_keys=provider_keys,
             source="database",
+            language=dispatch.language,
         )
 
     if settings.database_url:
@@ -121,6 +123,7 @@ async def resolve_agent(metadata: str | None, settings: Settings) -> ResolvedAge
                 config=config,
                 provider_keys=provider_keys,
                 source="database",
+                language=dispatch.language,
             )
 
     path = settings.agents_dir / f"{slug}.yaml"
@@ -134,4 +137,5 @@ async def resolve_agent(metadata: str | None, settings: Settings) -> ResolvedAge
         config=config,
         provider_keys=deployment_provider_keys(settings),
         source="yaml",
+        language=dispatch.language,
     )

@@ -76,8 +76,16 @@ def test_database_hit_skips_yaml_and_uses_dispatched_tenant(monkeypatch):
     assert resolved.source == "database"
     assert resolved.config.name == "Database Clinic"
     assert resolved.tenant == "workspace-two"
+    assert resolved.language is None
     assert settings.tenant == "deployment"
     assert calls == [("postgres://db", DEFAULT, "workspace-two")]
+
+
+def test_dispatch_language_reaches_the_resolved_agent(monkeypatch):
+    _fake_database(monkeypatch, AgentConfig.model_validate(CONFIG))
+    metadata = json.dumps({"agent": DEFAULT, "tenant": "default", "language": "es-MX"})
+    resolved = asyncio.run(resolve_agent(metadata, _settings(database_url="postgres://db")))
+    assert resolved.language == "es-MX"
 
 
 @pytest.mark.parametrize(

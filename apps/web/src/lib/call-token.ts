@@ -16,6 +16,7 @@ export async function createCallToken(options: {
   agentSlug: string;
   apiKey: string;
   apiSecret: string;
+  language?: string;
   serverUrl: string;
   tenantSlug: string;
 }): Promise<CallConnectionDetails> {
@@ -40,7 +41,11 @@ export async function createCallToken(options: {
       new RoomAgentDispatch({
         agentName: options.agentName,
         metadata: JSON.stringify(
-          callDispatchMetadataSchema.parse({ agent: options.agentSlug, tenant: options.tenantSlug })
+          callDispatchMetadataSchema.parse({
+            agent: options.agentSlug,
+            language: options.language,
+            tenant: options.tenantSlug,
+          })
         ),
       }),
     ],
