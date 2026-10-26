@@ -1,7 +1,8 @@
 import { agents, calls, type Database, tenants } from "@answerline/db";
-import { isWithinCallingHours, outboundDialJobSchema } from "@answerline/shared";
+import { type AgentConfig, isWithinCallingHours, outboundDialJobSchema } from "@answerline/shared";
 import { UnrecoverableError } from "bullmq";
 import { and, eq, isNull } from "drizzle-orm";
+import { ServerError, SipCallError } from "livekit-server-sdk";
 import { z } from "zod";
 
 const readyMetadataSchema = z.object({
@@ -42,6 +43,7 @@ export interface OutboundDialDeps {
     };
     trunkId: string;
   };
+  now?: () => Date;
 }
 
 interface OutboundDialAttempt {
@@ -52,6 +54,68 @@ interface OutboundDialAttempt {
 
 interface RoomMetadataReader {
   listRooms: (names: string[]) => Promise<{ metadata?: string }[]>;
+}
+
+function isRetryableOutboundError(error: unknown) {
+  if (error instanceof UnrecoverableError) {
+    return false;
+  }
+  if (error instanceof SipCallError) {
+    const status = error.sipStatusCode;
+    if (status !== undefined) {
+      return status === 408 || status === 480 || status === 486 || status >= 500;
+    }
+    return error.status === 429 || error.status >= 500;
+  }
+  if (error instanceof ServerError) {
+    return error.status === 429 || error.status >= 500;
+  }
+  return true;
+}
+
+function assertCallingHours(config: AgentConfig, now: () => Date) {
+  if (
+    config.outbound?.respect_calling_hours !== false &&
+    config.hours &&
+    !isWithinCallingHours(config.hours, now())
+  ) {
+    throw new UnrecoverableError("Workspace calling hours do not permit this outbound dial");
+  }
+}
+
+async function handleOutboundDialError(
+  error: unknown,
+  {
+    attempts,
+    attemptsMade,
+    callId,
+    db,
+    livekit,
+    roomName,
+  }: {
+    attempts: number;
+    attemptsMade: number;
+    callId: string;
+    db: Database;
+    livekit: OutboundDialDeps["livekit"];
+    roomName: string;
+  }
+) {
+  const retryable = isRetryableOutboundError(error);
+  if (!retryable || attemptsMade + 1 >= attempts) {
+    await Promise.allSettled([
+      db.update(calls).set({ endedAt: new Date(), status: "failed" }).where(eq(calls.id, callId)),
+      livekit?.roomServiceClient.deleteRoom(roomName),
+    ]);
+  }
+  if (retryable || error instanceof UnrecoverableError) {
+    throw error;
+  }
+  const unrecoverable = new UnrecoverableError(
+    error instanceof Error ? error.message : "Outbound dial failed"
+  );
+  unrecoverable.cause = error;
+  throw unrecoverable;
 }
 
 export function waitForOutboundAgent(roomServiceClient: RoomMetadataReader, roomName: string) {
@@ -75,7 +139,11 @@ export function waitForOutboundAgent(roomServiceClient: RoomMetadataReader, room
   });
 }
 
-export function createOutboundDialProcessor({ db, livekit }: OutboundDialDeps) {
+export function createOutboundDialProcessor({
+  db,
+  livekit,
+  now = () => new Date(),
+}: OutboundDialDeps) {
   return async (job: OutboundDialAttempt) => {
     const data = outboundDialJobSchema.parse(job.data);
     const [call] = await db
@@ -102,15 +170,9 @@ export function createOutboundDialProcessor({ db, livekit }: OutboundDialDeps) {
     }
     try {
       if (!livekit) {
-        throw new Error("Outbound SIP is not configured on the worker");
+        throw new UnrecoverableError("Outbound SIP is not configured on the worker");
       }
-      if (
-        call.config.outbound?.respect_calling_hours !== false &&
-        call.config.hours &&
-        !isWithinCallingHours(call.config.hours)
-      ) {
-        throw new UnrecoverableError("Workspace calling hours do not permit this outbound dial");
-      }
+      assertCallingHours(call.config, now);
       if (data.waitForAgentReady) {
         await waitForOutboundAgent(livekit.roomServiceClient, data.roomName);
       }
@@ -119,6 +181,7 @@ export function createOutboundDialProcessor({ db, livekit }: OutboundDialDeps) {
       if (participants.some((participant) => participant.identity === identity)) {
         return;
       }
+      assertCallingHours(call.config, now);
       await livekit.sipClient.createSipParticipant(livekit.trunkId, data.toNumber, data.roomName, {
         participantAttributes: { "answerline.direction": "outbound" },
         participantIdentity: identity,
@@ -128,17 +191,14 @@ export function createOutboundDialProcessor({ db, livekit }: OutboundDialDeps) {
         waitUntilAnswered: true,
       });
     } catch (error) {
-      const attempts = job.opts.attempts ?? 1;
-      if (error instanceof UnrecoverableError || job.attemptsMade + 1 >= attempts) {
-        await Promise.allSettled([
-          db
-            .update(calls)
-            .set({ endedAt: new Date(), status: "failed" })
-            .where(eq(calls.id, data.callId)),
-          livekit?.roomServiceClient.deleteRoom(data.roomName),
-        ]);
-      }
-      throw error;
+      await handleOutboundDialError(error, {
+        attempts: job.opts.attempts ?? 1,
+        attemptsMade: job.attemptsMade,
+        callId: data.callId,
+        db,
+        livekit,
+        roomName: data.roomName,
+      });
     }
   };
 }

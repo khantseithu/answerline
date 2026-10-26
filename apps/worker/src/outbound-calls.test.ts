@@ -3,7 +3,9 @@ import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { agents, calls, createDb, tenants } from "@answerline/db";
 import { agentConfigSchema, type OutboundDialJob, parseAgentConfig } from "@answerline/shared";
+import { UnrecoverableError } from "bullmq";
 import { eq } from "drizzle-orm";
+import { SipCallError } from "livekit-server-sdk";
 import {
   createOutboundDialProcessor,
   hasOutboundReadyMetadata,
@@ -167,6 +169,81 @@ test("outbound dial retries and only marks the call failed after the final attem
     assert.equal(inProgressCall?.status, "in_progress");
     assert.equal(deleted, false);
     await assert.rejects(attempt(2), noAnswerPattern);
+    const [failedCall] = await db.select().from(calls).where(eq(calls.id, callId));
+    assert.equal(failedCall?.status, "failed");
+    assert.equal(deleted, true);
+  })
+);
+
+test("outbound dialing rechecks calling hours after AMD readiness", { skip }, () =>
+  withOutboundCall(
+    async ({ callId, db, job }) => {
+      let now = new Date("2026-10-26T09:59:00Z");
+      let dialed = false;
+      const processor = createOutboundDialProcessor({
+        db,
+        livekit: {
+          roomServiceClient: {
+            deleteRoom: () => Promise.resolve(),
+            listParticipants: () => Promise.resolve([]),
+            listRooms: () => {
+              now = new Date("2026-10-26T10:00:00Z");
+              return Promise.resolve([{ metadata: '{"answerline":{"outbound_ready":true}}' }]);
+            },
+          },
+          sipClient: {
+            createSipParticipant: () => {
+              dialed = true;
+              return Promise.resolve();
+            },
+          },
+          trunkId: "trunk-1",
+        },
+        now: () => now,
+      });
+      await assert.rejects(
+        processor({ attemptsMade: 0, data: job, opts: { attempts: 3 } }),
+        callingHoursPattern
+      );
+      const [failedCall] = await db.select().from(calls).where(eq(calls.id, callId));
+      assert.equal(failedCall?.status, "failed");
+      assert.equal(dialed, false);
+    },
+    { hours: { timezone: "UTC", weekdays: "09:00-10:00" }, respectCallingHours: true }
+  )
+);
+
+test("permanent SIP failures do not consume the retry policy", { skip }, () =>
+  withOutboundCall(async ({ callId, db, job }) => {
+    let deleted = false;
+    const processor = createOutboundDialProcessor({
+      db,
+      livekit: {
+        roomServiceClient: {
+          deleteRoom: () => {
+            deleted = true;
+            return Promise.resolve();
+          },
+          listParticipants: () => Promise.resolve([]),
+          listRooms: () =>
+            Promise.resolve([{ metadata: '{"answerline":{"outbound_ready":true}}' }]),
+        },
+        sipClient: {
+          createSipParticipant: () =>
+            Promise.reject(
+              new SipCallError("Forbidden", "SIP call failed", 403, "failed_precondition", {
+                sip_status: "Forbidden",
+                sip_status_code: "403",
+              })
+            ),
+        },
+        trunkId: "trunk-1",
+      },
+    });
+    await assert.rejects(
+      processor({ attemptsMade: 0, data: job, opts: { attempts: 3 } }),
+      UnrecoverableError
+    );
     const [failedCall] = await db.select().from(calls).where(eq(calls.id, callId));
     assert.equal(failedCall?.status, "failed");
     assert.equal(deleted, true);

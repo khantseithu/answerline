@@ -38,7 +38,7 @@ const livekit =
         sipClient: new SipClient(livekitHost, env.LIVEKIT_API_KEY, env.LIVEKIT_API_SECRET),
         trunkId: env.LIVEKIT_SIP_OUTBOUND_TRUNK_ID,
       }
-  : undefined;
+    : undefined;
 
 const handlers: Record<string, (job: Job) => Promise<void> | void> = {
   [QUEUES.callEvents]: createCallEventProcessor(db, {
