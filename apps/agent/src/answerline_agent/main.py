@@ -8,6 +8,7 @@ from .call_session import CallSessionEvents, wait_for_caller
 from .capture_lead import LeadCaptureContext
 from .config import TransferCallTool
 from .knowledge_tool import open_knowledge_tools
+from .languages import call_language, greeting_for, language_instructions
 from .native_booking import open_booking_provider
 from .prompts import compose_instructions
 from .providers import build_llm_chain, build_stt, build_tts
@@ -43,6 +44,7 @@ async def entrypoint(ctx: JobContext) -> None:
     resolved = await resolve_agent(ctx.job.metadata, settings)
     config = resolved.config
     provider_keys = getattr(resolved, "provider_keys", None)
+    language = call_language(config, getattr(resolved, "language", None))
     trace_provider = configure_tracing(settings, ctx.room.name, resolved.slug, resolved.tenant)
     if trace_provider is not None:
 
@@ -77,9 +79,9 @@ async def entrypoint(ctx: JobContext) -> None:
     )
     session = AgentSession(
         stt=(
-            build_stt(config.models.stt, provider_keys, language=config.language)
+            build_stt(config.models.stt, provider_keys, language=language)
             if provider_keys is not None
-            else build_stt(config.models.stt, language=config.language)
+            else build_stt(config.models.stt, language=language)
         ),
         llm=(
             build_llm_chain(config.models, provider_keys)
@@ -87,12 +89,12 @@ async def entrypoint(ctx: JobContext) -> None:
             else build_llm_chain(config.models)
         ),
         tts=(
-            build_tts(config.models.tts, provider_keys, language=config.language)
+            build_tts(config.models.tts, provider_keys, language=language)
             if provider_keys is not None
-            else build_tts(config.models.tts, language=config.language)
+            else build_tts(config.models.tts, language=language)
         ),
         vad=ctx.proc.userdata["vad"],
-        turn_handling=build_turn_handling(settings, config.language),
+        turn_handling=build_turn_handling(settings, language),
         user_away_timeout=settings.idle_timeout_seconds or None,
     )
     tool_log = ToolLog()
@@ -116,7 +118,11 @@ async def entrypoint(ctx: JobContext) -> None:
     await session.start(
         room=ctx.room,
         agent=agent_type(
-            instructions=compose_instructions(config.instructions, after_hours.instructions()),
+            instructions=compose_instructions(
+                config.instructions,
+                language_instructions(config, language),
+                after_hours.instructions(),
+            ),
             tools=[*(knowledge.tools if knowledge else []), *tools],
         ),
     )
@@ -131,7 +137,7 @@ async def entrypoint(ctx: JobContext) -> None:
     if recording:
         ctx.add_shutdown_callback(lambda _reason: recording.stop())
         await start_with_notice(recording, session, config.recording.notice)
-    await after_hours.greet(session, config.greeting, transfer)
+    await after_hours.greet(session, greeting_for(config, language), transfer)
 
 
 def main() -> None:
