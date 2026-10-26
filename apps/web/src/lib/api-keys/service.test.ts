@@ -55,14 +55,21 @@ test("workspace API keys are owner-managed, scoped, one-time secrets with revoca
     const authenticated = await authenticateApiKey(db, created.token);
     assert.deepEqual(authenticated?.scopes, ["calls:read", "agents:read"]);
     assert.equal(authenticated?.tenantId, first.id);
+    let rateLimitCalls = 0;
+    const enforceRateLimit = () => {
+      rateLimitCalls += 1;
+      return Promise.resolve();
+    };
     assert.equal(
-      (await resolveApiKeyContext(db, `Bearer ${created.token}`, "agents:read")).tenantId,
+      (await resolveApiKeyContext(db, `Bearer ${created.token}`, "agents:read", enforceRateLimit))
+        .tenantId,
       first.id
     );
     await assert.rejects(
-      resolveApiKeyContext(db, `Bearer ${created.token}`, "agents:write"),
+      resolveApiKeyContext(db, `Bearer ${created.token}`, "agents:write", enforceRateLimit),
       ApiKeyScopeError
     );
+    assert.equal(rateLimitCalls, 2);
     await assert.rejects(
       resolveApiKeyContext(db, "Bearer invalid", "agents:read"),
       DashboardAuthError

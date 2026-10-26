@@ -8,6 +8,7 @@ import { getDashboardContext } from "@/lib/dashboard/context";
 import { DashboardAuthError } from "@/lib/dashboard/errors";
 import { requireWorkspaceAccess, type WorkspaceAccess } from "@/lib/workspaces/permissions";
 import { createApiKeyHandlers } from "./handlers";
+import { enforceRequestRateLimit } from "./rate-limit";
 import { authenticateApiKey, requireApiKeyScope } from "./service";
 
 const bearerTokenPattern = /^Bearer\s+(\S+)$/i;
@@ -15,7 +16,8 @@ const bearerTokenPattern = /^Bearer\s+(\S+)$/i;
 export async function resolveApiKeyContext(
   db: Database,
   authorization: string,
-  scope: ApiKeyScope
+  scope: ApiKeyScope,
+  enforceRateLimit: (keyId: string) => Promise<void> = enforceRequestRateLimit
 ) {
   const token = bearerTokenPattern.exec(authorization)?.[1];
   if (!token) {
@@ -25,6 +27,7 @@ export async function resolveApiKeyContext(
   if (!key) {
     throw new DashboardAuthError();
   }
+  await enforceRateLimit(key.id);
   requireApiKeyScope(key.scopes, scope);
   return { db, tenantId: key.tenantId };
 }

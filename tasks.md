@@ -232,8 +232,8 @@ Roadmap: *Multi-tenant workspaces and API keys*
   - [x] Define hashed workspace API key persistence (#289)
 - [x] REST API v1: calls (list, get), agents (CRUD), knowledge (CRUD), evals (run, get) (#108)
 - [x] OpenAPI spec generated from Zod, served at `/api/docs` (#109)
-- [ ] Rate limiting per key (Redis)
-- [ ] Per-tenant provider keys and usage limits
+- [x] Rate limiting per key (Redis) (#110)
+- [x] Per-tenant provider keys and usage limits (#111)
 
 **Done when:** two workspaces run separate agents from one deployment with no data leaking across them, and the README `curl` examples work.
 
@@ -284,6 +284,7 @@ Roadmap: *Multilingual agents*
 - M9 workspace policy: any signed-in user can create workspaces; copyable invite links can provision password accounts while unrestricted signup stays disabled. Owners manage members/settings/API keys, admins manage agents/knowledge/evals/calls, and viewers read only (#106, #107, #284).
 - M9 provider credentials: dashboard-managed keys encrypted at rest with a deployment encryption key, with deployment credentials as an explicit fallback. Usage limits use UTC calendar-month call minutes and optional provider spend; exhaustion blocks new work (#111).
 - M9 agent lifecycle: REST API DELETE archives agents and preserves call and knowledge history (#108).
+- M9 API rate limiting: each API key gets 60 requests per Redis fixed window; throttled requests return 429 with `Retry-After`, and Redis failure blocks key-authenticated requests with 503 (#110).
 
 - Default agent primary LLM: `openrouter/recursive/flint-v1.0:free` through OpenRouter (replaces Google Gemini 3.8 Flash); retain the existing fallback chain (#216, #222)
 

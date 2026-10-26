@@ -1,3 +1,4 @@
+import { ApiKeyRateLimitError, isApiKeyRateLimitUnavailableError } from "@/lib/api-keys/rate-limit";
 import { WorkspaceUsageLimitError } from "@/lib/workspaces/usage";
 
 export class DashboardAuthError extends Error {}
@@ -5,7 +6,7 @@ export class DashboardForbiddenError extends Error {}
 export class WorkspaceRequiredError extends Error {}
 
 export function dashboardErrorResponse(error: unknown) {
-  if (error instanceof WorkspaceUsageLimitError) {
+  if (error instanceof WorkspaceUsageLimitError || error instanceof ApiKeyRateLimitError) {
     return Response.json(
       { error: error.message },
       {
@@ -15,6 +16,12 @@ export function dashboardErrorResponse(error: unknown) {
         },
         status: 429,
       }
+    );
+  }
+  if (isApiKeyRateLimitUnavailableError(error)) {
+    return Response.json(
+      { error: "API key rate limiting is unavailable" },
+      { headers: { "Cache-Control": "no-store" }, status: 503 }
     );
   }
   if (error instanceof DashboardAuthError) {
