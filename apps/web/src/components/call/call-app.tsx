@@ -45,6 +45,7 @@ interface CallContextValue {
   isBusy: boolean;
   isConnecting: boolean;
   startCall: (agent?: { name: string; slug: string }) => void;
+  unavailableReason: string | null;
 }
 
 const CallContext = createContext<CallContextValue | null>(null);
@@ -103,15 +104,64 @@ function CallHeader({ agentName }: { agentName: string }) {
   );
 }
 
+function UnavailableCallApp({
+  agentName,
+  children,
+  unavailableReason,
+}: {
+  agentName: string;
+  children: ReactNode;
+  unavailableReason: string | null;
+}) {
+  const startCall = useCallback(() => undefined, []);
+  const value = useMemo(
+    () => ({
+      agentName,
+      canCall: false,
+      isBusy: false,
+      isConnecting: false,
+      startCall,
+      unavailableReason,
+    }),
+    [agentName, startCall, unavailableReason]
+  );
+  return <CallContext.Provider value={value}>{children}</CallContext.Provider>;
+}
+
 export function CallApp({
   agentName,
   agentSlug,
   canCall = true,
   children,
+  unavailableReason = null,
 }: {
   agentName: string;
   agentSlug: string;
   canCall?: boolean;
+  children: ReactNode;
+  unavailableReason?: string | null;
+}) {
+  if (!canCall) {
+    return (
+      <UnavailableCallApp agentName={agentName} unavailableReason={unavailableReason}>
+        {children}
+      </UnavailableCallApp>
+    );
+  }
+  return (
+    <AvailableCallApp agentName={agentName} agentSlug={agentSlug}>
+      {children}
+    </AvailableCallApp>
+  );
+}
+
+function AvailableCallApp({
+  agentName,
+  agentSlug,
+  children,
+}: {
+  agentName: string;
+  agentSlug: string;
   children: ReactNode;
 }) {
   const [selectedAgent, setSelectedAgent] = useState({ name: agentName, slug: agentSlug });
@@ -152,12 +202,13 @@ export function CallApp({
   const value = useMemo(
     () => ({
       agentName: selectedAgent.name,
-      canCall,
+      canCall: true,
       isBusy: startPending || session.connectionState !== ConnectionState.Disconnected,
       isConnecting: session.connectionState === ConnectionState.Connecting,
       startCall,
+      unavailableReason: null,
     }),
-    [canCall, selectedAgent.name, session.connectionState, startCall, startPending]
+    [selectedAgent.name, session.connectionState, startCall, startPending]
   );
 
   return (

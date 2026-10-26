@@ -4,10 +4,12 @@ import { env } from "@/env";
 import { AGENT_SLUG_PATTERN, createCallToken, DEFAULT_AGENT_SLUG } from "@/lib/call-token";
 import { getDashboardContext } from "@/lib/dashboard/context";
 import { dashboardErrorResponse } from "@/lib/dashboard/errors";
+import { requireWorkspaceAccess } from "@/lib/workspaces/permissions";
 
 export async function POST(request: Request) {
   try {
-    const { db, tenantId } = await getDashboardContext();
+    const { db, role, tenantId } = await getDashboardContext();
+    requireWorkspaceAccess(role, "write");
     const agentSlug = new URL(request.url).searchParams.get("agent") ?? DEFAULT_AGENT_SLUG;
     if (!AGENT_SLUG_PATTERN.test(agentSlug)) {
       return Response.json({ error: "Invalid agent" }, { status: 400 });

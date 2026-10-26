@@ -12,9 +12,11 @@ import { NumberList } from "./number-list";
 export function PhoneNumberManager({
   initialError,
   initialList,
+  readOnly = false,
 }: {
   initialError: string | null;
   initialList: PhoneNumberList | null;
+  readOnly?: boolean;
 }) {
   const [list, setList] = useState(initialList);
   const [error, setError] = useState(initialError);
@@ -45,8 +47,13 @@ export function PhoneNumberManager({
 
   return (
     <div className="flex flex-col gap-8">
-      <AddNumber agents={list.agents} onChange={refresh} />
-      <NumberList agents={list.agents} numbers={list.numbers} onChange={refresh} />
+      {readOnly ? null : <AddNumber agents={list.agents} onChange={refresh} />}
+      <NumberList
+        agents={list.agents}
+        numbers={list.numbers}
+        onChange={refresh}
+        readOnly={readOnly}
+      />
     </div>
   );
 }

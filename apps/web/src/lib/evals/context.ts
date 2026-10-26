@@ -3,6 +3,7 @@ import { Queue } from "bullmq";
 import { Redis } from "ioredis";
 import { env } from "@/env";
 import { getDashboardContext } from "@/lib/dashboard/context";
+import { requireWorkspaceAccess, type WorkspaceAccess } from "@/lib/workspaces/permissions";
 import { type EvalDeps, evalJobId } from "./service";
 import { findEvalsDir } from "./suites";
 
@@ -28,8 +29,9 @@ function runtime() {
   return globalForEvals.evalRuntime;
 }
 
-export async function getEvalDeps(): Promise<EvalDeps> {
-  const { db, tenantId } = await getDashboardContext();
+export async function getEvalDeps(access: WorkspaceAccess = "read"): Promise<EvalDeps> {
+  const { db, role, tenantId } = await getDashboardContext();
+  requireWorkspaceAccess(role, access);
   const { evalsDir, queue } = runtime();
   return {
     db,

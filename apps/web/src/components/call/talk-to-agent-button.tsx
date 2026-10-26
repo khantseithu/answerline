@@ -16,16 +16,24 @@ export function TalkToAgentButton({
   agentName?: string;
   agentSlug?: string;
 }) {
-  const { canCall, isBusy, isConnecting, startCall } = useCall();
+  const { canCall, isBusy, isConnecting, startCall, unavailableReason } = useCall();
   const agent = useMemo(
     () => (agentName && agentSlug ? { name: agentName, slug: agentSlug } : undefined),
     [agentName, agentSlug]
   );
   const handleClick = useCallback(() => startCall(agent), [agent, startCall]);
 
+  if (!canCall && unavailableReason) {
+    return (
+      <Button {...props} disabled title={unavailableReason}>
+        <PhoneIcon data-icon="inline-start" />
+        Talk to agent
+      </Button>
+    );
+  }
   if (!canCall) {
     return (
-      <Button render={<Link href="/login" />} {...props}>
+      <Button nativeButton={false} render={<Link href="/login" />} {...props}>
         <LogInIcon data-icon="inline-start" />
         Sign in to try a call
       </Button>

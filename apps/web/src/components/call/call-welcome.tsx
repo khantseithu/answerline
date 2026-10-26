@@ -6,7 +6,7 @@ import { LiveDot } from "@/components/call/live-dot";
 import { TalkToAgentButton } from "@/components/call/talk-to-agent-button";
 
 export function CallWelcome() {
-  const { agentName } = useCall();
+  const { agentName, canCall, unavailableReason } = useCall();
 
   return (
     <section
@@ -23,19 +23,19 @@ export function CallWelcome() {
               {agentName}
             </h2>
             <span className="inline-flex items-center gap-1.5 text-muted-foreground text-sm">
-              <LiveDot />
-              Ready for calls
+              {canCall ? <LiveDot /> : null}
+              {canCall ? "Ready for calls" : "Calls unavailable"}
             </span>
           </div>
           <p className="text-muted-foreground text-sm/relaxed">
-            Call your receptionist from the browser and talk to it the way a caller would: ask about
-            opening hours, services, or booking a visit.
+            {unavailableReason ??
+              "Call your receptionist from the browser and talk to it the way a caller would: ask about opening hours, services, or booking a visit."}
           </p>
         </div>
       </div>
       <div className="flex shrink-0 flex-col gap-2 md:items-end">
         <TalkToAgentButton className="h-10 px-4 text-[0.9375rem]" size="lg" />
-        <p className="text-muted-foreground text-xs">Uses your microphone</p>
+        {canCall ? <p className="text-muted-foreground text-xs">Uses your microphone</p> : null}
       </div>
     </section>
   );

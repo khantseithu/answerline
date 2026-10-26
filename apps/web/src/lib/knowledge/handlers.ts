@@ -1,5 +1,11 @@
 import { z } from "zod";
-import { DashboardAuthError, dashboardErrorResponse } from "@/lib/dashboard/errors";
+import {
+  DashboardAuthError,
+  DashboardForbiddenError,
+  dashboardErrorResponse,
+  WorkspaceRequiredError,
+} from "@/lib/dashboard/errors";
+import type { WorkspaceAccess } from "@/lib/workspaces/permissions";
 import { MAX_KNOWLEDGE_FILE_BYTES } from "./file-rules";
 import { KnowledgeFileError } from "./files";
 import { createKnowledgeSource as createKnowledgeSourceInput, knowledgeSourceId } from "./schemas";
@@ -21,7 +27,11 @@ export class KnowledgeBadRequestError extends Error {}
 const noStore = { "Cache-Control": "no-store" };
 
 export function knowledgeErrorResponse(error: unknown) {
-  if (error instanceof DashboardAuthError) {
+  if (
+    error instanceof DashboardAuthError ||
+    error instanceof DashboardForbiddenError ||
+    error instanceof WorkspaceRequiredError
+  ) {
     return dashboardErrorResponse(error);
   }
   if (error instanceof z.ZodError) {
@@ -52,12 +62,15 @@ async function readJson(request: Request) {
   }
 }
 
-export function createKnowledgeHandlers(getDeps: () => Promise<KnowledgeDeps>) {
+export function createKnowledgeHandlers(
+  getDeps: (access?: WorkspaceAccess) => Promise<KnowledgeDeps>
+) {
   return {
     async create(request: Request) {
       try {
+        const deps = await getDeps("write");
         const input = createKnowledgeSourceInput.parse(await readJson(request));
-        const id = await createKnowledgeSource(await getDeps(), input);
+        const id = await createKnowledgeSource(deps, input);
         return Response.json({ id }, { headers: noStore, status: 201 });
       } catch (error) {
         return knowledgeErrorResponse(error);
@@ -73,7 +86,8 @@ export function createKnowledgeHandlers(getDeps: () => Promise<KnowledgeDeps>) {
     },
     async remove(_request: Request, rawId: string) {
       try {
-        await deleteKnowledgeSource(await getDeps(), knowledgeSourceId.parse(rawId));
+        const deps = await getDeps("write");
+        await deleteKnowledgeSource(deps, knowledgeSourceId.parse(rawId));
         return new Response(null, { headers: noStore, status: 204 });
       } catch (error) {
         return knowledgeErrorResponse(error);
@@ -81,7 +95,8 @@ export function createKnowledgeHandlers(getDeps: () => Promise<KnowledgeDeps>) {
     },
     async resync(_request: Request, rawId: string) {
       try {
-        await resyncKnowledgeSource(await getDeps(), knowledgeSourceId.parse(rawId));
+        const deps = await getDeps("write");
+        await resyncKnowledgeSource(deps, knowledgeSourceId.parse(rawId));
         return Response.json({ id: rawId }, { headers: noStore, status: 202 });
       } catch (error) {
         return knowledgeErrorResponse(error);
@@ -89,6 +104,7 @@ export function createKnowledgeHandlers(getDeps: () => Promise<KnowledgeDeps>) {
     },
     async upload(request: Request) {
       try {
+        const deps = await getDeps("write");
         const length = Number(request.headers.get("content-length"));
         if (length > MAX_KNOWLEDGE_FILE_BYTES + MULTIPART_OVERHEAD_BYTES) {
           throw new KnowledgeFileError("Knowledge file exceeds 20 MiB");
@@ -100,7 +116,7 @@ export function createKnowledgeHandlers(getDeps: () => Promise<KnowledgeDeps>) {
         if (!(file instanceof File)) {
           throw new KnowledgeBadRequestError("A file is required");
         }
-        const id = await createKnowledgeFileSource(await getDeps(), {
+        const id = await createKnowledgeFileSource(deps, {
           data: new Uint8Array(await file.arrayBuffer()),
           name: file.name,
         });

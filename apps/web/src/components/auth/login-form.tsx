@@ -10,10 +10,12 @@ import { authClient } from "@/lib/auth/client";
 
 export function LoginForm({
   githubEnabled,
+  destination,
   ready,
   oauthError,
 }: {
   githubEnabled: boolean;
+  destination: string;
   ready: boolean;
   oauthError: boolean;
 }) {
@@ -36,7 +38,7 @@ export function LoginForm({
           setError("Email or password is incorrect.");
           return;
         }
-        router.replace("/overview");
+        router.replace(destination);
         router.refresh();
       } catch {
         setError("Unable to sign in. Please try again.");
@@ -44,7 +46,7 @@ export function LoginForm({
         setPending(false);
       }
     },
-    [router]
+    [destination, router]
   );
 
   const signInWithGitHub = useCallback(async () => {
@@ -52,8 +54,8 @@ export function LoginForm({
     setError("");
     try {
       const result = await authClient.signIn.social({
-        callbackURL: "/overview",
-        errorCallbackURL: "/login?error=oauth",
+        callbackURL: destination,
+        errorCallbackURL: `/login?error=oauth&returnTo=${encodeURIComponent(destination)}`,
         provider: "github",
       });
       if (result.error) {
@@ -64,7 +66,7 @@ export function LoginForm({
       setError("Unable to connect to GitHub. Please try again.");
       setPending(false);
     }
-  }, []);
+  }, [destination]);
 
   return (
     <div className="flex flex-col gap-6">

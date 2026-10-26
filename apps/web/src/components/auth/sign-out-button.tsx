@@ -6,7 +6,7 @@ import { useCallback, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth/client";
 
-export function SignOutButton() {
+export function SignOutButton({ destination = "/login" }: { destination?: string }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -20,14 +20,14 @@ export function SignOutButton() {
         setFailed(true);
         return;
       }
-      router.replace("/login");
+      router.replace(destination);
       router.refresh();
     } catch {
       setFailed(true);
     } finally {
       setPending(false);
     }
-  }, [router]);
+  }, [destination, router]);
 
   return (
     <>

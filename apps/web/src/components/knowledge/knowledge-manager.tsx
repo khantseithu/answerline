@@ -8,7 +8,13 @@ import { SourceList } from "./source-list";
 
 const POLL_INTERVAL_MS = 2000;
 
-export function KnowledgeManager({ initialSources }: { initialSources: KnowledgeSourceView[] }) {
+export function KnowledgeManager({
+  initialSources,
+  readOnly = false,
+}: {
+  initialSources: KnowledgeSourceView[];
+  readOnly?: boolean;
+}) {
   const [sources, setSources] = useState(initialSources);
   const inFlight = sources.some((source) => isInFlight(source.status));
 
@@ -29,8 +35,8 @@ export function KnowledgeManager({ initialSources }: { initialSources: Knowledge
 
   return (
     <div className="flex flex-col gap-8">
-      <AddSource onChange={refresh} />
-      <SourceList onChange={refresh} sources={sources} />
+      {readOnly ? null : <AddSource onChange={refresh} />}
+      <SourceList onChange={refresh} readOnly={readOnly} sources={sources} />
     </div>
   );
 }

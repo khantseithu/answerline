@@ -96,9 +96,11 @@ function validateRawConfig(draft: string, rawError: string) {
 export function AgentEditor({
   agent: initialAgent,
   initialVersions,
+  readOnly = false,
 }: {
   agent: AgentView;
   initialVersions: AgentVersionView[];
+  readOnly?: boolean;
 }) {
   const [agent, setAgent] = useState(initialAgent);
   const [config, setConfig] = useState(initialAgent.config);
@@ -284,8 +286,13 @@ export function AgentEditor({
       <PageHeader
         actions={
           <>
-            <TalkToAgentButton agentName={agent.name} agentSlug={agent.slug} variant="outline" />
-            <Button disabled={saving} onClick={save}>
+            <TalkToAgentButton
+              agentName={agent.name}
+              agentSlug={agent.slug}
+              disabled={readOnly}
+              variant="outline"
+            />
+            <Button disabled={saving || readOnly} onClick={save}>
               <SaveIcon data-icon="inline-start" /> {saving ? "Saving…" : "Save changes"}
             </Button>
           </>
@@ -318,6 +325,7 @@ export function AgentEditor({
                           data-field="name"
                           id="agent-name"
                           onChange={handleFieldChange}
+                          readOnly={readOnly}
                           value={config.name}
                         />
                       </Field>
@@ -326,6 +334,7 @@ export function AgentEditor({
                           data-field="language"
                           id="agent-language"
                           onChange={handleFieldChange}
+                          readOnly={readOnly}
                           value={config.language}
                         />
                       </Field>
@@ -336,6 +345,7 @@ export function AgentEditor({
                             data-field="greeting"
                             id="agent-greeting"
                             onChange={handleFieldChange}
+                            readOnly={readOnly}
                             value={config.greeting}
                           />
                         </Field>
@@ -347,6 +357,7 @@ export function AgentEditor({
                             data-field="instructions"
                             id="agent-instructions"
                             onChange={handleFieldChange}
+                            readOnly={readOnly}
                             value={config.instructions}
                           />
                         </Field>
@@ -367,6 +378,7 @@ export function AgentEditor({
                             data-field="llm"
                             id="agent-llm"
                             onChange={handleFieldChange}
+                            readOnly={readOnly}
                             value={config.models.llm.primary}
                           />
                         </Field>
@@ -376,6 +388,7 @@ export function AgentEditor({
                             data-field="fallback"
                             id="agent-fallbacks"
                             onChange={handleFieldChange}
+                            readOnly={readOnly}
                             value={config.models.llm.fallback.join(", ")}
                           />
                         </Field>
@@ -385,6 +398,7 @@ export function AgentEditor({
                             data-field="stt"
                             id="agent-stt"
                             onChange={handleFieldChange}
+                            readOnly={readOnly}
                             value={config.models.stt}
                           />
                         </Field>
@@ -394,6 +408,7 @@ export function AgentEditor({
                             data-field="tts"
                             id="agent-tts"
                             onChange={handleFieldChange}
+                            readOnly={readOnly}
                             value={config.models.tts}
                           />
                         </Field>
@@ -420,6 +435,7 @@ export function AgentEditor({
                               data-section={key}
                               id={`agent-${key}`}
                               onChange={handleSectionChange}
+                              readOnly={readOnly}
                               spellCheck={false}
                               value={sectionDrafts[key]}
                             />
@@ -440,6 +456,7 @@ export function AgentEditor({
                       aria-invalid={Boolean(rawError)}
                       className="min-h-[620px] resize-y font-mono text-xs leading-relaxed"
                       onChange={handleRawChange}
+                      readOnly={readOnly}
                       spellCheck={false}
                       value={rawDraft}
                     />
