@@ -27,6 +27,13 @@ test("the docs route serves an OpenAPI spec generated from the API Zod schemas",
   assert.equal(spec.paths["/api/v1/agents/{id}"].patch.operationId, "updateAgent");
   assert.equal(spec.paths["/api/v1/agents/{id}"].delete.operationId, "archiveAgent");
   assert.equal(spec.paths["/api/v1/calls"].get.operationId, "listCalls");
+  assert.equal(spec.paths["/api/v1/calls"].post.operationId, "startOutboundCall");
+  assert.deepEqual(spec.paths["/api/v1/calls"].post.requestBody, {
+    content: {
+      "application/json": { schema: { $ref: "#/components/schemas/CreateOutboundCall" } },
+    },
+    required: true,
+  });
   assert.equal(spec.paths["/api/v1/calls/{id}"].get.operationId, "getCall");
   assert.equal(spec.paths["/api/v1/knowledge"].post.operationId, "createKnowledgeSource");
   assert.equal(spec.paths["/api/v1/evals/{id}"].get.operationId, "getEvalRun");

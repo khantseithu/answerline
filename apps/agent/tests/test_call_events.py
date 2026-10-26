@@ -41,6 +41,21 @@ def test_sip_call_started_reads_numbers_from_attributes():
     assert event.to_number == "+15555550100"
 
 
+def test_outbound_sip_call_started_reads_direction_from_participant_attributes():
+    event = _recorder().start(
+        is_sip=True,
+        started_at=START,
+        attributes={
+            "answerline.direction": "outbound",
+            "sip.phoneNumber": "+15555550123",
+            "sip.trunkPhoneNumber": "+15555550100",
+        },
+    )
+    assert event.direction == "outbound"
+    assert event.from_number == "+15555550100"
+    assert event.to_number == "+15555550123"
+
+
 def test_sip_call_started_without_attributes():
     payload = call_event_payload(_recorder().start(is_sip=True, started_at=START))
     assert payload["channel"] == "sip"

@@ -410,7 +410,8 @@ The agent name keeps dispatch separate: a slot's web app issues tokens for `answ
 | Area | Built | Planned |
 |---|---|---|
 | Web calls | Token endpoint, Talk to agent, live transcript, agent state, visualizer | Agent picker, embeddable widget |
-| Phone calls | Channel and caller ID fields in events and schema | LiveKit SIP, trunks, dispatch rules (M4, [#63](https://github.com/khantseithu/answerline/issues/63)-[#71](https://github.com/khantseithu/answerline/issues/71)) |
+| Phone calls | Inbound LiveKit SIP trunks and dispatch rules; outbound REST calls through a deployment-configured stored trunk | Voicemail detection, retry policy, and calling-hours guard (M10, [#114](https://github.com/khantseithu/answerline/issues/114)) |
+| API and webhooks | Workspace-scoped calls, agents, knowledge, and eval APIs; OpenAPI docs; outbound call creation | Signed webhooks and event delivery (M10, [#115](https://github.com/khantseithu/answerline/issues/115), [#116](https://github.com/khantseithu/answerline/issues/116)) |
 | Voice loop | STT, LLM fallback, TTS, local turn detection, interruption tuning, call limits | Noise cancellation, auto language detection and per-language prompts (M11) |
 | Call log | Calls and turns with latency and usage in Postgres | Calls UI, call detail, post-call summary and cost (M5) |
 | Recording | Opt-in egress to local MinIO via the S3 API, URL on the call | Cloudflare R2 primary storage and an adapter for other S3-compatible providers ([#153](https://github.com/khantseithu/answerline/issues/153)); playback in the dashboard |

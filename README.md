@@ -241,7 +241,7 @@ The Terraform modules provision container apps for each service, managed Postgre
 
 ## API
 
-Create a workspace API key with `calls:read` and `agents:read` access in workspace settings, then use it as a Bearer token.
+Create a workspace API key with `calls:read`, `calls:write`, and `agents:read` access in workspace settings, then use it as a Bearer token.
 
 ```bash
 # List recent calls
@@ -251,6 +251,13 @@ curl https://your-host/api/v1/calls \
 # Get a call by ID from the list response
 curl "https://your-host/api/v1/calls/$CALL_ID" \
   -H "Authorization: Bearer $ANSWERLINE_API_KEY"
+
+# Start an outbound call (requires a configured LiveKit outbound trunk)
+curl https://your-host/api/v1/calls \
+  -X POST \
+  -H "Authorization: Bearer $ANSWERLINE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"agent":"bright-smile-dental","toNumber":"+15551234567"}'
 
 # List workspace agents
 curl https://your-host/api/v1/agents \
