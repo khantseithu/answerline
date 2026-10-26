@@ -284,6 +284,7 @@ Roadmap: *Multilingual agents*
 - M9 workspace policy: any signed-in user can create workspaces; copyable invite links can provision password accounts while unrestricted signup stays disabled. Owners manage members/settings/API keys, admins manage agents/knowledge/evals/calls, and viewers read only (#106, #107, #284).
 - M9 provider credentials: dashboard-managed keys encrypted at rest with a deployment encryption key, with deployment credentials as an explicit fallback. Usage limits use UTC calendar-month call minutes and optional provider spend; exhaustion blocks new work (#111).
 - M9 agent lifecycle: REST API DELETE archives agents and preserves call and knowledge history (#108).
+- M9 API rate limiting: each API key gets 60 requests per Redis fixed window; throttled requests return 429 with `Retry-After`, and Redis failure blocks key-authenticated requests with 503 (#110).
 
 - Default agent primary LLM: `openrouter/recursive/flint-v1.0:free` through OpenRouter (replaces Google Gemini 3.8 Flash); retain the existing fallback chain (#216, #222)
 
