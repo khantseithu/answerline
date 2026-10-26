@@ -6,6 +6,20 @@ import ipaddr from "ipaddr.js";
 const MAX_BYTES = 10 * 1024 * 1024;
 const ALLOWED_CONTENT_TYPE = /^(text\/html|application\/xhtml\+xml|text\/plain)(;|$)/i;
 const IPV6_BRACKETS = /^\[|\]$/g;
+const CHARSET_HEADER = /charset\s*=\s*["']?([\w.:-]+)/i;
+const CHARSET_META = /<meta[^>]+charset\s*=\s*["']?([\w.:-]+)/i;
+const SNIFF_BYTES = 2048;
+
+export function decodeBody(data: Buffer, contentType: string) {
+  const label =
+    CHARSET_HEADER.exec(contentType)?.[1] ??
+    CHARSET_META.exec(data.subarray(0, SNIFF_BYTES).toString("latin1"))?.[1];
+  try {
+    return new TextDecoder(label ?? "utf-8").decode(data);
+  } catch {
+    return new TextDecoder("utf-8").decode(data);
+  }
+}
 
 export function assertPublicAddress(address: string) {
   if (ipaddr.process(address).range() !== "unicast") {
@@ -56,7 +70,7 @@ function requestPage(url: URL, address: { address: string; family: number }, sig
           });
           response.on("error", reject);
           response.on("end", () =>
-            resolve({ body: Buffer.concat(chunks).toString("utf8"), contentType, status })
+            resolve({ body: decodeBody(Buffer.concat(chunks), contentType), contentType, status })
           );
         }
       );

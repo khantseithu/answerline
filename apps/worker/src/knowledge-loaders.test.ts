@@ -6,7 +6,7 @@ import { test } from "node:test";
 import { pathToFileURL } from "node:url";
 import type { knowledgeSources } from "@answerline/db";
 import { loadKnowledgeSource } from "./knowledge-loaders.ts";
-import { assertPublicAddress, fetchKnowledgePage } from "./knowledge-url.ts";
+import { assertPublicAddress, decodeBody, fetchKnowledgePage } from "./knowledge-url.ts";
 
 const ABSOLUTE_PATH = /absolute/;
 const INSIDE_TENANT = /inside the tenant/;
@@ -235,4 +235,18 @@ test("URL loader blocks non-public IPv4, IPv6 and mapped addresses", async () =>
   await assert.rejects(fetchKnowledgePage("file:///etc/passwd"), HTTP_URL);
   await assert.rejects(fetchKnowledgePage("https://user:pass@example.com"), CREDENTIALS);
   await assert.rejects(fetchKnowledgePage("https://example.com", 5), REDIRECT_LIMIT);
+});
+
+test("decodes URL bodies using the declared charset", () => {
+  const text = "¿Cuál es el horario? Está abierto mañana, niño.";
+  const latin1 = Buffer.from(text, "latin1");
+  assert.equal(decodeBody(Buffer.from(text, "utf8"), "text/html"), text);
+  assert.equal(decodeBody(Buffer.from(text, "utf8"), "text/html; charset=utf-8"), text);
+  assert.equal(decodeBody(latin1, "text/html; charset=ISO-8859-1"), text);
+  assert.equal(decodeBody(latin1, 'text/plain; charset="windows-1252"'), text);
+  assert.equal(
+    decodeBody(Buffer.concat([Buffer.from('<meta charset="iso-8859-1">'), latin1]), "text/html"),
+    `<meta charset="iso-8859-1">${text}`
+  );
+  assert.equal(decodeBody(Buffer.from(text, "utf8"), "text/html; charset=nonsense"), text);
 });
