@@ -1,5 +1,7 @@
 import { DashboardAuthError, dashboardErrorResponse } from "@/lib/dashboard/errors";
 
+const bearerTokenPattern = /^Bearer\s+\S+$/i;
+
 export function readOptionalSession<T>(
   headers: Headers,
   lookup: (headers: Headers) => Promise<T>
@@ -21,7 +23,9 @@ export async function guardApiRequest(
   resolveSession: (headers: Headers) => Promise<unknown>,
   trustedOrigin: string
 ) {
-  if (!(request.headers.get("cookie") && (await resolveSession(request.headers)))) {
+  const hasBearerToken = bearerTokenPattern.test(request.headers.get("authorization") ?? "");
+  const hasSession = request.headers.get("cookie") && (await resolveSession(request.headers));
+  if (!(hasBearerToken || hasSession)) {
     return dashboardErrorResponse(new DashboardAuthError());
   }
   if (!["GET", "HEAD", "OPTIONS"].includes(request.method)) {
