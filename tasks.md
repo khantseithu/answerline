@@ -228,7 +228,7 @@ Roadmap: *Multi-tenant workspaces and API keys*
   - [x] Define tenant-safe parent links and workspace voice dispatch contracts (#287)
 - [x] Workspaces: create, switch, invite members, roles (owner, admin, viewer) (#106)
   - [x] Define membership, invitation, role and API scope contracts (#284)
-- [ ] API keys: create, scope, hash at rest, last used, revoke (#107)
+- [x] API keys: create, scope, hash at rest, last used, revoke (#107)
   - [x] Define hashed workspace API key persistence (#289)
 - [ ] REST API v1: calls (list, get), agents (CRUD), knowledge (CRUD), evals (run, get)
 - [ ] OpenAPI spec generated from Zod, served at `/api/docs`
