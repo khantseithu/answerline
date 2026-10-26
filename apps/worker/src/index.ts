@@ -56,7 +56,7 @@ const handlers: Record<string, (job: Job) => Promise<void> | void> = {
   [QUEUES.postCall]: createPostCallProcessor(db),
   [QUEUES.webhookDeliveries]: createWebhookDeliveryProcessor(db, env.PROVIDER_KEYS_ENCRYPTION_KEY),
   [QUEUES.outboundCalls]: createOutboundDialProcessor({ db, livekit }),
-  [QUEUES.evals]: createEvalProcessor(db),
+  [QUEUES.evals]: createEvalProcessor(db, { webhookQueue }),
 };
 
 const workers = Object.entries(handlers).map(
