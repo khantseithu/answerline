@@ -13,7 +13,7 @@ import {
 } from "./outbound-calls.ts";
 
 const skip = process.env.DATABASE_URL ? false : "DATABASE_URL not set";
-const noAnswerPattern = /No answer/;
+const noAnswerPattern = /408 Request Timeout/;
 const callingHoursPattern = /calling hours/;
 
 test("AMD readiness requires the explicit agent marker", () => {
