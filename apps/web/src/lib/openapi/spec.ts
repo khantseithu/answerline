@@ -7,6 +7,8 @@ import {
   costLineSchema,
   createAgentSchema,
   evalRunCreateSchema,
+  outboundCallRequestSchema,
+  outboundCallResponseSchema,
   updateAgentSchema,
 } from "@answerline/shared";
 import { z } from "zod";
@@ -101,6 +103,7 @@ const schemas = {
   CreateAgent: createAgentSchema,
   CreateEvalRun: evalRunCreateSchema,
   CreateKnowledgeSource: createKnowledgeSource,
+  CreateOutboundCall: outboundCallRequestSchema,
   Error: errorResponse,
   EvalRun: evalRunView,
   EvalRunCreateResponse: evalRunCreateResponse,
@@ -108,6 +111,7 @@ const schemas = {
   EvalRunList: evalRunList,
   Id: idResponse,
   KnowledgeSourceList: knowledgeSourceList,
+  OutboundCallCreateResponse: outboundCallResponseSchema,
   UpdateAgent: updateAgentSchema,
 };
 
@@ -243,6 +247,20 @@ const paths = {
       responses: { "200": jsonResponse("A page of calls.", "CallList"), ...commonErrors },
       security: workspaceSecurity,
       summary: "List calls",
+      tags: ["Calls"],
+    },
+    post: {
+      operationId: "startOutboundCall",
+      requestBody: requestBody("CreateOutboundCall"),
+      responses: {
+        "202": jsonResponse("The outbound call was initiated.", "OutboundCallCreateResponse"),
+        ...commonErrors,
+        "404": jsonResponse("Agent not found.", "Error"),
+        "502": jsonResponse("The outbound call could not be started.", "Error"),
+        "503": jsonResponse("Outbound calling is not configured.", "Error"),
+      },
+      security: workspaceSecurity,
+      summary: "Start an outbound call",
       tags: ["Calls"],
     },
   },

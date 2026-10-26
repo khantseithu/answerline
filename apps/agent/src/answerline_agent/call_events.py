@@ -355,11 +355,21 @@ class CallRecorder:
     ) -> CallStarted:
         self.started_at = started_at
         attributes = attributes or {}
+        is_outbound = is_sip and attributes.get("answerline.direction") == "outbound"
         return CallStarted(
             **self._ref(),
             channel="sip" if is_sip else "web",
-            from_number=attributes.get("sip.phoneNumber") if is_sip else None,
-            to_number=attributes.get("sip.trunkPhoneNumber") if is_sip else None,
+            direction="outbound" if is_outbound else "inbound",
+            from_number=(
+                attributes.get("sip.trunkPhoneNumber" if is_outbound else "sip.phoneNumber")
+                if is_sip
+                else None
+            ),
+            to_number=(
+                attributes.get("sip.phoneNumber" if is_outbound else "sip.trunkPhoneNumber")
+                if is_sip
+                else None
+            ),
             started_at=iso_timestamp(started_at),
         )
 
