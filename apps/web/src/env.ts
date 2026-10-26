@@ -16,6 +16,7 @@ const envSchema = z
       .transform((dir) => resolve(dir)),
     LIVEKIT_API_KEY: z.string().min(1).default("devkey"),
     LIVEKIT_API_SECRET: z.string().min(1).default("secret"),
+    LIVEKIT_SIP_OUTBOUND_TRUNK_ID: z.string().min(1).optional(),
     LIVEKIT_URL: z.url().default("ws://localhost:7880"),
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     PROVIDER_KEYS_ENCRYPTION_KEY: z
