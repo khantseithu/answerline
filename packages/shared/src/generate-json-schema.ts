@@ -10,6 +10,7 @@ import {
   evalRunCreateSchema,
   evalSuiteSchema,
 } from "./eval-suite.ts";
+import { outboundCallRequestSchema, outboundCallResponseSchema } from "./outbound-calls.ts";
 
 const schemas = {
   "agent-config": agentConfigSchema,
@@ -20,6 +21,8 @@ const schemas = {
   "eval-job": evalJobSchema,
   "eval-run-create": evalRunCreateSchema,
   "eval-suite": evalSuiteSchema,
+  "outbound-call-request": outboundCallRequestSchema,
+  "outbound-call-response": outboundCallResponseSchema,
 } as const;
 
 export type SchemaName = keyof typeof schemas;
