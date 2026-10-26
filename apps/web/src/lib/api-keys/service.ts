@@ -7,7 +7,11 @@ import {
   workspaceIdSchema,
 } from "@answerline/shared";
 import { and, eq, isNull } from "drizzle-orm";
-import { lockOwnerWorkspace, type WorkspaceDeps } from "@/lib/workspaces/service";
+import {
+  lockOwnerWorkspace,
+  requireOwnerWorkspace,
+  type WorkspaceDeps,
+} from "@/lib/workspaces/service";
 
 const tokenSchema = /^al_[A-Za-z0-9_-]{43}$/;
 
@@ -21,7 +25,7 @@ function digest(token: string) {
 export function listApiKeys(deps: WorkspaceDeps, rawTenantId: string) {
   const tenantId = workspaceIdSchema.parse(rawTenantId);
   return deps.db.transaction(async (tx) => {
-    await lockOwnerWorkspace(tx, deps, tenantId);
+    await requireOwnerWorkspace(tx, deps, tenantId);
     return tx
       .select({
         createdAt: apiKeys.createdAt,

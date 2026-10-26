@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createDb, sessions, tenants, users } from "@answerline/db";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { WorkspaceDeps } from "@/lib/workspaces/service";
 import { createWorkspace } from "@/lib/workspaces/service";
 import { authenticateApiKey, createApiKey, listApiKeys, revokeApiKey } from "./service";
@@ -48,7 +48,37 @@ test("workspace API keys are owner-managed, scoped, one-time secrets with revoca
     assert.deepEqual(authenticated?.scopes, ["calls:read", "agents:read"]);
     assert.equal(authenticated?.tenantId, first.id);
 
-    const listed = await listApiKeys(owner, first.id);
+    let releaseLock!: () => void;
+    let signalLockAcquired!: () => void;
+    const lockAcquired = new Promise<void>((resolve) => {
+      signalLockAcquired = resolve;
+    });
+    const lockReleased = new Promise<void>((resolve) => {
+      releaseLock = resolve;
+    });
+    const heldLock = db.transaction(async (tx) => {
+      await tx
+        .select({ id: tenants.id })
+        .from(tenants)
+        .where(eq(tenants.id, first.id))
+        .for("update");
+      signalLockAcquired();
+      await lockReleased;
+    });
+    await lockAcquired;
+    const listPromise = listApiKeys(owner, first.id);
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const completedWhileLocked = await Promise.race([
+      listPromise.then(() => true),
+      new Promise<boolean>((resolve) => {
+        timeout = setTimeout(() => resolve(false), 1000);
+      }),
+    ]);
+    clearTimeout(timeout);
+    releaseLock();
+    await heldLock;
+    const listed = await listPromise;
+    assert.equal(completedWhileLocked, true, "API key reads should not wait for workspace writes");
     assert.equal(listed.length, 1);
     assert.equal(listed[0]?.prefix, created.token.slice(0, 11));
     assert.ok(listed[0]?.lastUsedAt instanceof Date);

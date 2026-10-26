@@ -160,7 +160,7 @@ export function switchWorkspace(deps: WorkspaceDeps, rawInput: unknown) {
   });
 }
 
-async function requireOwnerWorkspace(
+export async function requireOwnerWorkspace(
   tx: WorkspaceTransaction,
   deps: WorkspaceDeps,
   tenantId: string,
