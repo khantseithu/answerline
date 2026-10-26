@@ -1,7 +1,15 @@
+import logging
+from typing import Protocol
+
+from livekit.agents import UserInputTranscribedEvent
 from livekit.agents.inference.eot.languages import LOCAL_LANGUAGES
 from livekit.agents.language import LanguageCode
 
 from .config import AgentConfig
+
+logger = logging.getLogger("answerline.agent")
+
+MIN_SWITCH_WORDS = 2
 
 
 def base_language(code: str) -> str:
@@ -36,6 +44,10 @@ def call_language(config: AgentConfig, requested: str | None) -> str:
     return match_language(config, requested) or config.language
 
 
+def stt_language(config: AgentConfig, language: str) -> str:
+    return "multi" if len(agent_languages(config)) > 1 else language
+
+
 def greeting_for(config: AgentConfig, language: str) -> str:
     override = config.languages.get(language)
     return override.greeting if override and override.greeting else config.greeting
@@ -61,3 +73,26 @@ def language_instructions(config: AgentConfig, language: str) -> str | None:
             heading = f"## When speaking {language_name(lang)}"
             lines += ["", heading, "", override.instructions.strip()]
     return "\n".join(lines)
+
+
+class LanguageTTS(Protocol):
+    def update_options(self, *, language: str) -> None: ...
+
+
+class CallerLanguage:
+    def __init__(self, config: AgentConfig, language: str, tts: LanguageTTS) -> None:
+        self._config = config
+        self._tts = tts
+        self.current = language
+
+    def on_transcribed(self, event: UserInputTranscribedEvent) -> None:
+        if not event.is_final or not event.language:
+            return
+        if len(event.transcript.split()) < MIN_SWITCH_WORDS:
+            return
+        language = match_language(self._config, event.language)
+        if language is None or language == self.current:
+            return
+        logger.info("caller switched language from %s to %s", self.current, language)
+        self.current = language
+        self._tts.update_options(language=base_language(language))
