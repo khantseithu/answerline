@@ -252,7 +252,7 @@ Zod schemas that every TypeScript package imports as source, and the source of t
 
 | File | Contract |
 |---|---|
-| [`agent-config.ts`](../packages/shared/src/agent-config.ts) | Agent YAML / `agents.config` JSON: name, greeting, language, instructions, models, knowledge, tools, hours, recording |
+| [`agent-config.ts`](../packages/shared/src/agent-config.ts) | Agent YAML / `agents.config` JSON: name, greeting, language, languages, instructions, models, knowledge, tools, hours, recording |
 | [`call-events.ts`](../packages/shared/src/call-events.ts) | `callEventJob` (agent to worker) and `callEventJobId` |
 | [`eval-suite.ts`](../packages/shared/src/eval-suite.ts) | Eval suite YAML, execution snapshots, queue jobs, and validated per-case results |
 | [`ingestion.ts`](../packages/shared/src/ingestion.ts) | Tenant-scoped ingestion jobs and validated Q&A pairs |

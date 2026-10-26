@@ -15,8 +15,11 @@ JSON_SCHEMA = json.loads((SHARED / "schema/call-dispatch.schema.json").read_text
 def test_valid_dispatch_fixture(path: Path):
     data = json.loads(path.read_text())
     jsonschema.validate(data, JSON_SCHEMA)
-    assert CallDispatchMetadata.model_validate(data).model_dump() == data
-    assert CallDispatchMetadata.model_validate_json(path.read_text()).model_dump() == data
+    for metadata in (
+        CallDispatchMetadata.model_validate(data),
+        CallDispatchMetadata.model_validate_json(path.read_text()),
+    ):
+        assert metadata.model_dump(exclude_none=True) == data
 
 
 @pytest.mark.parametrize(

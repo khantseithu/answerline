@@ -1,0 +1,11 @@
+name: Bright Smile Dental
+greeting: Thanks for calling.
+instructions: You are the receptionist.
+languages:
+  es:
+    greeting: ""
+models:
+  stt: deepgram/nova-3
+  llm:
+    primary: anthropic/claude-sonnet-4-6
+  tts: cartesia/sonic-3
