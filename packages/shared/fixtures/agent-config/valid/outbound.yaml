@@ -1,0 +1,15 @@
+name: Outbound
+greeting: Hello
+instructions: Be brief.
+models:
+  stt: deepgram/nova-3
+  llm:
+    primary: ollama/llama3.1:8b
+  tts: cartesia/sonic-3
+outbound:
+  first_message: Thanks for returning our call.
+  answering_machine_detection: true
+  respect_calling_hours: true
+  retry:
+    max_attempts: 3
+    delay_seconds: 120

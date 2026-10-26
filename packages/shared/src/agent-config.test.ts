@@ -34,6 +34,16 @@ test("recording is off by default with the standard notice", async () => {
   });
 });
 
+test("outbound policies default to one attempt, AMD off, and configured-hours enforcement", async () => {
+  const source = await readFile(new URL("valid/minimal.yaml", fixtures), "utf8");
+  const config = parseAgentConfig(`${source}\noutbound: {}\n`);
+  assert.deepEqual(config.outbound, {
+    answering_machine_detection: false,
+    respect_calling_hours: true,
+    retry: { delay_seconds: 60, max_attempts: 1 },
+  });
+});
+
 test("recording enabled keeps the default notice when none is set", () => {
   const source = `name: A
 greeting: Hi

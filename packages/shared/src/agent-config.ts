@@ -54,6 +54,18 @@ const recording = z.object({
   notice: z.string().min(1).default(DEFAULT_RECORDING_NOTICE),
 });
 
+const outbound = z.object({
+  answering_machine_detection: z.boolean().default(false),
+  first_message: z.string().min(1).optional(),
+  respect_calling_hours: z.boolean().default(true),
+  retry: z
+    .object({
+      delay_seconds: z.int().min(10).max(3600).default(60),
+      max_attempts: z.int().min(1).max(5).default(1),
+    })
+    .default({ delay_seconds: 60, max_attempts: 1 }),
+});
+
 const timeRange = z.string().regex(/^\d{2}:\d{2}-\d{2}:\d{2}$/);
 
 const holiday = z.object({
@@ -95,6 +107,7 @@ export const agentConfigSchema = z.object({
     tts: modelRefSchema,
   }),
   name: z.string().min(1),
+  outbound: outbound.optional(),
   recording: recording.prefault({}),
   tools: z
     .array(z.union([builtinTool, transferCallTool, bookAppointmentTool, httpTool, mcpTool]))

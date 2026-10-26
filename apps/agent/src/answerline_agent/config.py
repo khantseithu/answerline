@@ -108,6 +108,18 @@ class Recording(BaseModel):
     notice: NonEmpty = DEFAULT_RECORDING_NOTICE
 
 
+class OutboundRetry(BaseModel):
+    max_attempts: Annotated[int, Field(ge=1, le=5)] = 1
+    delay_seconds: Annotated[int, Field(ge=10, le=3600)] = 60
+
+
+class Outbound(BaseModel):
+    first_message: NonEmpty | None = None
+    answering_machine_detection: bool = False
+    retry: OutboundRetry = Field(default_factory=OutboundRetry)
+    respect_calling_hours: bool = True
+
+
 class LanguageOverride(BaseModel):
     greeting: NonEmpty | None = None
     instructions: NonEmpty | None = None
@@ -126,6 +138,7 @@ class AgentConfig(BaseModel):
     )
     hours: Hours | None = None
     recording: Recording = Field(default_factory=Recording)
+    outbound: Outbound | None = None
 
 
 def load_agent_config(path: str | Path) -> AgentConfig:
