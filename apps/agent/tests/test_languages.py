@@ -3,6 +3,7 @@ from answerline_agent.languages import (
     call_language,
     greeting_for,
     language_instructions,
+    localizes_messages,
     match_language,
 )
 
@@ -64,3 +65,10 @@ def test_multilingual_agents_list_languages_and_per_language_instructions():
     assert "English, Spanish, French" in section
     assert "## When speaking Spanish\n\nUsa usted." in section
     assert "When speaking French" not in section
+
+
+def test_non_english_and_multilingual_agents_localize_system_messages():
+    assert not localizes_messages(config())
+    assert not localizes_messages(config(language="en-GB"))
+    assert localizes_messages(config(language="es"))
+    assert localizes_messages(MULTI)

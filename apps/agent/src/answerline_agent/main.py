@@ -8,7 +8,12 @@ from .call_session import CallSessionEvents, wait_for_caller
 from .capture_lead import LeadCaptureContext
 from .config import TransferCallTool
 from .knowledge_tool import open_knowledge_tools
-from .languages import call_language, greeting_for, language_instructions
+from .languages import (
+    call_language,
+    greeting_for,
+    language_instructions,
+    localizes_messages,
+)
 from .native_booking import open_booking_provider
 from .prompts import compose_instructions
 from .providers import build_llm_chain, build_stt, build_tts
@@ -63,7 +68,8 @@ async def entrypoint(ctx: JobContext) -> None:
         (spec for spec in config.tools if isinstance(spec, TransferCallTool)), None
     )
     transfer = CallTransfer(ctx, transfer_spec.to) if transfer_spec else None
-    after_hours = AfterHours(config.hours, config.name, settings)
+    localize = localizes_messages(config)
+    after_hours = AfterHours(config.hours, config.name, settings, localize=localize)
     tools = build_configured_tools(
         config,
         settings,
@@ -126,7 +132,9 @@ async def entrypoint(ctx: JobContext) -> None:
             tools=[*(knowledge.tools if knowledge else []), *tools],
         ),
     )
-    lifecycle = CallLifecycle(session=session, events=events, job=ctx, settings=settings)
+    lifecycle = CallLifecycle(
+        session=session, events=events, job=ctx, settings=settings, localize=localize
+    )
     caller = await wait_for_caller(ctx)
     if transfer:
         transfer.set_caller(caller)

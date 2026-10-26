@@ -41,6 +41,10 @@ def greeting_for(config: AgentConfig, language: str) -> str:
     return override.greeting if override and override.greeting else config.greeting
 
 
+def localizes_messages(config: AgentConfig) -> bool:
+    return len(agent_languages(config)) > 1 or base_language(config.language) != "en"
+
+
 def language_instructions(config: AgentConfig, language: str) -> str | None:
     languages = agent_languages(config)
     if len(languages) == 1 and base_language(language) == "en":
