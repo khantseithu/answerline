@@ -231,7 +231,7 @@ Roadmap: *Multi-tenant workspaces and API keys*
 - [x] API keys: create, scope, hash at rest, last used, revoke (#107)
   - [x] Define hashed workspace API key persistence (#289)
 - [x] REST API v1: calls (list, get), agents (CRUD), knowledge (CRUD), evals (run, get) (#108)
-- [ ] OpenAPI spec generated from Zod, served at `/api/docs`
+- [x] OpenAPI spec generated from Zod, served at `/api/docs` (#109)
 - [ ] Rate limiting per key (Redis)
 - [ ] Per-tenant provider keys and usage limits
 
