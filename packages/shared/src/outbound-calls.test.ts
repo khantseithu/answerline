@@ -8,10 +8,9 @@ test("outbound call request validates agent and E.164 phone numbers", () => {
   assert.deepEqual(
     outboundCallRequestSchema.parse({
       agent: "front-desk",
-      fromNumber: "+15551234567",
       toNumber: "+15557654321",
     }),
-    { agent: "front-desk", fromNumber: "+15551234567", toNumber: "+15557654321" }
+    { agent: "front-desk", toNumber: "+15557654321" }
   );
   assert.equal(
     outboundCallRequestSchema.safeParse({ agent: "../other", toNumber: "+15557654321" }).success,
