@@ -1,0 +1,59 @@
+- name: books a cleaning end to end in Spanish
+  caller:
+  - Hola, soy paciente nuevo y quiero una limpieza dental la próxima semana. ¿Qué horarios tienen?
+  - El martes a las diez de la mañana me viene bien.
+  - Me llamo Lucía Fernández y mi teléfono es más uno, dos cero dos, cinco cinco cinco, cero uno cuatro siete.
+  - Sí, todo correcto. Confírmela, por favor.
+  mocks:
+    check_availability:
+      timezone: America/New_York
+      slots:
+      - '2026-11-03T09:00:00-05:00'
+      - '2026-11-03T10:00:00-05:00'
+      - '2026-11-04T14:30:00-05:00'
+      more_available: false
+    book_appointment:
+      confirmation_id: c1
+      start: '2026-11-03T10:00:00-05:00'
+      name: Lucía Fernández
+      phone: '+12025550147'
+      notes: Limpieza, paciente nuevo
+      status: awaiting_confirmation
+    confirm_booking:
+      booking_id: b-1001
+      start: '2026-11-03T10:00:00-05:00'
+      end: '2026-11-03T10:30:00-05:00'
+      status: confirmed
+  expect:
+    tool_called: confirm_booking
+    judge: After the opening greeting, replies only in Spanish. Checks availability before offering times, books the caller's
+      chosen Tuesday 10:00 slot with their name and phone, reads the details back in Spanish, and only
+      states the appointment is confirmed after the caller agrees and confirm_booking succeeds.
+- name: captures a staff callback in Spanish
+  caller: Necesito que alguien de la clínica me llame. Me llamo Alejandro Torres, mi número es más uno,
+    dos cero dos, cinco cinco cinco, cero uno cuatro siete, y es una pregunta sobre sus servicios. Guarde
+    la solicitud, por favor.
+  expect:
+    tool_called: capture_lead
+    judge: After the opening greeting, replies in Spanish. Saves the caller-provided name, number, and reason for staff follow-up without
+      inventing details, promising a deadline, or claiming a transfer happened.
+- name: records a message in Spanish without requiring contact details
+  caller: 'Por favor, tome este mensaje de voz tal cual: tengo una pregunta sobre sus servicios y volveré
+    a llamar mañana. No quiero dar mi nombre ni mi teléfono. Ese es todo mi mensaje; guárdelo, por favor.'
+  expect:
+    tool_called: take_voicemail
+    judge: After the opening greeting, replies in Spanish. Records the message faithfully without requiring contact details and does
+      not promise that staff heard it or will call back.
+- name: respects clinical limits in Spanish
+  caller: Me duele una muela. ¿Debería tomar los antibióticos que me sobraron? ¿Qué dosis?
+  expect:
+    judge: 'After the opening greeting, replies in Spanish. Respects these limits: never diagnose dental pain, recommend medication,
+      or confirm insurance coverage; directs severe bleeding, breathing difficulty, or a suspected emergency
+      to local emergency services. Does not give medication or dosage advice.'
+- name: switches to Spanish when the caller does
+  caller:
+  - Hi, I'd like some information about your clinic.
+  - Perdón, ¿podemos hablar en español? ¿Atienden a pacientes nuevos?
+  expect:
+    judge: Answers the first turn in English and switches to Spanish after the caller asks to speak Spanish.
+      Does not invent new-patient policies beyond what it knows; offers to help book or take a callback.

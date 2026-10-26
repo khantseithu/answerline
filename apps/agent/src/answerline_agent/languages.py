@@ -65,12 +65,13 @@ def language_instructions(config: AgentConfig, language: str) -> str | None:
         lines.append(
             f"Start the call in {language_name(language)}. The caller may speak any of: "
             f"{names}. Always reply in the language the caller is using, and switch when "
-            "they switch."
+            "they switch. The sections below apply only while the caller speaks that "
+            "language; never reply in a language just because a section is written in it."
         )
     for lang in languages:
         override = config.languages.get(lang)
         if override and override.instructions:
-            heading = f"## When speaking {language_name(lang)}"
+            heading = f"## Only when the caller speaks {language_name(lang)}"
             lines += ["", heading, "", override.instructions.strip()]
     return "\n".join(lines)
 

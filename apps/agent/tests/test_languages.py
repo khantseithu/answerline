@@ -65,8 +65,9 @@ def test_multilingual_agents_list_languages_and_per_language_instructions():
     assert section is not None
     assert "Start the call in Spanish" in section
     assert "English, Spanish, French" in section
-    assert "## When speaking Spanish\n\nUsa usted." in section
-    assert "When speaking French" not in section
+    assert "never reply in a language just because a section is written in it" in section
+    assert "## Only when the caller speaks Spanish\n\nUsa usted." in section
+    assert "caller speaks French" not in section
 
 
 class RecordingTTS:

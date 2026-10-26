@@ -208,6 +208,7 @@ pnpm db:seed
 pnpm eval agents/bright-smile-dental.yaml
 pnpm eval agents/bright-smile-dental.yaml --model openai/gpt-4.1-mini
 pnpm eval agents/bright-smile-dental.yaml --live-tools --audio
+pnpm eval agents/bright-smile-dental.yaml --suite bright-smile-dental-es
 ```
 
 The eval command exits `0` when all cases pass, `1` for failed cases (including model-generation failures), and `2` for setup failures or runner crashes. Runs use the repository's `evals/<agent>.yaml` suite and the seeded `default` tenant agent; options and the parsed inputs are saved with each run.

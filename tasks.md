@@ -261,7 +261,7 @@ Roadmap: *Multilingual agents*
 - [x] Auto language detection with per-call switching (#118)
 - [x] Per-language greetings and instructions (#119)
 - [ ] Multilingual KB retrieval (multilingual embeddings)
-- [ ] Eval suites in at least two non-English languages
+- [x] Eval suites in at least two non-English languages (#121)
 
 **Done when:** the dental agent handles a full Spanish call, including a booking.
 

@@ -45,20 +45,26 @@ async function runEval(args: string[]) {
       audio: { type: "boolean" },
       "live-tools": { type: "boolean" },
       model: { type: "string" },
+      suite: { type: "string" },
       tenant: { type: "string" },
     },
   });
   const [agentPath, ...extra] = positionals;
   if (!agentPath || extra.length) {
     throw new Error(
-      "usage: worker eval <agents/name.yaml> [--model provider/model] [--live-tools] [--audio] [--tenant workspace-slug]"
+      "usage: worker eval <agents/name.yaml> [--suite name] [--model provider/model] [--live-tools] [--audio] [--tenant workspace-slug]"
     );
   }
 
   const resolvedAgentPath = resolve(repositoryRoot, agentPath);
   const agent = parseAgentConfig(await readFile(resolvedAgentPath, "utf8"));
   const agentSlug = basename(resolvedAgentPath, extname(resolvedAgentPath));
-  const suiteFile = join(dirname(resolvedAgentPath), "..", "evals", basename(resolvedAgentPath));
+  const suiteFile = join(
+    dirname(resolvedAgentPath),
+    "..",
+    "evals",
+    `${agentSlugSchema.parse(values.suite ?? agentSlug)}.yaml`
+  );
   const suite = parseEvalSuite(await readFile(suiteFile, "utf8"));
   const db = createDb();
 

@@ -130,7 +130,10 @@ def test_entrypoint_registers_configured_tools_alongside_knowledge(
     )
     monkeypatch.setattr(main, "open_knowledge_tools", AsyncMock(return_value=knowledge))
     monkeypatch.setattr(main, "open_booking_provider", AsyncMock(return_value=None))
-    session = SimpleNamespace(start=AsyncMock(side_effect=RuntimeError("registration captured")))
+    session = SimpleNamespace(
+        start=AsyncMock(side_effect=RuntimeError("registration captured")),
+        on=lambda *_args: None,
+    )
     monkeypatch.setattr(main, "AgentSession", lambda **kwargs: session)
     for name in ("build_stt", "build_llm_chain", "build_tts", "build_turn_handling"):
         monkeypatch.setattr(main, name, lambda *_args, **_kwargs: None)
