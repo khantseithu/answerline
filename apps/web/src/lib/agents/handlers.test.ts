@@ -4,6 +4,7 @@ import { test } from "node:test";
 import { agents, agentVersions, calls, createDb, knowledgeSources, tenants } from "@answerline/db";
 import { agentTemplateSchema, createAgentSchema, parseAgentConfig } from "@answerline/shared";
 import { eq } from "drizzle-orm";
+import { DashboardAuthError } from "@/lib/dashboard/errors";
 import { createAgentHandlers } from "./handlers.ts";
 import type { AgentDeps } from "./service.ts";
 
@@ -62,15 +63,24 @@ async function responseBody<T>(response: Response) {
   return (await response.json()) as T;
 }
 
-test("lists the 30 valid template configs", async () => {
-  const handlers = createAgentHandlers(() =>
-    Promise.reject(new Error("template listing must not need a tenant"))
-  );
-  const response = await handlers.templates();
-  assert.equal(response.status, 200);
-  const templates = agentTemplateSchema.array().parse(await response.json());
-  assert.equal(templates.length, 30);
-  assert.ok(templates.every((template) => template.config.instructions.length > 0));
+test("lists the 30 valid template configs for an authorized workspace", { skip }, () =>
+  withHarness(async ({ handlers }) => {
+    const response = await handlers.templates();
+    assert.equal(response.status, 200);
+    const templates = agentTemplateSchema.array().parse(await response.json());
+    assert.equal(templates.length, 30);
+    assert.ok(templates.every((template) => template.config.instructions.length > 0));
+  })
+);
+
+test("agent templates require workspace authentication", async () => {
+  let checked = false;
+  const handlers = createAgentHandlers(() => {
+    checked = true;
+    return Promise.reject(new DashboardAuthError());
+  });
+  assert.equal((await handlers.templates()).status, 401);
+  assert.ok(checked);
 });
 
 test(

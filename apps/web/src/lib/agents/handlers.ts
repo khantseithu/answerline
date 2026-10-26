@@ -81,6 +81,7 @@ export function createAgentHandlers(getDeps: (access?: WorkspaceAccess) => Promi
     },
     async templates() {
       try {
+        await getDeps();
         return Response.json(await listAgentTemplates(), { headers: noStore });
       } catch (error) {
         return agentErrorResponse(error) ?? dashboardErrorResponse(error);
