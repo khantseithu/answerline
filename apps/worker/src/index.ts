@@ -5,7 +5,7 @@ import { type Job, Queue, Worker } from "bullmq";
 import { createCallEventProcessor } from "./call-events.ts";
 import { env } from "./env.ts";
 import { createEvalProcessor } from "./evals.ts";
-import { createIngestionProcessor, createKnowledgeEmbedder } from "./ingestion.ts";
+import { createIngestionProcessor, createKnowledgeEmbedderFactory } from "./ingestion.ts";
 import { createPostCallProcessor } from "./post-call.ts";
 import { createRedis } from "./redis.ts";
 
@@ -22,9 +22,13 @@ const postCallQueue = new Queue<PostCallJob>(QUEUES.postCall, {
 
 const handlers: Record<string, (job: Job) => Promise<void> | void> = {
   [QUEUES.callEvents]: createCallEventProcessor(db, { postCallQueue }),
-  [QUEUES.ingestion]: createIngestionProcessor(db, createKnowledgeEmbedder(process.env), {
-    filesDir: env.KNOWLEDGE_FILES_DIR,
-  }),
+  [QUEUES.ingestion]: createIngestionProcessor(
+    db,
+    createKnowledgeEmbedderFactory(db, process.env),
+    {
+      filesDir: env.KNOWLEDGE_FILES_DIR,
+    }
+  ),
   [QUEUES.postCall]: createPostCallProcessor(db),
   [QUEUES.evals]: createEvalProcessor(db),
 };

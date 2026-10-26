@@ -240,7 +240,12 @@ class KnowledgeTools:
 
 
 async def open_knowledge_tools(
-    settings: Settings, agent_slug: str, tool_log: ToolLog, *, tenant_slug: str
+    settings: Settings,
+    agent_slug: str,
+    tool_log: ToolLog,
+    *,
+    tenant_slug: str,
+    provider_keys: dict[str, str] | None = None,
 ) -> KnowledgeTools | None:
     if not settings.database_url:
         return None
@@ -260,7 +265,7 @@ async def open_knowledge_tools(
             source_count = len(scope.source_ids)
             search = KnowledgeSearch(
                 pool=pool,
-                embedder=build_embedder(client),
+                embedder=build_embedder(client, provider_keys),
                 tenant_id=scope.tenant_id,
                 source_ids=scope.source_ids,
                 top_k=settings.knowledge_search_top_k,

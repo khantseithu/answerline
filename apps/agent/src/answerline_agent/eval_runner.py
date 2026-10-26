@@ -32,8 +32,8 @@ REPO_ROOT = Path(__file__).resolve().parents[4]
 EVAL_PHASE_TIMEOUT = 30
 
 
-def _build_caller_tts(ref: str) -> tts.TTS:
-    return build_tts(ref)
+def _build_caller_tts(ref: str, provider_keys: dict[str, str] | None = None) -> tts.TTS:
+    return build_tts(ref, provider_keys)
 
 
 def _validate_wire_payload(payload: Any, schema_name: str) -> None:
@@ -152,6 +152,7 @@ async def _build_live_tools(
     *,
     agent_slug: str,
     tenant_slug: str,
+    provider_keys: dict[str, str] | None = None,
 ) -> tuple[list[llm.FunctionTool], list[Any]]:
     unsupported = [spec for spec in config.tools if isinstance(spec, (HttpTool, McpTool))]
     if unsupported:
@@ -202,8 +203,9 @@ async def _build_live_tools(
             transfer=_MockTransfer() if transfer_specs else None,
             ensure_voicemail=after_hours.takes_voicemail,
         )
+        knowledge_args = {"provider_keys": provider_keys} if provider_keys is not None else {}
         knowledge = await open_knowledge_tools(
-            settings, agent_slug, ToolLog(), tenant_slug=tenant_slug
+            settings, agent_slug, ToolLog(), tenant_slug=tenant_slug, **knowledge_args
         )
         if knowledge:
             closers.append(knowledge.close)
@@ -368,6 +370,7 @@ async def run_case(
     mode: str = "text",
     live_tools: bool = False,
     context: dict[str, str] | None = None,
+    provider_keys: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     if mode not in {"text", "audio"}:
         raise ValueError(f"unsupported eval mode {mode!r}")
@@ -378,7 +381,11 @@ async def run_case(
     if model_override:
         models.llm.primary = model_override
         models.llm.fallback = []
-    provider = llm_provider or build_llm_chain(models)
+    provider = llm_provider or (
+        build_llm_chain(models, provider_keys)
+        if provider_keys is not None
+        else build_llm_chain(models)
+    )
     runtime_settings = settings or Settings()
     after_hours = AfterHours(config.hours, config.name, runtime_settings)
     calls: list[dict[str, Any]] = []
@@ -386,11 +393,13 @@ async def run_case(
         if context is None:
             raise ValueError("liveTools requires agentSlug and tenantSlug context")
         runtime_settings = runtime_settings.model_copy(update={"tenant": context["tenantSlug"]})
+        live_tool_args = {"provider_keys": provider_keys} if provider_keys is not None else {}
         tools, closers = await _build_live_tools(
             config,
             runtime_settings,
             agent_slug=context["agentSlug"],
             tenant_slug=context["tenantSlug"],
+            **live_tool_args,
         )
     else:
         tools = build_mock_tools(
@@ -430,9 +439,21 @@ async def run_case(
     try:
         if mode == "audio":
             audio_output = _CapturedAudioOutput()
-            stt_provider = build_stt(models.stt)
-            tts_provider = build_tts(models.tts)
-            caller_tts_provider = _build_caller_tts(models.tts)
+            stt_provider = (
+                build_stt(models.stt, provider_keys)
+                if provider_keys is not None
+                else build_stt(models.stt)
+            )
+            tts_provider = (
+                build_tts(models.tts, provider_keys)
+                if provider_keys is not None
+                else build_tts(models.tts)
+            )
+            caller_tts_provider = (
+                _build_caller_tts(models.tts, provider_keys)
+                if provider_keys is not None
+                else _build_caller_tts(models.tts)
+            )
             session = AgentSession(
                 llm=provider,
                 tts=tts_provider,
@@ -520,7 +541,9 @@ async def run_case(
                     await close()
 
 
-async def run_suite(payload: dict[str, Any]) -> dict[str, Any]:
+async def run_suite(
+    payload: dict[str, Any], provider_keys: dict[str, str] | None = None
+) -> dict[str, Any]:
     async with http_context.open():
         _validate_wire_payload(payload, "eval-execution-input.schema.json")
         if payload.get("liveTools") and payload.get("context") is None:
@@ -538,6 +561,7 @@ async def run_suite(payload: dict[str, Any]) -> dict[str, Any]:
                 mode=payload.get("mode", "text"),
                 live_tools=payload.get("liveTools", False),
                 context=payload.get("context"),
+                provider_keys=provider_keys,
             )
             for case in payload["suite"]
         ]
@@ -561,7 +585,10 @@ async def run_suite(payload: dict[str, Any]) -> dict[str, Any]:
 async def main() -> None:
     try:
         payload = json.load(sys.stdin)
-        output = await run_suite(payload)
+        if "input" in payload:
+            output = await run_suite(payload["input"], payload.get("providerKeys", {}))
+        else:
+            output = await run_suite(payload)
     except Exception as error:
         print(json.dumps({"error": str(error)}), file=sys.stderr)
         raise SystemExit(1) from error

@@ -5,7 +5,11 @@ import type {
   ModelUsage,
   QuestionAnswerPairs,
 } from "@answerline/shared";
-import { apiKeyScopeSchema, workspaceRoleSchema } from "@answerline/shared";
+import {
+  apiKeyScopeSchema,
+  providerCredentialProviderSchema,
+  workspaceRoleSchema,
+} from "@answerline/shared";
 import { sql } from "drizzle-orm";
 import {
   boolean,
@@ -46,6 +50,10 @@ const tenantId = () =>
 
 export const workspaceRole = pgEnum("workspace_role", workspaceRoleSchema.enum);
 export const apiKeyScope = pgEnum("api_key_scope", apiKeyScopeSchema.enum);
+export const providerCredentialProvider = pgEnum(
+  "provider_credential_provider",
+  providerCredentialProviderSchema.enum
+);
 
 export const callChannel = pgEnum("call_channel", ["web", "sip"]);
 export const callDirection = pgEnum("call_direction", ["inbound", "outbound"]);
@@ -67,13 +75,25 @@ export const evalRunStatus = pgEnum("eval_run_status", [
   "failed",
 ]);
 
-export const tenants = pgTable("tenants", {
-  createdAt: createdAt(),
-  id: id(),
-  name: text().notNull(),
-  slug: text().notNull().unique(),
-  updatedAt: updatedAt(),
-});
+export const tenants = pgTable(
+  "tenants",
+  {
+    createdAt: createdAt(),
+    id: id(),
+    monthlyCallMinutesLimit: integer(),
+    monthlyProviderSpendLimitUsd: numeric({ precision: 12, scale: 2 }),
+    name: text().notNull(),
+    slug: text().notNull().unique(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check("tenants_monthly_call_minutes_nonnegative", sql`${t.monthlyCallMinutesLimit} >= 0`),
+    check(
+      "tenants_monthly_provider_spend_nonnegative",
+      sql`${t.monthlyProviderSpendLimitUsd} >= 0`
+    ),
+  ]
+);
 
 export const users = pgTable("users", {
   createdAt: createdAt(),
@@ -161,6 +181,19 @@ export const apiKeys = pgTable(
       sql`cardinality(${t.scopes}) > 0 and array_position(${t.scopes}, null) is null`
     ),
   ]
+);
+
+export const providerCredentials = pgTable(
+  "provider_credentials",
+  {
+    createdAt: createdAt(),
+    encryptedKey: text().notNull(),
+    id: id(),
+    provider: providerCredentialProvider().notNull(),
+    tenantId: tenantId(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [uniqueIndex().on(t.tenantId, t.provider), index().on(t.tenantId)]
 );
 
 export const accounts = pgTable(

@@ -16,6 +16,7 @@ import {
   signupWorkspaceInvitationSchema,
   switchWorkspaceSchema,
   updateWorkspaceMemberSchema,
+  updateWorkspaceSchema,
   type WorkspaceRole,
   workspaceIdSchema,
 } from "@answerline/shared";
@@ -27,6 +28,7 @@ import {
   WorkspaceRequiredError,
 } from "@/lib/dashboard/errors";
 import { requireWorkspaceOwner } from "./permissions";
+import { getWorkspaceUsage } from "./usage";
 
 export class WorkspaceConflictError extends Error {}
 export class WorkspaceNotFoundError extends Error {}
@@ -193,54 +195,62 @@ export function lockOwnerWorkspace(
 
 export function getWorkspaceSettings(deps: WorkspaceDeps, rawTenantId: string) {
   const tenantId = workspaceIdSchema.parse(rawTenantId);
-  return deps.db.transaction(async (tx) => {
-    const workspace = await requireOwnerWorkspace(tx, deps, tenantId);
-    const members = await tx
-      .select({
-        email: users.email,
-        name: users.name,
-        role: workspaceMembers.role,
-        userId: users.id,
-      })
-      .from(workspaceMembers)
-      .innerJoin(users, eq(users.id, workspaceMembers.userId))
-      .where(eq(workspaceMembers.tenantId, tenantId))
-      .orderBy(asc(workspaceMembers.createdAt), asc(users.name));
-    const invitations = await tx
-      .select({
-        email: workspaceInvitations.email,
-        expiresAt: workspaceInvitations.expiresAt,
-        id: workspaceInvitations.id,
-        role: workspaceInvitations.role,
-      })
-      .from(workspaceInvitations)
-      .where(
-        and(
-          eq(workspaceInvitations.tenantId, tenantId),
-          isNull(workspaceInvitations.acceptedAt),
-          gt(workspaceInvitations.expiresAt, new Date())
+  return deps.db
+    .transaction(async (tx) => {
+      const workspace = await requireOwnerWorkspace(tx, deps, tenantId);
+      const members = await tx
+        .select({
+          email: users.email,
+          name: users.name,
+          role: workspaceMembers.role,
+          userId: users.id,
+        })
+        .from(workspaceMembers)
+        .innerJoin(users, eq(users.id, workspaceMembers.userId))
+        .where(eq(workspaceMembers.tenantId, tenantId))
+        .orderBy(asc(workspaceMembers.createdAt), asc(users.name));
+      const invitations = await tx
+        .select({
+          email: workspaceInvitations.email,
+          expiresAt: workspaceInvitations.expiresAt,
+          id: workspaceInvitations.id,
+          role: workspaceInvitations.role,
+        })
+        .from(workspaceInvitations)
+        .where(
+          and(
+            eq(workspaceInvitations.tenantId, tenantId),
+            isNull(workspaceInvitations.acceptedAt),
+            gt(workspaceInvitations.expiresAt, new Date())
+          )
         )
-      )
-      .orderBy(asc(workspaceInvitations.createdAt));
-    return {
-      invitations: invitations.map((invite) => ({
-        ...invite,
-        expiresAt: invite.expiresAt.toISOString(),
-      })),
-      members,
-      workspace: { id: workspace.id, name: workspace.name, slug: workspace.slug },
-    };
-  });
+        .orderBy(asc(workspaceInvitations.createdAt));
+      return {
+        invitations: invitations.map((invite) => ({
+          ...invite,
+          expiresAt: invite.expiresAt.toISOString(),
+        })),
+        members,
+        workspace: { id: workspace.id, name: workspace.name, slug: workspace.slug },
+      };
+    })
+    .then(async (settings) => ({ ...settings, usage: await getWorkspaceUsage(deps.db, tenantId) }));
 }
 
 export function updateWorkspace(deps: WorkspaceDeps, rawTenantId: string, rawInput: unknown) {
   const tenantId = workspaceIdSchema.parse(rawTenantId);
-  const input = createWorkspaceSchema.pick({ name: true }).parse(rawInput);
+  const input = updateWorkspaceSchema.parse(rawInput);
+  const { monthlyProviderSpendLimitUsd, ...workspaceSettings } = input;
+  const update: Partial<typeof tenants.$inferInsert> = { ...workspaceSettings };
+  if (monthlyProviderSpendLimitUsd !== undefined) {
+    update.monthlyProviderSpendLimitUsd =
+      monthlyProviderSpendLimitUsd === null ? null : monthlyProviderSpendLimitUsd.toFixed(2);
+  }
   return deps.db.transaction(async (tx) => {
     await lockOwnerWorkspace(tx, deps, tenantId);
     const [workspace] = await tx
       .update(tenants)
-      .set(input)
+      .set(update)
       .where(eq(tenants.id, tenantId))
       .returning({ id: tenants.id, name: tenants.name, slug: tenants.slug });
     return workspace;

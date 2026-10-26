@@ -9,6 +9,7 @@ export {
   embeddingEnvSchema,
   parseEmbeddingModelRef,
 } from "./embeddings.ts";
+export { decryptProviderCredential, encryptProviderCredential } from "./provider-credentials.ts";
 
 export const PROVIDERS = [
   "anthropic",

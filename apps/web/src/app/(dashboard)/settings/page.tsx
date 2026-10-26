@@ -3,18 +3,13 @@ import type { ReactNode } from "react";
 import { PageContainer, PageHeader } from "@/components/shell/page-header";
 import { ThemeSelect } from "@/components/theme/theme-toggle";
 import { ApiKeyManager } from "@/components/workspaces/api-key-manager";
+import { ProviderKeyManager } from "@/components/workspaces/provider-key-manager";
 import { WorkspaceSettingsManager } from "@/components/workspaces/workspace-settings";
 import { getDashboardContext } from "@/lib/dashboard/context";
 import { getWorkspaceSettings } from "@/lib/workspaces/service";
 
 export const instant = false;
 export const metadata: Metadata = { title: "Settings" };
-
-const PROVIDER_KEYS = [
-  { env: "DEEPGRAM_API_KEY", stage: "Speech-to-text" },
-  { env: "ANTHROPIC_API_KEY", stage: "Language model" },
-  { env: "CARTESIA_API_KEY", stage: "Text-to-speech" },
-];
 
 function SettingsSection({
   title,
@@ -78,20 +73,16 @@ export default async function SettingsPage() {
           <ThemeSelect />
         </SettingsSection>
         <SettingsSection
-          description="Answerline calls each provider with your own key, read from the server's .env file. Nothing is billed through Answerline."
+          description="Use workspace-specific provider credentials or fall back to deployment keys."
           title="Provider keys"
         >
-          <ul className="flex flex-col divide-y overflow-hidden rounded-xl bg-card shadow-xs ring-1 ring-foreground/6">
-            {PROVIDER_KEYS.map((key) => (
-              <li
-                className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3"
-                key={key.env}
-              >
-                <span className="text-sm">{key.stage}</span>
-                <code className="numeric text-muted-foreground text-xs">{key.env}</code>
-              </li>
-            ))}
-          </ul>
+          {context.role === "owner" ? (
+            <ProviderKeyManager tenantId={context.tenantId} />
+          ) : (
+            <p className="text-muted-foreground text-sm">
+              Only workspace owners can manage provider keys.
+            </p>
+          )}
         </SettingsSection>
       </div>
     </PageContainer>

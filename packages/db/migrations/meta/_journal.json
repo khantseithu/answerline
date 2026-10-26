@@ -99,6 +99,13 @@
       "when": 1792991594438,
       "tag": "0013_archive_agents",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792994165867,
+      "tag": "0014_tenant_provider_credentials_and_limits",
+      "breakpoints": true
     }
   ]
 }

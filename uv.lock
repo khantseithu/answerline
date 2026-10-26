@@ -185,12 +185,14 @@ name = "answerline-llm"
 version = "0.0.0"
 source = { editable = "packages/llm/python" }
 dependencies = [
+    { name = "cryptography" },
     { name = "httpx" },
     { name = "pydantic-settings" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "cryptography", specifier = ">=46.0.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "pydantic-settings", specifier = ">=2.16.1" },
 ]

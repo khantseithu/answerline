@@ -18,6 +18,10 @@ const envSchema = z
     LIVEKIT_API_SECRET: z.string().min(1).default("secret"),
     LIVEKIT_URL: z.url().default("ws://localhost:7880"),
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+    PROVIDER_KEYS_ENCRYPTION_KEY: z
+      .string()
+      .regex(/^[0-9a-f]{64}$/i)
+      .optional(),
     REDIS_PREFIX: z.string().min(1).default("bull"),
     REDIS_URL: z.url().default("redis://localhost:6379"),
     S3_ACCESS_KEY: z.string().min(1).optional(),

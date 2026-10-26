@@ -4,13 +4,18 @@ import {
   knowledgeChunks,
   knowledgeSources,
 } from "@answerline/db";
-import { createEmbeddingProvider, embeddingConfigFromEnv } from "@answerline/llm";
+import {
+  createEmbeddingProvider,
+  embeddingConfigFromEnv,
+  parseEmbeddingModelRef,
+} from "@answerline/llm";
 import { type IngestionJob, ingestionJob, QUEUES } from "@answerline/shared";
 import type { Job, Queue } from "bullmq";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { chunkKnowledge, knowledgeContentHash } from "./knowledge-chunks.ts";
 import { type LoaderOptions, loadKnowledgeSource } from "./knowledge-loaders.ts";
+import { resolveProviderCredential } from "./provider-credentials.ts";
 
 export interface EmbedKnowledge {
   modelRef: string;
@@ -116,11 +121,12 @@ export async function ingestKnowledgeSource(
 
 export function createIngestionProcessor(
   db: Database,
-  embed: EmbedKnowledge,
+  embedForTenant: (tenantId: string) => Promise<EmbedKnowledge>,
   options: LoaderOptions = {}
 ) {
   return async (job: Job) => {
-    await ingestKnowledgeSource(db, ingestionJob.parse(job.data), embed, options);
+    const input = ingestionJob.parse(job.data);
+    await ingestKnowledgeSource(db, input, await embedForTenant(input.tenantId), options);
   };
 }
 
@@ -159,11 +165,14 @@ export async function enqueueIngestion(
 
 export function createKnowledgeEmbedder(
   source: NodeJS.ProcessEnv,
-  fetch?: typeof globalThis.fetch
+  fetch?: typeof globalThis.fetch,
+  apiKey?: string
 ): EmbedKnowledge {
   try {
+    const config = embeddingConfigFromEnv(source);
     const provider = createEmbeddingProvider({
-      ...embeddingConfigFromEnv(source),
+      ...config,
+      apiKey: apiKey ?? config.apiKey,
       fetch,
       maxRetryWaitMs: EMBEDDING_RETRY_WAIT_MS,
     });
@@ -174,4 +183,26 @@ export function createKnowledgeEmbedder(
     const message = `Knowledge embedding provider is not configured: ${failureMessage(error)}`;
     return Object.assign(() => Promise.reject(new Error(message)), { modelRef: "unconfigured" });
   }
+}
+
+export function createKnowledgeEmbedderFactory(
+  db: Database,
+  source: NodeJS.ProcessEnv,
+  fetch?: typeof globalThis.fetch
+) {
+  return async (tenantId: string) => {
+    const config = embeddingConfigFromEnv(source);
+    const { provider } = parseEmbeddingModelRef(config.modelRef);
+    if (provider === "ollama") {
+      return createKnowledgeEmbedder(source, fetch);
+    }
+    const apiKey = await resolveProviderCredential(
+      db,
+      tenantId,
+      provider,
+      config.apiKey,
+      source.PROVIDER_KEYS_ENCRYPTION_KEY
+    );
+    return createKnowledgeEmbedder(source, fetch, apiKey);
+  };
 }

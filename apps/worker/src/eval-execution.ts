@@ -11,7 +11,7 @@ const repositoryRoot = fileURLToPath(new URL("../../../", import.meta.url));
 const maxOutputChars = 10_000_000;
 const timeoutMs = 10 * 60 * 1000;
 
-export function executeEval(input: EvalExecutionInput) {
+export function executeEval(input: EvalExecutionInput, providerKeys?: Record<string, string>) {
   const parsedInput = evalExecutionInputSchema.parse(input);
   return new Promise<EvalExecutionOutput>((resolve, reject) => {
     const child = spawn("uv", ["run", "python", "-m", "answerline_agent.eval_runner"], {
@@ -98,6 +98,6 @@ export function executeEval(input: EvalExecutionInput) {
       }
     });
     child.stdin.on("error", () => terminate(new Error("could not send input to the eval runner")));
-    child.stdin.end(JSON.stringify(parsedInput));
+    child.stdin.end(JSON.stringify({ input: parsedInput, providerKeys: providerKeys ?? {} }));
   });
 }

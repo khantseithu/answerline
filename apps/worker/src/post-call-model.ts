@@ -28,10 +28,15 @@ const anthropicResponse = z.object({
 export interface PostCallModelOptions {
   env?: NodeJS.ProcessEnv;
   fetch?: typeof globalThis.fetch;
+  providerKeys?: Partial<Record<Provider, string>>;
   timeoutMs?: number;
 }
 
-function credentials(provider: Provider, env: NodeJS.ProcessEnv) {
+function credentials(
+  provider: Provider,
+  env: NodeJS.ProcessEnv,
+  providerKeys: PostCallModelOptions["providerKeys"]
+) {
   const entries: Partial<Record<Provider, string | undefined>> = {
     anthropic: env.ANTHROPIC_API_KEY,
     deepseek: env.DEEPSEEK_API_KEY,
@@ -42,7 +47,7 @@ function credentials(provider: Provider, env: NodeJS.ProcessEnv) {
   if (provider === "ollama") {
     return "ollama";
   }
-  const apiKey = entries[provider]?.trim();
+  const apiKey = (providerKeys?.[provider] ?? entries[provider])?.trim();
   if (!apiKey) {
     throw new Error(`Missing API key for ${provider}`);
   }
@@ -67,7 +72,8 @@ function openAICompatibleRequest(
   provider: Provider,
   model: string,
   input: string,
-  env: NodeJS.ProcessEnv
+  env: NodeJS.ProcessEnv,
+  providerKeys: PostCallModelOptions["providerKeys"]
 ): { body: unknown; headers: Record<string, string>; url: string } {
   return {
     body: {
@@ -80,7 +86,7 @@ function openAICompatibleRequest(
       response_format: { type: "json_object" },
       temperature: 0,
     },
-    headers: { authorization: `Bearer ${credentials(provider, env)}` },
+    headers: { authorization: `Bearer ${credentials(provider, env, providerKeys)}` },
     url: chatCompletionsUrl(provider, env),
   };
 }
@@ -89,10 +95,11 @@ function providerRequest(
   provider: Provider,
   model: string,
   input: string,
-  env: NodeJS.ProcessEnv
+  env: NodeJS.ProcessEnv,
+  providerKeys: PostCallModelOptions["providerKeys"]
 ): { body: unknown; headers: Record<string, string>; url: string } {
   if (provider === "google") {
-    const key = credentials(provider, env);
+    const key = credentials(provider, env, providerKeys);
     return {
       body: {
         contents: [{ parts: [{ text: input }], role: "user" }],
@@ -119,12 +126,12 @@ function providerRequest(
       headers: {
         "anthropic-version": "2023-06-01",
         "content-type": "application/json",
-        "x-api-key": credentials(provider, env),
+        "x-api-key": credentials(provider, env, providerKeys),
       },
       url: "https://api.anthropic.com/v1/messages",
     };
   }
-  return openAICompatibleRequest(provider, model, input, env);
+  return openAICompatibleRequest(provider, model, input, env, providerKeys);
 }
 
 function responseText(provider: Provider, response: unknown) {
@@ -158,11 +165,12 @@ async function requestModel(
   {
     env = process.env,
     fetch: fetchImpl = globalThis.fetch,
+    providerKeys,
     timeoutMs = 30_000,
   }: PostCallModelOptions
 ): Promise<PostCallAnalysis> {
   const parsed = parseModelRef(ref);
-  const request = providerRequest(parsed.provider, parsed.model, input, env);
+  const request = providerRequest(parsed.provider, parsed.model, input, env, providerKeys);
   let response: Response;
   try {
     response = await fetchImpl(request.url, {

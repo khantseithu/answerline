@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, HttpUrl
+from pydantic import Field, HttpUrl, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .call_events import Slug
@@ -19,6 +19,14 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379"
     redis_prefix: str = "bull"
     tenant: Slug = "default"
+    provider_keys_encryption_key: SecretStr | None = None
+    anthropic_api_key: SecretStr | None = None
+    cartesia_api_key: SecretStr | None = None
+    deepgram_api_key: SecretStr | None = None
+    deepseek_api_key: SecretStr | None = None
+    google_api_key: SecretStr | None = None
+    openai_api_key: SecretStr | None = None
+    openrouter_api_key: SecretStr | None = None
     otel_exporter_otlp_endpoint: HttpUrl | None = None
     otel_exporter_otlp_traces_endpoint: HttpUrl | None = None
     otel_service_name: str = Field(default="answerline-agent", min_length=1)
