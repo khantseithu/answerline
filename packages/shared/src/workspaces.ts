@@ -3,6 +3,15 @@ import { z } from "zod";
 export const workspaceIdSchema = z.uuid();
 export const workspaceSlugSchema = z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/);
 export const workspaceRoleSchema = z.enum(["owner", "admin", "viewer"]);
+export const providerCredentialProviderSchema = z.enum([
+  "anthropic",
+  "cartesia",
+  "deepgram",
+  "deepseek",
+  "google",
+  "openai",
+  "openrouter",
+]);
 export const apiKeyScopeSchema = z.enum([
   "calls:read",
   "agents:read",
@@ -17,6 +26,15 @@ export const createWorkspaceSchema = z.object({
   name: z.string().trim().min(1).max(100),
   slug: workspaceSlugSchema,
 });
+export const updateWorkspaceSchema = z
+  .object({
+    monthlyCallMinutesLimit: z.number().int().nonnegative().nullable().optional(),
+    monthlyProviderSpendLimitUsd: z.number().nonnegative().nullable().optional(),
+    name: z.string().trim().min(1).max(100).optional(),
+  })
+  .refine((input) => Object.values(input).some((value) => value !== undefined), {
+    message: "At least one workspace setting is required",
+  });
 export const switchWorkspaceSchema = z.object({ workspaceId: workspaceIdSchema });
 export const inviteWorkspaceMemberSchema = z.object({
   email: z.string().trim().toLowerCase().pipe(z.email()),
@@ -38,6 +56,10 @@ export const createApiKeySchema = z.object({
       message: "Scopes must be unique",
     }),
 });
+export const setProviderCredentialSchema = z.object({
+  key: z.string().trim().min(1).max(500),
+  provider: providerCredentialProviderSchema,
+});
 
 export type WorkspaceRole = z.infer<typeof workspaceRoleSchema>;
 export type ApiKeyScope = z.infer<typeof apiKeyScopeSchema>;
@@ -46,3 +68,4 @@ export type InviteWorkspaceMember = z.infer<typeof inviteWorkspaceMemberSchema>;
 export type AcceptWorkspaceInvitation = z.infer<typeof acceptWorkspaceInvitationSchema>;
 export type SignupWorkspaceInvitation = z.infer<typeof signupWorkspaceInvitationSchema>;
 export type CreateApiKey = z.infer<typeof createApiKeySchema>;
+export type ProviderCredentialProvider = z.infer<typeof providerCredentialProviderSchema>;

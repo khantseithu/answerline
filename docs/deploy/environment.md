@@ -117,6 +117,7 @@ connectivity alone does not prove audio works. See [LiveKit setup](livekit.md).
 | `GOOGLE_API_KEY` | Google LLM/embedding key when selected; required for the default embedding model. |
 | `DEEPSEEK_API_KEY` | DeepSeek LLM key when selected. |
 | `OPENROUTER_API_KEY` | OpenRouter LLM key when selected. |
+| `PROVIDER_KEYS_ENCRYPTION_KEY` | Optional 64-character hex key for encrypting dashboard-managed workspace provider keys. Generate with `openssl rand -hex 32`; keep it stable across restarts and configure it for web, worker, and agent. |
 | `EMBEDDING_MODEL` | Provider/model reference, default `google/gemini-embedding-2`. Supported embedding providers: Google, OpenAI, Ollama. Keep ingestion and retrieval on the same embedding model; reingest after changing it. |
 | `OLLAMA_BASE_URL` | Ollama endpoint for embeddings and worker post-call analysis, default `http://localhost:11434`. A host's localhost is not the agent/worker container's localhost. Live-call LLM endpoint wiring is tracked in [#279](https://github.com/khantseithu/answerline/issues/279). |
 | `POST_CALL_MODEL` | Optional provider/model override for summaries, outcome, and sentiment. If omitted, the worker uses the agent's LLM primary/fallback chain. |

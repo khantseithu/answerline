@@ -8,11 +8,17 @@ import {
   toolCalls,
   voicemails,
 } from "@answerline/db";
+import { parseModelRef } from "@answerline/llm";
 import type { PostCallAnalysis, PostCallJob } from "@answerline/shared";
-import { agentConfigSchema, postCallJobSchema } from "@answerline/shared";
+import {
+  agentConfigSchema,
+  type ProviderCredentialProvider,
+  postCallJobSchema,
+} from "@answerline/shared";
 import type { Job } from "bullmq";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { generatePostCallAnalysis, type PostCallModelOptions } from "./post-call-model.ts";
+import { resolveProviderCredential } from "./provider-credentials.ts";
 
 const MAX_TRANSCRIPT_CHARS = 22_000;
 
@@ -146,6 +152,44 @@ function analyzePostCall(db: Database, input: PostCallJob, options: PostCallProc
     const refs = env.POST_CALL_MODEL
       ? [env.POST_CALL_MODEL]
       : [config.models.llm.primary, ...config.models.llm.fallback];
+    const providerKeys = { ...options.providerKeys };
+    const deploymentKeys: Record<ProviderCredentialProvider, string | undefined> = {
+      anthropic: env.ANTHROPIC_API_KEY,
+      cartesia: env.CARTESIA_API_KEY,
+      deepgram: env.DEEPGRAM_API_KEY,
+      deepseek: env.DEEPSEEK_API_KEY,
+      google: env.GOOGLE_API_KEY,
+      openai: env.OPENAI_API_KEY,
+      openrouter: env.OPENROUTER_API_KEY,
+    };
+    const providers = [...new Set(refs.map(parseModelRef).map(({ provider }) => provider))].filter(
+      (provider) => provider !== "ollama" && !providerKeys[provider]
+    );
+    const resolvedProviderKeys = await Promise.all(
+      providers.map(async (provider) => {
+        if (provider === "ollama") {
+          return null;
+        }
+        return [
+          provider,
+          await resolveProviderCredential(
+            db,
+            input.tenantId,
+            provider,
+            deploymentKeys[provider],
+            env.PROVIDER_KEYS_ENCRYPTION_KEY
+          ),
+        ] as const;
+      })
+    );
+    for (const entry of resolvedProviderKeys) {
+      if (entry) {
+        const [provider, key] = entry;
+        if (key) {
+          providerKeys[provider] = key;
+        }
+      }
+    }
     const analysis = turns.length
       ? await generatePostCallAnalysis(
           refs,
@@ -154,7 +198,7 @@ function analyzePostCall(db: Database, input: PostCallJob, options: PostCallProc
             evidence,
             actions.map((action) => action.name)
           ),
-          options
+          { ...options, providerKeys }
         )
       : ({
           outcome: "unknown",

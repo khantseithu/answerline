@@ -10,10 +10,15 @@ import {
 import type { Job } from "bullmq";
 import { and, eq, isNull, ne } from "drizzle-orm";
 import { calculateCallCost, parseCostPrices } from "./costs.ts";
+import { env } from "./env.ts";
 import { executeEval } from "./eval-execution.ts";
+import { resolveTenantProviderKeys } from "./provider-credentials.ts";
 
 export interface EvalProcessorOptions {
-  execute?: (input: EvalExecutionInput) => Promise<EvalExecutionOutput>;
+  execute?: (
+    input: EvalExecutionInput,
+    providerKeys?: Record<string, string>
+  ) => Promise<EvalExecutionOutput>;
 }
 
 export function normalizeEvalOutput(
@@ -181,7 +186,21 @@ export async function processEvalRun(
     if (!input) {
       return;
     }
-    const rawOutput = await (options.execute ?? executeEval)(input);
+    const providerKeys = await resolveTenantProviderKeys(
+      db,
+      job.tenantId,
+      {
+        anthropic: process.env.ANTHROPIC_API_KEY,
+        cartesia: process.env.CARTESIA_API_KEY,
+        deepgram: process.env.DEEPGRAM_API_KEY,
+        deepseek: process.env.DEEPSEEK_API_KEY,
+        google: process.env.GOOGLE_API_KEY,
+        openai: env.OPENAI_API_KEY,
+        openrouter: process.env.OPENROUTER_API_KEY,
+      },
+      env.PROVIDER_KEYS_ENCRYPTION_KEY
+    );
+    const rawOutput = await (options.execute ?? executeEval)(input, providerKeys);
     const output = normalizeEvalOutput(input, rawOutput);
     await saveEvalOutput(db, job, output);
   } catch (error) {

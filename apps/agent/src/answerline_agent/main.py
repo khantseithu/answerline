@@ -42,6 +42,7 @@ async def entrypoint(ctx: JobContext) -> None:
     ctx.log_context_fields = {"room": ctx.room.name}
     resolved = await resolve_agent(ctx.job.metadata, settings)
     config = resolved.config
+    provider_keys = getattr(resolved, "provider_keys", None)
     trace_provider = configure_tracing(settings, ctx.room.name, resolved.slug, resolved.tenant)
     if trace_provider is not None:
 
@@ -75,16 +76,29 @@ async def entrypoint(ctx: JobContext) -> None:
         ensure_voicemail=after_hours.takes_voicemail,
     )
     session = AgentSession(
-        stt=build_stt(config.models.stt),
-        llm=build_llm_chain(config.models),
-        tts=build_tts(config.models.tts),
+        stt=(
+            build_stt(config.models.stt, provider_keys)
+            if provider_keys is not None
+            else build_stt(config.models.stt)
+        ),
+        llm=(
+            build_llm_chain(config.models, provider_keys)
+            if provider_keys is not None
+            else build_llm_chain(config.models)
+        ),
+        tts=(
+            build_tts(config.models.tts, provider_keys)
+            if provider_keys is not None
+            else build_tts(config.models.tts)
+        ),
         vad=ctx.proc.userdata["vad"],
         turn_handling=build_turn_handling(settings),
         user_away_timeout=settings.idle_timeout_seconds or None,
     )
     tool_log = ToolLog()
+    knowledge_args = {"provider_keys": provider_keys} if provider_keys is not None else {}
     knowledge = await open_knowledge_tools(
-        settings, resolved.slug, tool_log, tenant_slug=resolved.tenant
+        settings, resolved.slug, tool_log, tenant_slug=resolved.tenant, **knowledge_args
     )
     if knowledge:
         ctx.add_shutdown_callback(lambda _reason: knowledge.close())

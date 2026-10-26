@@ -4,6 +4,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { AGENT_SLUG_PATTERN, createCallToken, DEFAULT_AGENT_SLUG } from "@/lib/call-token";
 import { dashboardErrorResponse } from "@/lib/dashboard/errors";
 import { requireWorkspaceAccess } from "@/lib/workspaces/permissions";
+import { assertWorkspaceUsageAvailable } from "@/lib/workspaces/usage";
 
 interface CallTokenContext {
   db: Database;
@@ -21,6 +22,7 @@ export function createCallTokenHandler(
     try {
       const { db, role, tenantId } = await getContext();
       requireWorkspaceAccess(role, "write");
+      await assertWorkspaceUsageAvailable(db, tenantId);
       const agentSlug = new URL(request.url).searchParams.get("agent") ?? DEFAULT_AGENT_SLUG;
       if (!AGENT_SLUG_PATTERN.test(agentSlug)) {
         return Response.json({ error: "Invalid agent" }, { status: 400 });

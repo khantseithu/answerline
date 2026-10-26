@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { dashboardErrorResponse } from "@/lib/dashboard/errors";
 import type { WorkspaceAccess } from "@/lib/workspaces/permissions";
+import { assertWorkspaceUsageAvailable } from "@/lib/workspaces/usage";
 import {
   createEvalRun,
   EvalBadRequestError,
@@ -46,6 +47,7 @@ export function createEvalHandlers(getDeps: (access?: WorkspaceAccess) => Promis
     async create(request: Request) {
       try {
         const deps = await getDeps("write");
+        await assertWorkspaceUsageAvailable(deps.db, deps.tenantId);
         const run = await createEvalRun(deps, await readJson(request));
         return Response.json({ run }, { headers: noStore, status: 202 });
       } catch (error) {

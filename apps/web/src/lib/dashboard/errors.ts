@@ -1,8 +1,22 @@
+import { WorkspaceUsageLimitError } from "@/lib/workspaces/usage";
+
 export class DashboardAuthError extends Error {}
 export class DashboardForbiddenError extends Error {}
 export class WorkspaceRequiredError extends Error {}
 
 export function dashboardErrorResponse(error: unknown) {
+  if (error instanceof WorkspaceUsageLimitError) {
+    return Response.json(
+      { error: error.message },
+      {
+        headers: {
+          "Cache-Control": "no-store",
+          "Retry-After": String(error.retryAfterSeconds),
+        },
+        status: 429,
+      }
+    );
+  }
   if (error instanceof DashboardAuthError) {
     return Response.json(
       { error: "Sign in to continue" },

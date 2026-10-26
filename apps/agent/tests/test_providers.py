@@ -4,8 +4,9 @@ import json
 import httpx
 import openai
 import pytest
+from answerline_agent import providers
 from answerline_agent.config import LLMModels, Models
-from answerline_agent.providers import build_embedder, build_llm_chain
+from answerline_agent.providers import build_embedder, build_llm, build_llm_chain
 from livekit.agents import llm
 
 STT = "deepgram/nova-3"
@@ -44,6 +45,22 @@ def test_keeps_available_fallbacks(only_anthropic_key, monkeypatch):
 def test_primary_without_credentials_still_fails(only_anthropic_key):
     with pytest.raises(openai.OpenAIError):
         build_llm_chain(models("openai/gpt-4.1-mini", []))
+
+
+def test_build_llm_uses_the_workspace_key_instead_of_the_deployment_key(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "deployment-key")
+    monkeypatch.setattr(providers.openai, "LLM", lambda **kwargs: kwargs)
+
+    llm = build_llm("openai/gpt-4.1-mini", {"openai": "workspace-key"})
+
+    assert llm["api_key"] == "workspace-key"
+
+
+def test_workspace_provider_map_does_not_fall_back_to_ambient_keys(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "deployment-key")
+
+    with pytest.raises(ValueError, match="Missing API key for provider openai"):
+        build_llm("openai/gpt-4.1-mini", {})
 
 
 def test_builds_openrouter_primary(only_anthropic_key, monkeypatch):

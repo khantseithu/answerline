@@ -23,6 +23,10 @@ const envSchema = embeddingEnvSchema.extend({
         return false;
       }
     }, "Expected a supported provider/model reference"),
+  PROVIDER_KEYS_ENCRYPTION_KEY: z
+    .string()
+    .regex(/^[0-9a-f]{64}$/i)
+    .optional(),
   REDIS_PREFIX: z.string().min(1).default("bull"),
   REDIS_URL: z.url().default("redis://localhost:6379"),
   WORKER_HEALTH_PORT: z.coerce.number().int().min(1).max(65_535).optional(),

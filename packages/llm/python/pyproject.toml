@@ -2,7 +2,7 @@
 name = "answerline-llm"
 version = "0.0.0"
 requires-python = ">=3.13,<3.15"
-dependencies = ["httpx>=0.28.1", "pydantic-settings>=2.16.1"]
+dependencies = ["cryptography>=46.0.0", "httpx>=0.28.1", "pydantic-settings>=2.16.1"]
 
 [build-system]
 requires = ["hatchling"]

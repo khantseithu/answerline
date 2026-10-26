@@ -6,6 +6,7 @@ import {
   WorkspaceRequiredError,
 } from "@/lib/dashboard/errors";
 import type { WorkspaceAccess } from "@/lib/workspaces/permissions";
+import { assertWorkspaceUsageAvailable, WorkspaceUsageLimitError } from "@/lib/workspaces/usage";
 import { MAX_KNOWLEDGE_FILE_BYTES } from "./file-rules";
 import { KnowledgeFileError } from "./files";
 import { createKnowledgeSource as createKnowledgeSourceInput, knowledgeSourceId } from "./schemas";
@@ -27,6 +28,9 @@ export class KnowledgeBadRequestError extends Error {}
 const noStore = { "Cache-Control": "no-store" };
 
 export function knowledgeErrorResponse(error: unknown) {
+  if (error instanceof WorkspaceUsageLimitError) {
+    return dashboardErrorResponse(error);
+  }
   if (
     error instanceof DashboardAuthError ||
     error instanceof DashboardForbiddenError ||
@@ -69,6 +73,7 @@ export function createKnowledgeHandlers(
     async create(request: Request) {
       try {
         const deps = await getDeps("write");
+        await assertWorkspaceUsageAvailable(deps.db, deps.tenantId);
         const input = createKnowledgeSourceInput.parse(await readJson(request));
         const id = await createKnowledgeSource(deps, input);
         return Response.json({ id }, { headers: noStore, status: 201 });
@@ -96,6 +101,7 @@ export function createKnowledgeHandlers(
     async resync(_request: Request, rawId: string) {
       try {
         const deps = await getDeps("write");
+        await assertWorkspaceUsageAvailable(deps.db, deps.tenantId);
         await resyncKnowledgeSource(deps, knowledgeSourceId.parse(rawId));
         return Response.json({ id: rawId }, { headers: noStore, status: 202 });
       } catch (error) {
@@ -105,6 +111,7 @@ export function createKnowledgeHandlers(
     async upload(request: Request) {
       try {
         const deps = await getDeps("write");
+        await assertWorkspaceUsageAvailable(deps.db, deps.tenantId);
         const length = Number(request.headers.get("content-length"));
         if (length > MAX_KNOWLEDGE_FILE_BYTES + MULTIPART_OVERHEAD_BYTES) {
           throw new KnowledgeFileError("Knowledge file exceeds 20 MiB");

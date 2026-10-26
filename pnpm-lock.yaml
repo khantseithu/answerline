@@ -32,6 +32,9 @@ importers:
       '@answerline/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@answerline/llm':
+        specifier: workspace:*
+        version: link:../../packages/llm
       '@answerline/shared':
         specifier: workspace:*
         version: link:../../packages/shared

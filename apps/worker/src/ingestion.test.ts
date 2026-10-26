@@ -315,10 +315,14 @@ test(
       const prefix = `${process.env.REDIS_PREFIX ?? "test"}-ingestion-${crypto.randomUUID()}`;
       const connection = new Redis(process.env.REDIS_URL as string, { maxRetriesPerRequest: null });
       const queue = new Queue<IngestionJob>(QUEUES.ingestion, { connection, prefix });
-      const worker = new Worker(QUEUES.ingestion, createIngestionProcessor(db, fakeEmbed), {
-        connection,
-        prefix,
-      });
+      const worker = new Worker(
+        QUEUES.ingestion,
+        createIngestionProcessor(db, async () => fakeEmbed),
+        {
+          connection,
+          prefix,
+        }
+      );
       try {
         const done = new Promise<void>((resolve, reject) => {
           worker.on("completed", () => resolve());

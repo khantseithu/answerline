@@ -52,6 +52,21 @@ export function WorkspaceSettingsManager({
     },
     [base, run]
   );
+  const saveLimits = useCallback(
+    async (formData: FormData) => {
+      const numberOrNull = (name: string) => {
+        const value = String(formData.get(name) ?? "").trim();
+        return value === "" ? null : Number(value);
+      };
+      await run(() =>
+        workspaceRequest(base, "PATCH", {
+          monthlyCallMinutesLimit: numberOrNull("monthlyCallMinutesLimit"),
+          monthlyProviderSpendLimitUsd: numberOrNull("monthlyProviderSpendLimitUsd"),
+        })
+      );
+    },
+    [base, run]
+  );
   const invite = useCallback(
     async (formData: FormData) => {
       await run(async () => {
@@ -95,6 +110,49 @@ export function WorkspaceSettingsManager({
           Workspace slug: <code>{settings.workspace.slug}</code>
         </p>
       </form>
+      <div className="flex flex-col gap-3 border-t pt-6">
+        <div>
+          <h3 className="font-medium text-sm">Monthly limits</h3>
+          <p className="mt-1 text-muted-foreground text-xs/relaxed">
+            Usage resets at the start of each UTC calendar month. Leave a limit blank for no cap.
+          </p>
+          <p className="mt-2 text-muted-foreground text-xs">
+            This month: {settings.usage.callMinutesUsed.toFixed(1)} call minutes · $
+            {settings.usage.providerSpendUsdUsed.toFixed(2)} recorded call and eval spend
+          </p>
+        </div>
+        <form action={saveLimits} className="grid gap-3 sm:grid-cols-2">
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="monthly-call-minutes">Call minutes per month</Label>
+            <Input
+              defaultValue={settings.usage.monthlyCallMinutesLimit ?? ""}
+              id="monthly-call-minutes"
+              min="0"
+              name="monthlyCallMinutesLimit"
+              placeholder="No limit"
+              step="1"
+              type="number"
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="monthly-provider-spend">Provider spend per month (USD)</Label>
+            <Input
+              defaultValue={settings.usage.monthlyProviderSpendLimitUsd ?? ""}
+              id="monthly-provider-spend"
+              min="0"
+              name="monthlyProviderSpendLimitUsd"
+              placeholder="No limit"
+              step="0.01"
+              type="number"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <Button disabled={pending} type="submit" variant="outline">
+              Save limits
+            </Button>
+          </div>
+        </form>
+      </div>
       <div className="flex flex-col gap-4 border-t pt-6">
         <div>
           <h3 className="font-medium text-sm">Members</h3>

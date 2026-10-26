@@ -38,11 +38,11 @@ def _settings(database_url: str | None = None, tenant: str = "default") -> Setti
 def _fake_database(monkeypatch, result):
     calls = []
 
-    async def fake(database_url, slug, tenant):
+    async def fake(database_url, slug, tenant, _settings):
         calls.append((database_url, slug, tenant))
         if isinstance(result, Exception):
             raise result
-        return result
+        return result, {}
 
     monkeypatch.setattr(resolve, "_load_from_database", fake)
     return calls
