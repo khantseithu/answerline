@@ -1,15 +1,24 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
-import { agents, createDb, evalResults, evalRuns, tenants } from "@answerline/db";
+import {
+  agents,
+  createDb,
+  evalResults,
+  evalRuns,
+  tenants,
+  webhookDeliveries,
+  webhookEndpoints,
+} from "@answerline/db";
 import {
   type EvalExecutionOutput,
   evalExecutionInputSchema,
   evalJobSchema,
   parseAgentConfig,
   QUEUES,
+  type WebhookDeliveryJob,
 } from "@answerline/shared";
-import { Queue, Worker } from "bullmq";
+import { type Queue as BullQueue, Queue, Worker } from "bullmq";
 import { eq, sql } from "drizzle-orm";
 import { Redis } from "ioredis";
 import { seedCallAgent } from "./call-event-test-fixtures.ts";
@@ -301,6 +310,24 @@ test("persists eval runs, retries safely, and executes queue jobs", {
       })
       .returning();
     assert.ok(queuedRun);
+    const [endpoint] = await db
+      .insert(webhookEndpoints)
+      .values({
+        encryptedSecret: "encrypted",
+        events: ["eval.completed"],
+        name: "Eval dashboard",
+        tenantId: tenant.id,
+        url: "https://hooks.example.test/evals",
+      })
+      .returning();
+    assert.ok(endpoint);
+    const queuedWebhooks: Array<{ data: WebhookDeliveryJob; jobId: unknown }> = [];
+    const webhookQueue = {
+      add: (_name: string, data: WebhookDeliveryJob, queueOptions: { jobId?: unknown }) => {
+        queuedWebhooks.push({ data, jobId: queueOptions.jobId });
+        return Promise.resolve({});
+      },
+    } as unknown as BullQueue<WebhookDeliveryJob>;
     const job = evalJobSchema.parse({
       agentId: agent.id,
       runId: queuedRun.id,
@@ -309,7 +336,7 @@ test("persists eval runs, retries safely, and executes queue jobs", {
     const done = new Promise<void>((resolve, reject) => {
       worker = new Worker(
         QUEUES.evals,
-        createEvalProcessor(db, { execute: () => Promise.resolve(output) }),
+        createEvalProcessor(db, { execute: () => Promise.resolve(output), webhookQueue }),
         { connection, prefix }
       );
       worker.on("error", reject);
@@ -321,6 +348,26 @@ test("persists eval runs, retries safely, and executes queue jobs", {
     const [savedQueuedRun] = await db.select().from(evalRuns).where(eq(evalRuns.id, queuedRun.id));
     assert.equal(savedQueuedRun?.status, "completed");
     assert.equal(savedQueuedRun?.passed, 1);
+    const [delivery] = await db
+      .select()
+      .from(webhookDeliveries)
+      .where(eq(webhookDeliveries.endpointId, endpoint.id));
+    assert.ok(delivery);
+    assert.equal(delivery.eventType, "eval.completed");
+    assert.equal(delivery.eventId, `eval_${queuedRun.id}_completed`);
+    assert.equal(delivery.payload.created_at, savedQueuedRun.finishedAt?.toISOString());
+    if (delivery.payload.type !== "eval.completed") {
+      throw new Error("Expected eval.completed webhook payload");
+    }
+    assert.equal(delivery.payload.data.agent_id, agent.id);
+    assert.equal(delivery.payload.data.eval_run_id, queuedRun.id);
+    assert.equal(delivery.payload.data.status, "completed");
+    assert.equal(delivery.payload.data.suite, "bright-smile-dental");
+    assert.equal(delivery.payload.data.passed, 1);
+    assert.equal(delivery.payload.data.total, 1);
+    await processEvalRun(db, job, { webhookQueue });
+    assert.equal(queuedWebhooks.length, 2);
+    assert.equal(queuedWebhooks[0]?.jobId, queuedWebhooks[1]?.jobId);
   } finally {
     await worker?.close();
     await queue.obliterate({ force: true });

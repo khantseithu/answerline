@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   agents,
+  bookings,
   calls,
   callTurns,
   createDb,
@@ -9,8 +10,16 @@ import {
   tenants,
   toolCalls,
   voicemails,
+  webhookDeliveries,
+  webhookEndpoints,
 } from "@answerline/db";
-import { type CallEventJob, type PostCallJob, QUEUES } from "@answerline/shared";
+import {
+  type CallEventJob,
+  type PostCallJob,
+  QUEUES,
+  type WebhookDeliveryJob,
+} from "@answerline/shared";
+import type { Queue as BullQueue } from "bullmq";
 import { Queue } from "bullmq";
 import { asc, eq } from "drizzle-orm";
 import { Redis } from "ioredis";
@@ -188,6 +197,75 @@ test("call.tool stores args, result, status, and latency", { skip }, () =>
     assert.equal(second?.error, "boom");
     assert.equal(third?.result, null);
     assert.equal(third?.status, "timeout");
+  })
+);
+
+test("confirmed booking tool results enqueue one stable booking webhook", { skip }, () =>
+  withTenant(async ({ base, started, tool }, db) => {
+    await persistCallEvent(db, started);
+    const call = await getCall(db, base.room_name);
+    const bookingId = crypto.randomUUID();
+    const startsAt = new Date("2026-10-27T10:00:00.000Z");
+    await db.insert(bookings).values({
+      agentId: call.agentId,
+      callId: null,
+      id: bookingId,
+      name: "Alex Caller",
+      phone: "+15555550123",
+      provider: "answerline",
+      startsAt,
+      tenantId: call.tenantId,
+    });
+    const [endpoint] = await db
+      .insert(webhookEndpoints)
+      .values({
+        encryptedSecret: "encrypted",
+        events: ["booking.created"],
+        name: "Booking CRM",
+        tenantId: call.tenantId,
+        url: "https://hooks.example.test/bookings",
+      })
+      .returning();
+    assert.ok(endpoint);
+
+    const queued: Array<{ data: WebhookDeliveryJob; options: Record<string, unknown> }> = [];
+    const webhookQueue = {
+      add: (_name: string, data: WebhookDeliveryJob, options: Record<string, unknown>) => {
+        queued.push({ data, options });
+        return Promise.resolve({});
+      },
+    } as unknown as BullQueue<WebhookDeliveryJob>;
+    const confirmation = tool(1, {
+      args: { confirmation_id: "c1" },
+      name: "confirm_booking",
+      result: {
+        booking_id: bookingId,
+        end: "2026-10-27T10:30:00.000Z",
+        start: startsAt.toISOString(),
+        status: "confirmed",
+      },
+    });
+    await persistCallEvent(db, confirmation, { webhookQueue });
+    await persistCallEvent(db, confirmation, { webhookQueue });
+
+    const [delivery] = await db
+      .select()
+      .from(webhookDeliveries)
+      .where(eq(webhookDeliveries.endpointId, endpoint.id));
+    assert.ok(delivery);
+    assert.equal(delivery.eventType, "booking.created");
+    assert.equal(delivery.eventId, `booking_${bookingId}_created`);
+    assert.deepEqual(delivery.payload.data, {
+      agent_id: call.agentId,
+      call_id: call.id,
+      name: "Alex Caller",
+      phone: "+15555550123",
+      starts_at: startsAt.toISOString(),
+    });
+    assert.equal(queued.length, 2);
+    assert.equal(queued[0]?.options.jobId, queued[1]?.options.jobId);
+    const [savedBooking] = await db.select().from(bookings).where(eq(bookings.id, bookingId));
+    assert.equal(savedBooking?.callId, call.id);
   })
 );
 

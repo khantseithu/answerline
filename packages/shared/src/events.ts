@@ -55,12 +55,67 @@ export const webhookEventTypeSchema = z.enum(WEBHOOK_EVENT_TYPES);
 
 export type WebhookEventType = z.infer<typeof webhookEventTypeSchema>;
 
-export const webhookEventSchema = z.object({
-  created_at: z.iso.datetime({ offset: true }),
-  data: z.record(z.string(), z.unknown()),
-  id: z.string().min(1),
-  type: webhookEventTypeSchema,
+const webhookAgent = z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/);
+const webhookTimestamp = z.iso.datetime({ offset: true });
+const webhookCallStartedData = z.object({
+  agent: webhookAgent,
+  call_id: z.uuid(),
+  channel: z.enum(["web", "sip"]),
+  direction: z.enum(["inbound", "outbound"]),
+  from_number: z.string().optional(),
+  started_at: webhookTimestamp,
+  to_number: z.string().optional(),
 });
+const webhookCallEndedData = z.object({
+  agent: webhookAgent,
+  call_id: z.uuid(),
+  duration_ms: z.number().int().nonnegative(),
+  ended_at: webhookTimestamp,
+  recording_url: z.string().min(1).optional(),
+  status: z.enum(["completed", "failed"]),
+  transcript_url: z.url({ protocol: /^https?$/ }),
+});
+const webhookBookingCreatedData = bookingCreatedEvent
+  .omit({ type: true })
+  .extend({ agent_id: z.uuid(), call_id: z.uuid(), starts_at: webhookTimestamp });
+const webhookEvalCompletedData = z.object({
+  agent_id: z.uuid(),
+  avg_latency_ms: z.number().int().nonnegative().nullable(),
+  cost_usd: z.number().nonnegative().nullable(),
+  eval_run_id: z.uuid(),
+  passed: z.number().int().nonnegative(),
+  status: z.literal("completed"),
+  suite: z.string().min(1),
+  total: z.number().int().positive(),
+});
+const webhookLeadCreatedData = z.object({
+  agent: webhookAgent,
+  call_id: z.uuid(),
+  lead_id: z.uuid(),
+  name: z.string().min(1),
+  phone: z.string().min(1),
+  reason: z.string().min(1),
+});
+const webhookEnvelope = {
+  created_at: webhookTimestamp,
+  id: z.string().min(1),
+};
+
+export const webhookEventSchema = z.discriminatedUnion("type", [
+  z.object({
+    ...webhookEnvelope,
+    data: webhookBookingCreatedData,
+    type: z.literal("booking.created"),
+  }),
+  z.object({ ...webhookEnvelope, data: webhookCallEndedData, type: z.literal("call.ended") }),
+  z.object({ ...webhookEnvelope, data: webhookCallStartedData, type: z.literal("call.started") }),
+  z.object({
+    ...webhookEnvelope,
+    data: webhookEvalCompletedData,
+    type: z.literal("eval.completed"),
+  }),
+  z.object({ ...webhookEnvelope, data: webhookLeadCreatedData, type: z.literal("lead.created") }),
+]);
 
 export type WebhookEvent = z.infer<typeof webhookEventSchema>;
 

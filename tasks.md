@@ -251,8 +251,8 @@ Roadmap: *Outbound calls and webhooks*
 - [x] `POST /api/v1/calls` queues an outbound call (create room, dispatch agent, durable SIP dial job)
 - [x] Outbound-specific config: first message, voicemail detection (AMD), retry policy, calling-hours guard (#114)
   - [x] Define shared outbound policy config and Python mirror (#315)
-- [ ] Webhooks: endpoints per workspace, event subscriptions, HMAC signatures, retries with backoff, delivery log and replay
-- [ ] Events: `call.started`, `call.ended`, `booking.created` (+ `lead.created`, `eval.completed`)
+- [x] Webhooks: endpoints per workspace, event subscriptions, HMAC signatures, retries with backoff, delivery log and replay (#115)
+- [x] Events: `call.started`, `call.ended`, `booking.created` (+ `lead.created`, `eval.completed`) (#116)
 
 **Done when:** the README outbound `curl` places a real call, and a webhook receiver gets signed `call.ended` with the transcript URL.
 

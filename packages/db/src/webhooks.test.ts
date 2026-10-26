@@ -29,7 +29,15 @@ test("webhook deliveries are unique per endpoint and event and follow tenant del
     assert.ok(endpoint);
     const payload = {
       created_at: "2026-01-01T00:00:00Z",
-      data: { transcript_url: "https://app.example.test/api/v1/calls/call-1" },
+      data: {
+        agent: "front-desk",
+        call_id: "00000000-0000-4000-8000-000000000001",
+        duration_ms: 15_000,
+        ended_at: "2026-01-01T00:00:15Z",
+        status: "completed" as const,
+        transcript_url:
+          "https://app.example.test/api/v1/calls/00000000-0000-4000-8000-000000000001",
+      },
       id: "call-1_call.ended",
       type: "call.ended" as const,
     };

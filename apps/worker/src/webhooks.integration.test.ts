@@ -72,7 +72,14 @@ test("webhook enqueue is tenant scoped and delivery retries with signed payloads
     } as unknown as Queue<WebhookDeliveryJob>;
     const event: WebhookEvent = {
       created_at: "2026-01-01T00:00:00Z",
-      data: { call_id: "00000000-0000-4000-8000-000000000001" },
+      data: {
+        agent: "front-desk",
+        call_id: "00000000-0000-4000-8000-000000000001",
+        duration_ms: 15_000,
+        ended_at: "2026-01-01T00:00:15Z",
+        status: "completed",
+        transcript_url: "https://answerline.test/api/v1/calls/00000000-0000-4000-8000-000000000001",
+      },
       id: "event-call-ended-1",
       type: "call.ended",
     };

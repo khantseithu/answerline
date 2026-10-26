@@ -6,19 +6,23 @@ import {
   evalExecutionInputSchema,
   evalExecutionOutputSchema,
   evalJobSchema,
+  type WebhookDeliveryJob,
+  type WebhookEvent,
 } from "@answerline/shared";
-import type { Job } from "bullmq";
+import type { Job, Queue } from "bullmq";
 import { and, eq, isNull, ne } from "drizzle-orm";
 import { calculateCallCost, parseCostPrices } from "./costs.ts";
 import { env } from "./env.ts";
 import { executeEval } from "./eval-execution.ts";
 import { resolveTenantProviderKeys } from "./provider-credentials.ts";
+import { enqueueWebhookEvent } from "./webhooks.ts";
 
 export interface EvalProcessorOptions {
   execute?: (
     input: EvalExecutionInput,
     providerKeys?: Record<string, string>
   ) => Promise<EvalExecutionOutput>;
+  webhookQueue?: Queue<WebhookDeliveryJob>;
 }
 
 export function normalizeEvalOutput(
@@ -175,6 +179,54 @@ async function saveEvalOutput(db: Database, job: EvalJob, output: EvalExecutionO
   });
 }
 
+async function enqueueCompletedEvalWebhook(
+  db: Database,
+  queue: Queue<WebhookDeliveryJob>,
+  job: EvalJob
+) {
+  const [run] = await db
+    .select({
+      agentId: evalRuns.agentId,
+      avgLatencyMs: evalRuns.avgLatencyMs,
+      costUsd: evalRuns.costUsd,
+      finishedAt: evalRuns.finishedAt,
+      id: evalRuns.id,
+      passed: evalRuns.passed,
+      status: evalRuns.status,
+      suite: evalRuns.suite,
+      total: evalRuns.total,
+    })
+    .from(evalRuns)
+    .where(
+      and(
+        eq(evalRuns.id, job.runId),
+        eq(evalRuns.agentId, job.agentId),
+        eq(evalRuns.tenantId, job.tenantId),
+        eq(evalRuns.status, "completed")
+      )
+    )
+    .limit(1);
+  if (!run?.finishedAt || run.passed === null || run.total === null) {
+    return;
+  }
+  const event: WebhookEvent = {
+    created_at: run.finishedAt.toISOString(),
+    data: {
+      agent_id: run.agentId,
+      avg_latency_ms: run.avgLatencyMs,
+      cost_usd: run.costUsd === null ? null : Number(run.costUsd),
+      eval_run_id: run.id,
+      passed: run.passed,
+      status: "completed",
+      suite: run.suite,
+      total: run.total,
+    },
+    id: `eval_${run.id}_completed`,
+    type: "eval.completed",
+  };
+  await enqueueWebhookEvent(db, queue, job.tenantId, event);
+}
+
 export async function processEvalRun(
   db: Database,
   rawJob: unknown,
@@ -183,26 +235,28 @@ export async function processEvalRun(
   const job = evalJobSchema.parse(rawJob);
   try {
     const input = await startEvalRun(db, job);
-    if (!input) {
-      return;
+    if (input) {
+      const providerKeys = await resolveTenantProviderKeys(
+        db,
+        job.tenantId,
+        {
+          anthropic: process.env.ANTHROPIC_API_KEY,
+          cartesia: process.env.CARTESIA_API_KEY,
+          deepgram: process.env.DEEPGRAM_API_KEY,
+          deepseek: process.env.DEEPSEEK_API_KEY,
+          google: process.env.GOOGLE_API_KEY,
+          openai: env.OPENAI_API_KEY,
+          openrouter: process.env.OPENROUTER_API_KEY,
+        },
+        env.PROVIDER_KEYS_ENCRYPTION_KEY
+      );
+      const rawOutput = await (options.execute ?? executeEval)(input, providerKeys);
+      const output = normalizeEvalOutput(input, rawOutput);
+      await saveEvalOutput(db, job, output);
     }
-    const providerKeys = await resolveTenantProviderKeys(
-      db,
-      job.tenantId,
-      {
-        anthropic: process.env.ANTHROPIC_API_KEY,
-        cartesia: process.env.CARTESIA_API_KEY,
-        deepgram: process.env.DEEPGRAM_API_KEY,
-        deepseek: process.env.DEEPSEEK_API_KEY,
-        google: process.env.GOOGLE_API_KEY,
-        openai: env.OPENAI_API_KEY,
-        openrouter: process.env.OPENROUTER_API_KEY,
-      },
-      env.PROVIDER_KEYS_ENCRYPTION_KEY
-    );
-    const rawOutput = await (options.execute ?? executeEval)(input, providerKeys);
-    const output = normalizeEvalOutput(input, rawOutput);
-    await saveEvalOutput(db, job, output);
+    if (options.webhookQueue) {
+      await enqueueCompletedEvalWebhook(db, options.webhookQueue, job);
+    }
   } catch (error) {
     await failEvalRun(db, job);
     throw error;

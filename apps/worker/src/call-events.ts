@@ -1,5 +1,6 @@
 import {
   agents,
+  bookings,
   calls,
   callTurns,
   type Database,
@@ -9,6 +10,7 @@ import {
   voicemails,
 } from "@answerline/db";
 import {
+  bookingCreatedEvent,
   type CallEventJob,
   callEventJob,
   callEventJobId,
@@ -19,6 +21,7 @@ import {
 } from "@answerline/shared";
 import type { Job, Queue } from "bullmq";
 import { and, eq } from "drizzle-orm";
+import { z } from "zod";
 import { calculateCallCost, parseCostPrices } from "./costs.ts";
 import { enqueueWebhookEvent } from "./webhooks.ts";
 
@@ -31,6 +34,7 @@ export interface PersistOptions {
 
 const POST_CALL_DELAY_MS = 5000;
 const TRAILING_SLASH = /\/$/;
+const bookingToolResultSchema = z.object({ booking_id: z.uuid(), status: z.literal("confirmed") });
 
 interface Ref {
   agentId: string;
@@ -276,16 +280,26 @@ export async function persistCallEvent(
     default:
       break;
   }
-  if (options.webhookQueue) {
+  const { webhookQueue } = options;
+  if (webhookQueue) {
     const call = await db
       .select({ id: calls.id })
       .from(calls)
       .where(and(eq(calls.roomName, event.room_name), eq(calls.tenantId, ref.tenantId)))
       .limit(1)
       .then(([row]) => row);
-    const webhookEvent = toWebhookEvent(event, call?.id, options.webhookBaseUrl);
-    if (webhookEvent) {
-      await enqueueWebhookEvent(db, options.webhookQueue, ref.tenantId, webhookEvent);
+    if (call) {
+      const webhookEvents = [
+        toWebhookEvent(event, call.id, options.webhookBaseUrl),
+        event.type === "call.tool"
+          ? await toBookingWebhookEvent(db, event, call.id, ref)
+          : undefined,
+      ].filter((webhookEvent): webhookEvent is WebhookEvent => webhookEvent !== undefined);
+      await Promise.all(
+        webhookEvents.map((webhookEvent) =>
+          enqueueWebhookEvent(db, webhookQueue, ref.tenantId, webhookEvent)
+        )
+      );
     }
   }
 }
@@ -346,6 +360,80 @@ export function toWebhookEvent(
       type: event.type,
     };
   }
+}
+
+async function toBookingWebhookEvent(
+  db: Database,
+  event: Extract<CallEventJob, { type: "call.tool" }>,
+  callId: string,
+  ref: Ref
+): Promise<WebhookEvent | undefined> {
+  if (event.name !== "confirm_booking" || event.status !== "ok") {
+    return;
+  }
+  const result = bookingToolResultSchema.safeParse(event.result);
+  if (!result.success) {
+    return;
+  }
+  const booking = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .select({
+        callId: bookings.callId,
+        createdAt: bookings.createdAt,
+        name: bookings.name,
+        phone: bookings.phone,
+        startsAt: bookings.startsAt,
+      })
+      .from(bookings)
+      .where(
+        and(
+          eq(bookings.id, result.data.booking_id),
+          eq(bookings.agentId, ref.agentId),
+          eq(bookings.status, "confirmed"),
+          eq(bookings.tenantId, ref.tenantId)
+        )
+      )
+      .for("update");
+    if (!row || (row.callId && row.callId !== callId)) {
+      return;
+    }
+    if (!row.callId) {
+      await tx
+        .update(bookings)
+        .set({ callId })
+        .where(
+          and(
+            eq(bookings.id, result.data.booking_id),
+            eq(bookings.agentId, ref.agentId),
+            eq(bookings.tenantId, ref.tenantId)
+          )
+        );
+    }
+    return row;
+  });
+  if (!booking) {
+    return;
+  }
+  const data = bookingCreatedEvent.parse({
+    agent_id: ref.agentId,
+    call_id: callId,
+    name: booking.name,
+    phone: booking.phone ?? undefined,
+    starts_at: booking.startsAt.toISOString(),
+    type: "booking.created",
+  });
+  return {
+    created_at: booking.createdAt.toISOString(),
+    data: {
+      agent_id: data.agent_id,
+      call_id: data.call_id,
+      name: data.name,
+      ...(data.phone ? { phone: data.phone } : {}),
+      starts_at: data.starts_at,
+    },
+    id: `booking_${result.data.booking_id}_created`,
+    type: "booking.created",
+  };
 }
 
 export function createCallEventProcessor(db: Database, options: PersistOptions = {}) {
