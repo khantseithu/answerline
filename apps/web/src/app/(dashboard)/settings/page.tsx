@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { PageContainer, PageHeader } from "@/components/shell/page-header";
 import { ThemeSelect } from "@/components/theme/theme-toggle";
+import { ApiKeyManager } from "@/components/workspaces/api-key-manager";
 import { WorkspaceSettingsManager } from "@/components/workspaces/workspace-settings";
 import { getDashboardContext } from "@/lib/dashboard/context";
 import { getWorkspaceSettings } from "@/lib/workspaces/service";
@@ -62,6 +63,14 @@ export default async function SettingsPage() {
             </div>
           )}
         </SettingsSection>
+        {context.role === "owner" ? (
+          <SettingsSection
+            description="Create scoped credentials for scripts and integrations."
+            title="API access"
+          >
+            <ApiKeyManager tenantId={context.tenantId} />
+          </SettingsSection>
+        ) : null}
         <SettingsSection
           description="Match your system, or pick a theme for this browser."
           title="Appearance"

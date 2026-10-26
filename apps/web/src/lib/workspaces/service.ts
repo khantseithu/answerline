@@ -32,7 +32,7 @@ export class WorkspaceConflictError extends Error {}
 export class WorkspaceNotFoundError extends Error {}
 export class WorkspaceBadRequestError extends Error {}
 
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+export type WorkspaceTransaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 export interface WorkspaceDeps {
   db: Database;
   session: { id: string; userId: string };
@@ -48,7 +48,7 @@ function sessionFilter(deps: WorkspaceDeps) {
   );
 }
 
-async function requireSession(tx: Transaction, deps: WorkspaceDeps, lock = false) {
+async function requireSession(tx: WorkspaceTransaction, deps: WorkspaceDeps, lock = false) {
   const query = tx.select().from(sessions).where(sessionFilter(deps));
   const [session] = lock ? await query.for("update") : await query;
   if (!session) {
@@ -160,8 +160,8 @@ export function switchWorkspace(deps: WorkspaceDeps, rawInput: unknown) {
   });
 }
 
-async function requireOwnerWorkspace(
-  tx: Transaction,
+export async function requireOwnerWorkspace(
+  tx: WorkspaceTransaction,
   deps: WorkspaceDeps,
   tenantId: string,
   lock = false
@@ -183,7 +183,11 @@ async function requireOwnerWorkspace(
   return workspace;
 }
 
-function lockOwnerWorkspace(tx: Transaction, deps: WorkspaceDeps, tenantId: string) {
+export function lockOwnerWorkspace(
+  tx: WorkspaceTransaction,
+  deps: WorkspaceDeps,
+  tenantId: string
+) {
   return requireOwnerWorkspace(tx, deps, tenantId, true);
 }
 
@@ -405,7 +409,7 @@ export async function getWorkspaceInvitation(db: Database, rawToken: string) {
   return { ...invite, accountExists: Boolean(existing), expiresAt: invite.expiresAt.toISOString() };
 }
 
-async function lockInvitation(tx: Transaction, hash: string) {
+async function lockInvitation(tx: WorkspaceTransaction, hash: string) {
   const [reference] = await tx
     .select({ tenantId: workspaceInvitations.tenantId })
     .from(workspaceInvitations)
