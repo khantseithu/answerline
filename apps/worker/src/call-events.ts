@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises";
 import {
   agents,
   calls,
@@ -13,17 +12,13 @@ import {
   type CallEventJob,
   callEventJob,
   type PostCallJob,
-  parseAgentConfig,
   postCallJobSchema,
 } from "@answerline/shared";
 import type { Job, Queue } from "bullmq";
 import { and, eq } from "drizzle-orm";
 import { calculateCallCost, parseCostPrices } from "./costs.ts";
 
-const defaultAgentsDir = new URL("../../../agents/", import.meta.url);
-
 export interface PersistOptions {
-  agentsDir?: URL;
   postCallDelayMs?: number;
   postCallQueue?: Queue<PostCallJob>;
 }
@@ -35,64 +30,16 @@ interface Ref {
   tenantId: string;
 }
 
-async function resolveTenantId(db: Database, slug: string) {
-  await db.insert(tenants).values({ name: slug, slug }).onConflictDoNothing();
-  const [tenant] = await db.select({ id: tenants.id }).from(tenants).where(eq(tenants.slug, slug));
-  if (!tenant) {
-    throw new Error(`tenant "${slug}" could not be resolved`);
+async function resolveRef(db: Database, event: CallEventJob) {
+  const [ref] = await db
+    .select({ agentId: agents.id, tenantId: tenants.id })
+    .from(agents)
+    .innerJoin(tenants, eq(tenants.id, agents.tenantId))
+    .where(and(eq(tenants.slug, event.tenant), eq(agents.slug, event.agent)));
+  if (!ref) {
+    throw new Error("Call event agent not found in workspace");
   }
-  return tenant.id;
-}
-
-async function readAgentYaml(slug: string, agentsDir: URL) {
-  try {
-    return await readFile(new URL(`${slug}.yaml`, agentsDir), "utf8");
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new Error(
-        `agent "${slug}" not found in the database and agents/${slug}.yaml does not exist`,
-        { cause: error }
-      );
-    }
-    throw error;
-  }
-}
-
-async function resolveAgentId(db: Database, tenantId: string, slug: string, agentsDir: URL) {
-  const find = async () => {
-    const [agent] = await db
-      .select({ id: agents.id })
-      .from(agents)
-      .where(and(eq(agents.tenantId, tenantId), eq(agents.slug, slug)));
-    return agent?.id;
-  };
-
-  const existing = await find();
-  if (existing) {
-    return existing;
-  }
-
-  const config = parseAgentConfig(await readAgentYaml(slug, agentsDir));
-  await db
-    .insert(agents)
-    .values({ config, name: config.name, slug, tenantId })
-    .onConflictDoNothing();
-  const created = await find();
-  if (!created) {
-    throw new Error(`agent "${slug}" could not be resolved`);
-  }
-  return created;
-}
-
-async function resolveRef(db: Database, event: CallEventJob, options: PersistOptions) {
-  const tenantId = await resolveTenantId(db, event.tenant);
-  const agentId = await resolveAgentId(
-    db,
-    tenantId,
-    event.agent,
-    options.agentsDir ?? defaultAgentsDir
-  );
-  return { agentId, tenantId } satisfies Ref;
+  return ref satisfies Ref;
 }
 
 async function ensureCallId(
@@ -299,7 +246,7 @@ export async function persistCallEvent(
   event: CallEventJob,
   options: PersistOptions = {}
 ) {
-  const ref = await resolveRef(db, event, options);
+  const ref = await resolveRef(db, event);
   switch (event.type) {
     case "call.started":
       await handleStarted(db, event, ref);

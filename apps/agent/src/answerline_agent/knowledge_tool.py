@@ -240,7 +240,7 @@ class KnowledgeTools:
 
 
 async def open_knowledge_tools(
-    settings: Settings, agent_slug: str, tool_log: ToolLog
+    settings: Settings, agent_slug: str, tool_log: ToolLog, *, tenant_slug: str
 ) -> KnowledgeTools | None:
     if not settings.database_url:
         return None
@@ -255,9 +255,7 @@ async def open_knowledge_tools(
             max_size=POOL_MAX_SIZE,
             timeout=DB_CONNECT_TIMEOUT,
         )
-        scope = await fetch_knowledge_scope(
-            pool, tenant_slug=settings.tenant, agent_slug=agent_slug
-        )
+        scope = await fetch_knowledge_scope(pool, tenant_slug=tenant_slug, agent_slug=agent_slug)
         if scope is not None and scope.source_ids:
             source_count = len(scope.source_ids)
             search = KnowledgeSearch(

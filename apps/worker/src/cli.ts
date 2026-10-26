@@ -2,13 +2,14 @@ import { readFile } from "node:fs/promises";
 import { basename, dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { createDb, evalResults, evalRuns } from "@answerline/db";
+import { agents, createDb, evalResults, evalRuns, tenants } from "@answerline/db";
 import { evalExecutionInputSchema, parseAgentConfig, parseEvalSuite } from "@answerline/shared";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
-import { createEvalRun, findDefaultTenantAgent, processEvalRun } from "./evals.ts";
+import { createEvalRun, findTenantAgent, processEvalRun } from "./evals.ts";
 import {
   addPhoneNumber,
+  agentSlugSchema,
   assignPhoneNumber,
   connectPhoneNumber,
   createPhoneNumberClient,
@@ -21,7 +22,7 @@ import {
 import { setupTelnyxConnection, telnyxEnvSchema } from "./telnyx.ts";
 import { setupTwilioTrunk, twilioEnvSchema } from "./twilio.ts";
 
-const SIP_USAGE = `usage:
+const SIP_USAGE = `usage (all commands accept --tenant <workspace-slug>; defaults to TENANT):
   worker sip list
   worker sip add <+15551234567> <agent> [--allowed-address <ip-or-cidr>]... [--auth-username <user> --auth-password <pass>]
   worker sip assign <+15551234567> <agent>
@@ -44,12 +45,13 @@ async function runEval(args: string[]) {
       audio: { type: "boolean" },
       "live-tools": { type: "boolean" },
       model: { type: "string" },
+      tenant: { type: "string" },
     },
   });
   const [agentPath, ...extra] = positionals;
   if (!agentPath || extra.length) {
     throw new Error(
-      "usage: worker eval <agents/name.yaml> [--model provider/model] [--live-tools] [--audio]"
+      "usage: worker eval <agents/name.yaml> [--model provider/model] [--live-tools] [--audio] [--tenant workspace-slug]"
     );
   }
 
@@ -61,9 +63,14 @@ async function runEval(args: string[]) {
   const db = createDb();
 
   try {
-    const agentRow = await findDefaultTenantAgent(db, agentSlug);
+    const tenantSlug = agentSlugSchema
+      .default("default")
+      .parse(values.tenant ?? process.env.TENANT);
+    const agentRow = await findTenantAgent(db, agentSlug, tenantSlug);
     if (!agentRow) {
-      throw new Error(`agent ${agentSlug} was not found in the default tenant; run pnpm db:seed`);
+      throw new Error(
+        `agent ${agentSlug} was not found in workspace ${tenantSlug}; run pnpm db:seed`
+      );
     }
     const executionInput = evalExecutionInputSchema.parse({
       agent,
@@ -117,6 +124,29 @@ function printNumber(n: PhoneNumber) {
   );
 }
 
+async function requireSipAgent(
+  action: string | undefined,
+  agent: string | undefined,
+  tenant: string
+) {
+  if (!(agent && ["add", "assign", "twilio", "telnyx"].includes(action ?? ""))) {
+    return;
+  }
+  const db = createDb();
+  try {
+    const [found] = await db
+      .select({ id: agents.id })
+      .from(agents)
+      .innerJoin(tenants, eq(tenants.id, agents.tenantId))
+      .where(and(eq(tenants.slug, tenant), eq(agents.slug, agent)));
+    if (!found) {
+      throw new Error("Agent not found in workspace");
+    }
+  } finally {
+    await db.$client.end();
+  }
+}
+
 async function runSip(args: string[]) {
   const { positionals, values } = parseArgs({
     allowPositionals: true,
@@ -126,21 +156,27 @@ async function runSip(args: string[]) {
       "auth-password": { type: "string" },
       "auth-username": { type: "string" },
       "sip-host": { type: "string" },
+      tenant: { type: "string" },
     },
   });
   const [action, number, agent] = positionals;
   const env = sipEnvSchema.parse(process.env);
   const client = createPhoneNumberClient(env);
+  const scope = {
+    legacyTenant: env.TENANT,
+    tenant: agentSlugSchema.default(env.TENANT).parse(values.tenant),
+  };
+  await requireSipAgent(action, agent, scope.tenant);
 
   if (action === "list") {
-    const numbers = await listPhoneNumbers(client);
+    const numbers = await listPhoneNumbers(client, scope);
     if (numbers.length === 0) {
       console.log("no phone numbers connected");
     }
     numbers.forEach(printNumber);
   } else if (action === "add" && number && agent) {
     printNumber(
-      await addPhoneNumber(client, env.AGENT_NAME, {
+      await addPhoneNumber(client, scope, env.AGENT_NAME, {
         agent,
         allowedAddresses: values["allowed-address"],
         authPassword: values["auth-password"],
@@ -149,7 +185,7 @@ async function runSip(args: string[]) {
       })
     );
   } else if (action === "assign" && number && agent) {
-    printNumber(await assignPhoneNumber(client, env.AGENT_NAME, number, agent));
+    printNumber(await assignPhoneNumber(client, scope, env.AGENT_NAME, number, agent));
   } else if (action === "twilio" && number && agent) {
     const sipHost = values["sip-host"] ?? process.env.SIP_PUBLIC_IP;
     if (!sipHost) {
@@ -163,7 +199,7 @@ async function runSip(args: string[]) {
       sipHost,
     });
     console.log(`twilio trunk ${trunk.trunkSid} -> ${trunk.originationUrl}, transfers enabled`);
-    printNumber(await connectPhoneNumber(client, env.AGENT_NAME, { agent, number }));
+    printNumber(await connectPhoneNumber(client, scope, env.AGENT_NAME, { agent, number }));
   } else if (action === "telnyx" && number && agent) {
     const sipHost = values["sip-host"] ?? process.env.SIP_PUBLIC_IP;
     if (!sipHost) {
@@ -176,9 +212,9 @@ async function runSip(args: string[]) {
       sipHost,
     });
     console.log(`telnyx connection ${result.connectionId} -> sip:${sipHost}:5060 (TCP)`);
-    printNumber(await connectPhoneNumber(client, env.AGENT_NAME, { agent, number }));
+    printNumber(await connectPhoneNumber(client, scope, env.AGENT_NAME, { agent, number }));
   } else if (action === "remove" && number) {
-    await removePhoneNumber(client, number);
+    await removePhoneNumber(client, scope, number);
     console.log(`removed ${number}`);
   } else {
     fail(SIP_USAGE);

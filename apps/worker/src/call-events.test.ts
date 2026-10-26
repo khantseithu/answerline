@@ -14,6 +14,7 @@ import { type CallEventJob, type PostCallJob, QUEUES } from "@answerline/shared"
 import { Queue } from "bullmq";
 import { asc, eq } from "drizzle-orm";
 import { Redis } from "ioredis";
+import { seedCallAgent } from "./call-event-test-fixtures.ts";
 import { persistCallEvent } from "./call-events.ts";
 
 const skip = process.env.DATABASE_URL ? false : "DATABASE_URL not set";
@@ -22,7 +23,7 @@ const LEAD_SCOPE_MISMATCH = /lead call reference does not match/;
 const VOICEMAIL_SCOPE_MISMATCH = /voicemail call reference does not match/;
 const START_SCOPE_MISMATCH = /call.started call reference does not match/;
 const CALL_SCOPE_MISMATCH = /call reference does not match the tenant and agent/;
-const MISSING_YAML = /agents\/no-such-agent\.yaml does not exist/;
+const AGENT_NOT_FOUND = /agent not found in workspace/;
 
 type EventOf<T extends CallEventJob["type"]> = Extract<CallEventJob, { type: T }>;
 
@@ -86,6 +87,7 @@ async function withTenant(
   const db = createDb();
   const ctx = context();
   try {
+    await seedCallAgent(db, ctx.base.tenant);
     await run(ctx, db);
   } finally {
     await db.delete(tenants).where(eq(tenants.slug, ctx.base.tenant));
@@ -107,7 +109,7 @@ async function getTurns(db: ReturnType<typeof createDb>, callId: string) {
     .orderBy(asc(callTurns.seq));
 }
 
-test("call.started creates the tenant, agent from yaml, and an in-progress call", { skip }, () =>
+test("call.started resolves the workspace agent and creates an in-progress call", { skip }, () =>
   withTenant(async ({ base, started }, db) => {
     await persistCallEvent(db, started);
 
@@ -310,7 +312,7 @@ test("duplicate delivery is idempotent", { skip }, () =>
   })
 );
 
-test("an existing agent is not overwritten from yaml", { skip }, () =>
+test("call events preserve an existing agent configuration", { skip }, () =>
   withTenant(async ({ base, started }, db) => {
     await persistCallEvent(db, started);
     const call = await getCall(db, base.room_name);
@@ -323,11 +325,11 @@ test("an existing agent is not overwritten from yaml", { skip }, () =>
   })
 );
 
-test("an unknown agent with no yaml fails the job", { skip }, () =>
+test("an unknown agent fails without provisioning it from YAML", { skip }, () =>
   withTenant(async ({ started }, db) => {
     await assert.rejects(
       persistCallEvent(db, { ...started, agent: "no-such-agent" }),
-      MISSING_YAML
+      AGENT_NOT_FOUND
     );
   })
 );
@@ -370,6 +372,7 @@ test("lead.created cannot attach a lead to another tenant's call", { skip }, () 
   withTenant(async ({ base, started }, db) => {
     await persistCallEvent(db, started);
     const otherTenant = `other-${crypto.randomUUID()}`;
+    await seedCallAgent(db, otherTenant);
     try {
       await assert.rejects(
         persistCallEvent(db, {
@@ -477,6 +480,7 @@ test("voicemail.created cannot attach a voicemail to another tenant's call", { s
   withTenant(async ({ base, started }, db) => {
     await persistCallEvent(db, started);
     const otherTenant = `other-${crypto.randomUUID()}`;
+    await seedCallAgent(db, otherTenant);
     try {
       await assert.rejects(
         persistCallEvent(db, {
@@ -536,6 +540,7 @@ for (const scope of ["tenant", "agent"]) {
         const beforeTurns = await getTurns(db, before.id);
         const beforeTools = await getToolCalls(db, before.id);
         const otherTenant = `other-${crypto.randomUUID()}`;
+        await seedCallAgent(db, otherTenant);
         const [agent] = await db.select().from(agents).where(eq(agents.id, before.agentId));
         assert.ok(agent);
         if (scope === "agent") {
@@ -592,6 +597,7 @@ test(
         prefix: `ownership-${id}`,
       });
       const otherTenant = `other-${crypto.randomUUID()}`;
+      await seedCallAgent(db, otherTenant);
       try {
         await persistCallEvent(db, started);
         const before = await getCall(db, base.room_name);
@@ -630,6 +636,7 @@ for (const scope of ["tenant", "agent"]) {
       await persistCallEvent(db, turn(0));
       const before = await getCall(db, base.room_name);
       const otherTenant = `other-${crypto.randomUUID()}`;
+      await seedCallAgent(db, otherTenant);
       const [agent] = await db.select().from(agents).where(eq(agents.id, before.agentId));
       assert.ok(agent);
       if (scope === "agent") {
@@ -663,3 +670,43 @@ for (const scope of ["tenant", "agent"]) {
     })
   );
 }
+
+test("events cannot create unknown workspaces or agents from shared YAML", { skip }, () =>
+  withTenant(async ({ started, base }, db) => {
+    const unknown = `unknown-${crypto.randomUUID()}`;
+    await assert.rejects(persistCallEvent(db, { ...started, tenant: unknown }), AGENT_NOT_FOUND);
+    await assert.rejects(
+      persistCallEvent(db, { ...started, agent: "harbor-plumbing" }),
+      AGENT_NOT_FOUND
+    );
+    assert.deepEqual(await db.select().from(tenants).where(eq(tenants.slug, unknown)), []);
+    const [tenant] = await db.select().from(tenants).where(eq(tenants.slug, base.tenant));
+    assert.ok(tenant);
+    assert.equal((await db.select().from(agents).where(eq(agents.tenantId, tenant.id))).length, 1);
+    assert.deepEqual(await db.select().from(calls).where(eq(calls.roomName, base.room_name)), []);
+  })
+);
+
+test("identical agent slugs persist calls and transcripts in separate workspaces", { skip }, () =>
+  withTenant(async ({ started, turn, base }, db) => {
+    const second = `second-${crypto.randomUUID()}`;
+    await seedCallAgent(db, second);
+    const room = `${base.room_name}-two`;
+    try {
+      await persistInOrder(db, [
+        started,
+        turn(0),
+        { ...started, room_name: room, tenant: second },
+        { ...turn(0), room_name: room, tenant: second, text: "Second workspace" },
+      ]);
+      const firstCall = await getCall(db, base.room_name);
+      const secondCall = await getCall(db, room);
+      assert.notEqual(firstCall.tenantId, secondCall.tenantId);
+      assert.notEqual(firstCall.agentId, secondCall.agentId);
+      assert.equal((await getTurns(db, firstCall.id))[0]?.text, "turn 0");
+      assert.equal((await getTurns(db, secondCall.id))[0]?.text, "Second workspace");
+    } finally {
+      await db.delete(tenants).where(eq(tenants.slug, second));
+    }
+  })
+);

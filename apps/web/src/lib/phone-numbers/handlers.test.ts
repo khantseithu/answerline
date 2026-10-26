@@ -25,6 +25,7 @@ function fakeClient(options: { down?: boolean } = {}) {
       guard(() => {
         seq += 1;
         const info = new SIPDispatchRuleInfo({
+          metadata: opts?.metadata,
           name: opts?.name,
           roomConfig: opts?.roomConfig,
           rule: {
@@ -39,10 +40,15 @@ function fakeClient(options: { down?: boolean } = {}) {
         rules.push(info);
         return info;
       }),
-    createSipInboundTrunk: (name, numbers) =>
+    createSipInboundTrunk: (name, numbers, opts) =>
       guard(() => {
         seq += 1;
-        const info = new SIPInboundTrunkInfo({ name, numbers, sipTrunkId: `ST_${seq}` });
+        const info = new SIPInboundTrunkInfo({
+          metadata: opts?.metadata,
+          name,
+          numbers,
+          sipTrunkId: `ST_${seq}`,
+        });
         trunks.push(info);
         return info;
       }),
@@ -86,7 +92,9 @@ function harness(options: { down?: boolean } = {}) {
   const deps: PhoneNumberDeps = {
     agentName: "answerline-test",
     client: fake.client,
+    legacyTenant: "default",
     listAgents: () => Promise.resolve(AGENTS),
+    tenant: "default",
   };
   return { ...fake, handlers: createPhoneNumberHandlers(() => Promise.resolve(deps)) };
 }
@@ -125,6 +133,7 @@ test("connect, list, reassign and disconnect a number", async () => {
   assert.deepEqual(await assigned.json(), { agent: "harbor-plumbing", number: NUMBER });
   assert.deepEqual(JSON.parse(rules[0]?.roomConfig?.agents[0]?.metadata ?? ""), {
     agent: "harbor-plumbing",
+    tenant: "default",
   });
 
   const removed = await handlers.remove(new Request("http://test", { method: "DELETE" }), encoded);

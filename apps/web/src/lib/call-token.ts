@@ -1,3 +1,4 @@
+import { callDispatchMetadataSchema } from "@answerline/shared";
 import { AccessToken, RoomAgentDispatch, RoomConfiguration } from "livekit-server-sdk";
 
 export const DEFAULT_AGENT_SLUG = "bright-smile-dental";
@@ -16,6 +17,7 @@ export async function createCallToken(options: {
   apiKey: string;
   apiSecret: string;
   serverUrl: string;
+  tenantSlug: string;
 }): Promise<CallConnectionDetails> {
   const callId = crypto.randomUUID();
   const roomName = `call-${callId}`;
@@ -37,7 +39,9 @@ export async function createCallToken(options: {
     agents: [
       new RoomAgentDispatch({
         agentName: options.agentName,
-        metadata: JSON.stringify({ agent: options.agentSlug }),
+        metadata: JSON.stringify(
+          callDispatchMetadataSchema.parse({ agent: options.agentSlug, tenant: options.tenantSlug })
+        ),
       }),
     ],
   });

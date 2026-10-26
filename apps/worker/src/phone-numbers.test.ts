@@ -16,6 +16,7 @@ import {
   ruleAgent,
 } from "./phone-numbers.ts";
 
+const SCOPE = { legacyTenant: "default", tenant: "default" };
 const NUMBER = "+15551234567";
 const ALREADY_CONNECTED = /already connected/;
 const NOT_CONNECTED = /not connected/;
@@ -34,6 +35,7 @@ function fakeClient() {
     createSipDispatchRule: (rule, opts) => {
       const roomPrefix = rule.type === "individual" ? rule.roomPrefix : "";
       const info = new SIPDispatchRuleInfo({
+        metadata: opts?.metadata,
         name: opts?.name,
         roomConfig: opts?.roomConfig,
         rule: { rule: { case: "dispatchRuleIndividual", value: { roomPrefix } } },
@@ -46,6 +48,7 @@ function fakeClient() {
     createSipInboundTrunk: (name, numbers, opts) => {
       const info = new SIPInboundTrunkInfo({
         allowedAddresses: opts?.allowedAddresses ?? [],
+        metadata: opts?.metadata,
         name,
         numbers,
         sipTrunkId: nextId("ST"),
@@ -84,7 +87,7 @@ function fakeClient() {
 
 test("add creates one trunk and one individual dispatch rule carrying the agent slug", async () => {
   const { client, rules, trunks } = fakeClient();
-  const added = await addPhoneNumber(client, "answerline-wt1", {
+  const added = await addPhoneNumber(client, SCOPE, "answerline-wt1", {
     agent: "bright-smile-dental",
     allowedAddresses: ["54.172.60.0/30"],
     number: NUMBER,
@@ -101,17 +104,18 @@ test("add creates one trunk and one individual dispatch rule carrying the agent 
   assert.equal(rule?.roomConfig?.agents[0]?.agentName, "answerline-wt1");
   assert.deepEqual(JSON.parse(rule?.roomConfig?.agents[0]?.metadata ?? ""), {
     agent: "bright-smile-dental",
+    tenant: "default",
   });
-  assert.deepEqual(await listPhoneNumbers(client), [added]);
+  assert.deepEqual(await listPhoneNumbers(client, SCOPE), [added]);
 });
 
 test("add rejects invalid input and duplicates", async () => {
   const { client } = fakeClient();
-  await assert.rejects(addPhoneNumber(client, "a", { agent: "x", number: "5551234567" }));
-  await assert.rejects(addPhoneNumber(client, "a", { agent: "Bad Slug", number: NUMBER }));
-  await addPhoneNumber(client, "a", { agent: "x", number: NUMBER });
+  await assert.rejects(addPhoneNumber(client, SCOPE, "a", { agent: "x", number: "5551234567" }));
+  await assert.rejects(addPhoneNumber(client, SCOPE, "a", { agent: "Bad Slug", number: NUMBER }));
+  await addPhoneNumber(client, SCOPE, "a", { agent: "x", number: NUMBER });
   await assert.rejects(
-    addPhoneNumber(client, "a", { agent: "y", number: NUMBER }),
+    addPhoneNumber(client, SCOPE, "a", { agent: "y", number: NUMBER }),
     ALREADY_CONNECTED
   );
 });
@@ -119,26 +123,26 @@ test("add rejects invalid input and duplicates", async () => {
 test("add removes the trunk when the dispatch rule cannot be created", async () => {
   const { client, trunks } = fakeClient();
   client.createSipDispatchRule = () => Promise.reject(new Error("boom"));
-  await assert.rejects(addPhoneNumber(client, "a", { agent: "x", number: NUMBER }), BOOM);
+  await assert.rejects(addPhoneNumber(client, SCOPE, "a", { agent: "x", number: NUMBER }), BOOM);
   assert.equal(trunks.length, 0);
 });
 
 test("assign rewrites the dispatch rule's agent metadata", async () => {
   const { client, rules } = fakeClient();
-  await addPhoneNumber(client, "answerline", { agent: "first", number: NUMBER });
-  const assigned = await assignPhoneNumber(client, "answerline", NUMBER, "second");
+  await addPhoneNumber(client, SCOPE, "answerline", { agent: "first", number: NUMBER });
+  const assigned = await assignPhoneNumber(client, SCOPE, "answerline", NUMBER, "second");
 
   assert.equal(assigned.agent, "second");
   assert.equal(rules.length, 1);
   assert.equal(rules[0] && ruleAgent(rules[0]), "second");
   assert.equal(rules[0]?.rule?.rule.case, "dispatchRuleIndividual");
-  assert.equal((await listPhoneNumbers(client))[0]?.agent, "second");
+  assert.equal((await listPhoneNumbers(client, SCOPE))[0]?.agent, "second");
 });
 
 test("assign creates a dispatch rule for a trunk that has none", async () => {
   const { client, rules } = fakeClient();
   await client.createSipInboundTrunk("manual", [NUMBER]);
-  const assigned = await assignPhoneNumber(client, "answerline", NUMBER, "front-desk");
+  const assigned = await assignPhoneNumber(client, SCOPE, "answerline", NUMBER, "front-desk");
 
   assert.equal(rules.length, 1);
   assert.equal(assigned.dispatchRuleId, rules[0]?.sipDispatchRuleId);
@@ -147,8 +151,11 @@ test("assign creates a dispatch rule for a trunk that has none", async () => {
 
 test("connect adds a new number and reassigns an existing one", async () => {
   const { client, rules, trunks } = fakeClient();
-  await connectPhoneNumber(client, "a", { agent: "first", number: NUMBER });
-  const connected = await connectPhoneNumber(client, "a", { agent: "second", number: NUMBER });
+  await connectPhoneNumber(client, SCOPE, "a", { agent: "first", number: NUMBER });
+  const connected = await connectPhoneNumber(client, SCOPE, "a", {
+    agent: "second",
+    number: NUMBER,
+  });
 
   assert.equal(trunks.length, 1);
   assert.equal(rules.length, 1);
@@ -157,19 +164,19 @@ test("connect adds a new number and reassigns an existing one", async () => {
 
 test("remove deletes the rule and trunk", async () => {
   const { client, rules, trunks } = fakeClient();
-  await addPhoneNumber(client, "a", { agent: "x", number: NUMBER });
-  await removePhoneNumber(client, NUMBER);
+  await addPhoneNumber(client, SCOPE, "a", { agent: "x", number: NUMBER });
+  await removePhoneNumber(client, SCOPE, NUMBER);
   assert.equal(rules.length, 0);
   assert.equal(trunks.length, 0);
-  await assert.rejects(removePhoneNumber(client, NUMBER), NOT_CONNECTED);
+  await assert.rejects(removePhoneNumber(client, SCOPE, NUMBER), NOT_CONNECTED);
 });
 
 test("numbers sharing a trunk are listed but not changed", async () => {
   const { client, trunks } = fakeClient();
   await client.createSipInboundTrunk("shared", [NUMBER, "+15557654321"]);
-  assert.equal((await listPhoneNumbers(client)).length, 2);
-  await assert.rejects(removePhoneNumber(client, NUMBER), SHARED);
-  await assert.rejects(assignPhoneNumber(client, "a", NUMBER, "x"), SHARED);
+  assert.equal((await listPhoneNumbers(client, SCOPE)).length, 2);
+  await assert.rejects(removePhoneNumber(client, SCOPE, NUMBER), SHARED);
+  await assert.rejects(assignPhoneNumber(client, SCOPE, "a", NUMBER, "x"), SHARED);
   assert.equal(trunks.length, 1);
 });
 
@@ -184,4 +191,102 @@ test("ruleAgent ignores dispatches without an agent slug", () => {
   });
   assert.equal(ruleAgent(rule), "desk");
   assert.equal(ruleAgent(new SIPDispatchRuleInfo()), null);
+});
+
+test("workspace SIP lists and dispatches remain separate with identical agent slugs", async () => {
+  const { client, rules, trunks } = fakeClient();
+  const second = { legacyTenant: "default", tenant: "second" };
+  const own = await addPhoneNumber(client, SCOPE, "answerline", { agent: "desk", number: NUMBER });
+  const foreign = await addPhoneNumber(client, second, "answerline", {
+    agent: "desk",
+    number: "+15557654321",
+  });
+  assert.deepEqual(await listPhoneNumbers(client, SCOPE), [own]);
+  assert.deepEqual(await listPhoneNumbers(client, second), [foreign]);
+  assert.deepEqual(
+    trunks.map((trunk) => JSON.parse(trunk.metadata)),
+    [{ tenant: "default" }, { tenant: "second" }]
+  );
+  assert.deepEqual(
+    rules.map((rule) => JSON.parse(rule.roomConfig?.agents[0]?.metadata ?? "")),
+    [
+      { agent: "desk", tenant: "default" },
+      { agent: "desk", tenant: "second" },
+    ]
+  );
+  const before = rules.map((rule) => rule.toJson());
+  await assert.rejects(
+    assignPhoneNumber(client, second, "answerline", NUMBER, "guessed"),
+    NOT_CONNECTED
+  );
+  await assert.rejects(removePhoneNumber(client, second, NUMBER), NOT_CONNECTED);
+  await assert.rejects(
+    connectPhoneNumber(client, second, "answerline", { agent: "desk", number: NUMBER }),
+    ALREADY_CONNECTED
+  );
+  await assert.rejects(
+    addPhoneNumber(client, second, "answerline", { agent: "desk", number: NUMBER }),
+    ALREADY_CONNECTED
+  );
+  assert.deepEqual(
+    rules.map((rule) => rule.toJson()),
+    before
+  );
+  assert.equal(trunks.length, 2);
+});
+
+test("untagged legacy trunks belong only to the configured deployment workspace", async () => {
+  const { client } = fakeClient();
+  const deployment = { legacyTenant: "deployment", tenant: "deployment" };
+  const other = { legacyTenant: "deployment", tenant: "default" };
+  await client.createSipInboundTrunk("legacy", [NUMBER]);
+  assert.equal((await listPhoneNumbers(client, deployment)).length, 1);
+  assert.deepEqual(await listPhoneNumbers(client, other), []);
+  await assert.rejects(removePhoneNumber(client, other, NUMBER), NOT_CONNECTED);
+  await assignPhoneNumber(client, deployment, "answerline", NUMBER, "desk");
+  assert.equal((await listPhoneNumbers(client, deployment))[0]?.agent, "desk");
+});
+
+test("a dispatch rule shared with a foreign workspace blocks mutations globally", async () => {
+  const { client, rules } = fakeClient();
+  await addPhoneNumber(client, SCOPE, "answerline", { agent: "desk", number: NUMBER });
+  const foreign = await client.createSipInboundTrunk("foreign", ["+15557654321"], {
+    metadata: JSON.stringify({ tenant: "second" }),
+  });
+  const [rule] = rules;
+  assert.ok(rule);
+  rule.trunkIds.push(foreign.sipTrunkId);
+  assert.equal((await listPhoneNumbers(client, SCOPE)).length, 1);
+  await assert.rejects(removePhoneNumber(client, SCOPE, NUMBER), SHARED);
+  await assert.rejects(assignPhoneNumber(client, SCOPE, "answerline", NUMBER, "other"), SHARED);
+  assert.equal(rules.length, 1);
+});
+
+test("malformed ownership tags and conflicting rule ownership are never adopted", async () => {
+  const { client, trunks, rules } = fakeClient();
+  await addPhoneNumber(client, SCOPE, "answerline", { agent: "desk", number: NUMBER });
+  const [trunk] = trunks;
+  const [rule] = rules;
+  assert.ok(trunk && rule);
+  trunk.metadata = "not-json";
+  assert.deepEqual(await listPhoneNumbers(client, SCOPE), []);
+  await assert.rejects(removePhoneNumber(client, SCOPE, NUMBER), NOT_CONNECTED);
+  trunk.metadata = JSON.stringify({ tenant: "default" });
+  rule.metadata = JSON.stringify({ tenant: "second" });
+  assert.equal((await listPhoneNumbers(client, SCOPE))[0]?.agent, null);
+  await assert.rejects(assignPhoneNumber(client, SCOPE, "answerline", NUMBER, "other"), SHARED);
+});
+
+test("untagged dispatch rules mixing legacy and explicit workspaces cannot be changed", async () => {
+  const { client, rules } = fakeClient();
+  const scope = { legacyTenant: "default", tenant: "second" };
+  await addPhoneNumber(client, scope, "answerline", { agent: "desk", number: NUMBER });
+  const [rule] = rules;
+  assert.ok(rule?.roomConfig);
+  rule.metadata = "";
+  rule.roomConfig.agents.push(
+    new RoomAgentDispatch({ agentName: "legacy", metadata: JSON.stringify({ agent: "legacy" }) })
+  );
+  assert.equal((await listPhoneNumbers(client, scope))[0]?.agent, null);
+  await assert.rejects(removePhoneNumber(client, scope, NUMBER), SHARED);
 });

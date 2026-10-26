@@ -107,12 +107,18 @@ async def _scenario() -> None:
             agent_id,
             room,
         )
-        settings = Settings(database_url=DATABASE_URL, tenant=tenant)
-        assert await open_booking_provider(config, settings, "missing", room) is None
+        settings = Settings(database_url=DATABASE_URL, tenant="deployment")
         assert (
-            await open_booking_provider(agent_config("cal_com"), settings, "clinic", room) is None
+            await open_booking_provider(config, settings, "missing", room, tenant_slug=tenant)
+            is None
         )
-        provider = await open_booking_provider(config, settings, "clinic", room)
+        assert (
+            await open_booking_provider(
+                agent_config("cal_com"), settings, "clinic", room, tenant_slug=tenant
+            )
+            is None
+        )
+        provider = await open_booking_provider(config, settings, "clinic", room, tenant_slug=tenant)
         assert provider is not None
         monday = (utc("2026-10-26T00:00"), utc("2026-10-27T00:00"))
         assert len(await provider.availability(*monday)) == 4

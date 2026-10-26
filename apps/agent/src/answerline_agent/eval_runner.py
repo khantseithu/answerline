@@ -174,7 +174,9 @@ async def _build_live_tools(
         )
         if publisher:
             closers.append(publisher.close)
-        booking = await open_booking_provider(config, settings, agent_slug, room_name)
+        booking = await open_booking_provider(
+            config, settings, agent_slug, room_name, tenant_slug=tenant_slug
+        )
         if booking:
             closers.append(booking.close)
         if any(isinstance(spec, BookAppointmentTool) for spec in config.tools) and booking is None:
@@ -200,7 +202,9 @@ async def _build_live_tools(
             transfer=_MockTransfer() if transfer_specs else None,
             ensure_voicemail=after_hours.takes_voicemail,
         )
-        knowledge = await open_knowledge_tools(settings, agent_slug, ToolLog())
+        knowledge = await open_knowledge_tools(
+            settings, agent_slug, ToolLog(), tenant_slug=tenant_slug
+        )
         if knowledge:
             closers.append(knowledge.close)
             tools.extend(knowledge.tools)

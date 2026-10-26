@@ -12,6 +12,7 @@ test("token joins a fresh room and dispatches the agent with its slug", async ()
     apiKey: "devkey",
     apiSecret: "secret-secret-secret-secret-secret",
     serverUrl: "ws://localhost:7880",
+    tenantSlug: "workspace-two",
   });
   const claims = await new TokenVerifier("devkey", "secret-secret-secret-secret-secret").verify(
     details.participantToken
@@ -22,7 +23,12 @@ test("token joins a fresh room and dispatches the agent with its slug", async ()
   assert.equal(claims.video?.roomJoin, true);
   assert.deepEqual(
     claims.roomConfig?.agents?.map((a) => ({ agentName: a.agentName, metadata: a.metadata })),
-    [{ agentName: "answerline-wt2", metadata: JSON.stringify({ agent: "bright-smile-dental" }) }]
+    [
+      {
+        agentName: "answerline-wt2",
+        metadata: JSON.stringify({ agent: "bright-smile-dental", tenant: "workspace-two" }),
+      },
+    ]
   );
 });
 
@@ -30,4 +36,29 @@ test("agent slug pattern rejects unsafe values", () => {
   assert.ok(AGENT_SLUG_PATTERN.test("bright-smile-dental"));
   assert.ok(!AGENT_SLUG_PATTERN.test("../etc"));
   assert.ok(!AGENT_SLUG_PATTERN.test("Bright Smile"));
+});
+
+test("identical agent slugs dispatch to distinct workspaces", async () => {
+  const claims = await Promise.all(
+    ["first", "second"].map(async (tenantSlug) => {
+      const details = await createCallToken({
+        agentName: "answerline",
+        agentSlug: "desk",
+        apiKey: "devkey",
+        apiSecret: "secret-secret-secret-secret-secret",
+        serverUrl: "ws://localhost:7880",
+        tenantSlug,
+      });
+      return new TokenVerifier("devkey", "secret-secret-secret-secret-secret").verify(
+        details.participantToken
+      );
+    })
+  );
+  assert.deepEqual(
+    claims.map((claim) => JSON.parse(claim.roomConfig?.agents?.[0]?.metadata ?? "")),
+    [
+      { agent: "desk", tenant: "first" },
+      { agent: "desk", tenant: "second" },
+    ]
+  );
 });

@@ -42,7 +42,7 @@ async def entrypoint(ctx: JobContext) -> None:
     ctx.log_context_fields = {"room": ctx.room.name}
     resolved = await resolve_agent(ctx.job.metadata, settings)
     config = resolved.config
-    trace_provider = configure_tracing(settings, ctx.room.name, resolved.slug)
+    trace_provider = configure_tracing(settings, ctx.room.name, resolved.slug, resolved.tenant)
     if trace_provider is not None:
 
         async def flush_trace() -> None:
@@ -51,7 +51,9 @@ async def entrypoint(ctx: JobContext) -> None:
         ctx.add_shutdown_callback(flush_trace)
     agent_type = TracedAgent if trace_provider is not None else Agent
     publisher = CallEventPublisher(settings.redis_url, settings.redis_prefix)
-    booking = await open_booking_provider(config, settings, resolved.slug, ctx.room.name)
+    booking = await open_booking_provider(
+        config, settings, resolved.slug, ctx.room.name, tenant_slug=resolved.tenant
+    )
     if booking:
         ctx.add_shutdown_callback(lambda _reason: booking.close())
     transfer_spec = next(
@@ -64,7 +66,7 @@ async def entrypoint(ctx: JobContext) -> None:
         settings,
         lead_context=LeadCaptureContext(
             publisher=publisher,
-            tenant=settings.tenant,
+            tenant=resolved.tenant,
             agent=resolved.slug,
             room_name=ctx.room.name,
         ),
@@ -81,15 +83,17 @@ async def entrypoint(ctx: JobContext) -> None:
         user_away_timeout=settings.idle_timeout_seconds or None,
     )
     tool_log = ToolLog()
-    knowledge = await open_knowledge_tools(settings, resolved.slug, tool_log)
+    knowledge = await open_knowledge_tools(
+        settings, resolved.slug, tool_log, tenant_slug=resolved.tenant
+    )
     if knowledge:
         ctx.add_shutdown_callback(lambda _reason: knowledge.close())
-    recording = build_call_recording(ctx, config, settings.tenant)
+    recording = build_call_recording(ctx, config, resolved.tenant)
     events = CallSessionEvents(
         session=session,
         publisher=publisher,
         room_name=ctx.room.name,
-        tenant=settings.tenant,
+        tenant=resolved.tenant,
         agent=resolved.slug,
         recording_url=(lambda: recording.url) if recording else None,
         recording_started_at=(lambda: recording.started_at) if recording else None,

@@ -3,6 +3,7 @@ import {
   assignPhoneNumber,
   listPhoneNumbers,
   type PhoneNumberClient,
+  type PhoneNumberScope,
   removePhoneNumber,
 } from "@answerline/worker/phone-numbers";
 import { z } from "zod";
@@ -13,7 +14,7 @@ export class PhoneNumberNotFoundError extends Error {}
 export class PhoneNumberBadRequestError extends Error {}
 export class PhoneNumberUnavailableError extends Error {}
 
-export interface PhoneNumberDeps {
+export interface PhoneNumberDeps extends PhoneNumberScope {
   agentName: string;
   client: PhoneNumberClient;
   listAgents: () => Promise<AgentOption[]>;
@@ -52,7 +53,7 @@ async function requireAgent(deps: PhoneNumberDeps, slug: string) {
 export async function listPhoneNumberView(deps: PhoneNumberDeps): Promise<PhoneNumberList> {
   const [agents, numbers] = await Promise.all([
     deps.listAgents(),
-    livekit(() => listPhoneNumbers(deps.client)),
+    livekit(() => listPhoneNumbers(deps.client, deps)),
   ]);
   return { agents, numbers: numbers.map(({ agent, number }) => ({ agent, number })) };
 }
@@ -62,16 +63,20 @@ export async function connectPhoneNumber(
   input: { agent: string; number: string }
 ) {
   await requireAgent(deps, input.agent);
-  const { agent, number } = await livekit(() => addPhoneNumber(deps.client, deps.agentName, input));
+  const { agent, number } = await livekit(() =>
+    addPhoneNumber(deps.client, deps, deps.agentName, input)
+  );
   return { agent, number };
 }
 
 export async function reassignPhoneNumber(deps: PhoneNumberDeps, number: string, agent: string) {
   await requireAgent(deps, agent);
-  const result = await livekit(() => assignPhoneNumber(deps.client, deps.agentName, number, agent));
+  const result = await livekit(() =>
+    assignPhoneNumber(deps.client, deps, deps.agentName, number, agent)
+  );
   return { agent: result.agent, number: result.number };
 }
 
 export async function disconnectPhoneNumber(deps: PhoneNumberDeps, number: string) {
-  await livekit(() => removePhoneNumber(deps.client, number));
+  await livekit(() => removePhoneNumber(deps.client, deps, number));
 }

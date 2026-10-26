@@ -12,7 +12,9 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from .settings import Settings
 
 
-def configure_tracing(settings: Settings, room_name: str, agent_slug: str) -> TracerProvider | None:
+def configure_tracing(
+    settings: Settings, room_name: str, agent_slug: str, tenant_slug: str
+) -> TracerProvider | None:
     endpoint = settings.otel_exporter_otlp_traces_endpoint
     if endpoint is None and settings.otel_exporter_otlp_endpoint is not None:
         endpoint = f"{str(settings.otel_exporter_otlp_endpoint).rstrip('/')}/v1/traces"
@@ -31,7 +33,7 @@ def configure_tracing(settings: Settings, room_name: str, agent_slug: str) -> Tr
         allow_pii=False,
         metadata={
             "answerline.room": room_name,
-            "answerline.tenant": settings.tenant,
+            "answerline.tenant": tenant_slug,
             "answerline.agent": agent_slug,
         },
     )
