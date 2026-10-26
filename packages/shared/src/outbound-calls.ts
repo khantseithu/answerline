@@ -5,7 +5,6 @@ const phoneNumberSchema = z.string().regex(/^\+[1-9]\d{6,14}$/);
 
 export const outboundCallRequestSchema = z.object({
   agent: agentSlugSchema,
-  fromNumber: phoneNumberSchema.optional(),
   toNumber: phoneNumberSchema,
 });
 
