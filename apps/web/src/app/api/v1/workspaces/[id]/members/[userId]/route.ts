@@ -1,15 +1,15 @@
 import { workspaceHandlers } from "@/lib/workspaces/context";
 export async function PATCH(
   request: Request,
-  { params }: { params: Promise<{ id: string; userId: string }> }
+  ctx: RouteContext<"/api/v1/workspaces/[id]/members/[userId]">
 ) {
-  const { id, userId } = await params;
+  const { id, userId } = await ctx.params;
   return workspaceHandlers.member(request, id, userId);
 }
 export async function DELETE(
-  _request: Request,
-  { params }: { params: Promise<{ id: string; userId: string }> }
+  request: Request,
+  ctx: RouteContext<"/api/v1/workspaces/[id]/members/[userId]">
 ) {
-  const { id, userId } = await params;
-  return workspaceHandlers.removeMember(id, userId);
+  const { id, userId } = await ctx.params;
+  return workspaceHandlers.removeMember(request, id, userId);
 }

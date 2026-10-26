@@ -59,6 +59,16 @@ export function workspaceErrorResponse(error: unknown) {
   return Response.json({ error: "Internal server error" }, { headers: noStore, status: 500 });
 }
 
+function requireTrustedOrigin(request: Request, trustedOrigin: string) {
+  const origin = request.headers.get("origin");
+  if (
+    request.headers.get("sec-fetch-site") === "cross-site" ||
+    origin !== new URL(trustedOrigin).origin
+  ) {
+    throw new DashboardForbiddenError("Cross-origin requests are not allowed");
+  }
+}
+
 async function readJson(request: Request, trustedOrigin: string, requireOrigin = false) {
   const origin = request.headers.get("origin");
   if (
@@ -118,10 +128,16 @@ export function createWorkspaceHandlers(
       respond(async () =>
         getWorkspaceInvitation(getPublicDeps().db, (await input(request, true)).token)
       ),
-    removeMember: (tenantId: string, userId: string) =>
-      respond(async () => removeWorkspaceMember(await getDeps(), tenantId, userId), 204),
-    revoke: (tenantId: string, invitationId: string) =>
-      respond(async () => revokeWorkspaceInvitation(await getDeps(), tenantId, invitationId), 204),
+    removeMember: (request: Request, tenantId: string, userId: string) =>
+      respond(async () => {
+        requireTrustedOrigin(request, getPublicDeps().trustedOrigin);
+        return removeWorkspaceMember(await getDeps(), tenantId, userId);
+      }, 204),
+    revoke: (request: Request, tenantId: string, invitationId: string) =>
+      respond(async () => {
+        requireTrustedOrigin(request, getPublicDeps().trustedOrigin);
+        return revokeWorkspaceInvitation(await getDeps(), tenantId, invitationId);
+      }, 204),
     settings: (tenantId: string) =>
       respond(async () => getWorkspaceSettings(await getDeps(), tenantId)),
     signup: (request: Request) =>

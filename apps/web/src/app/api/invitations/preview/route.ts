@@ -1,3 +1,5 @@
 import { workspaceHandlers } from "@/lib/workspaces/context";
 
-export const POST = workspaceHandlers.preview;
+export function POST(request: Request) {
+  return workspaceHandlers.preview(request);
+}

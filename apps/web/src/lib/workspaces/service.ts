@@ -48,8 +48,9 @@ function sessionFilter(deps: WorkspaceDeps) {
   );
 }
 
-async function requireSession(tx: Transaction, deps: WorkspaceDeps) {
-  const [session] = await tx.select().from(sessions).where(sessionFilter(deps)).for("update");
+async function requireSession(tx: Transaction, deps: WorkspaceDeps, lock = false) {
+  const query = tx.select().from(sessions).where(sessionFilter(deps));
+  const [session] = lock ? await query.for("update") : await query;
   if (!session) {
     throw new DashboardAuthError();
   }
@@ -88,23 +89,27 @@ export function listWorkspaces(deps: WorkspaceDeps) {
 export function resolveActiveWorkspace(deps: WorkspaceDeps) {
   return deps.db.transaction(async (tx) => {
     const session = await requireSession(tx, deps);
-    const [workspace] = await tx
-      .select(workspaceSelection)
-      .from(workspaceMembers)
-      .innerJoin(tenants, eq(tenants.id, workspaceMembers.tenantId))
-      .where(
-        and(
-          eq(workspaceMembers.userId, deps.user.id),
-          session.activeTenantId ? eq(tenants.id, session.activeTenantId) : undefined
-        )
-      )
-      .orderBy(asc(workspaceMembers.createdAt), asc(tenants.name))
-      .limit(1);
+    const [selectedWorkspace] = session.activeTenantId
+      ? await tx
+          .select(workspaceSelection)
+          .from(workspaceMembers)
+          .innerJoin(tenants, eq(tenants.id, workspaceMembers.tenantId))
+          .where(
+            and(eq(workspaceMembers.userId, deps.user.id), eq(tenants.id, session.activeTenantId))
+          )
+          .limit(1)
+      : [];
+    const [workspace] = selectedWorkspace
+      ? [selectedWorkspace]
+      : await tx
+          .select(workspaceSelection)
+          .from(workspaceMembers)
+          .innerJoin(tenants, eq(tenants.id, workspaceMembers.tenantId))
+          .where(eq(workspaceMembers.userId, deps.user.id))
+          .orderBy(asc(workspaceMembers.createdAt), asc(tenants.name))
+          .limit(1);
     if (!workspace) {
       throw new WorkspaceRequiredError("Choose or create a workspace to continue");
-    }
-    if (!session.activeTenantId) {
-      await tx.update(sessions).set({ activeTenantId: workspace.id }).where(sessionFilter(deps));
     }
     return workspace;
   });
@@ -114,7 +119,7 @@ export async function createWorkspace(deps: WorkspaceDeps, rawInput: unknown) {
   const input = createWorkspaceSchema.parse(rawInput);
   try {
     return await deps.db.transaction(async (tx) => {
-      await requireSession(tx, deps);
+      await requireSession(tx, deps, true);
       const [workspace] = await tx.insert(tenants).values(input).returning();
       if (!workspace) {
         throw new Error("Workspace creation returned no row");
@@ -141,7 +146,7 @@ export async function createWorkspace(deps: WorkspaceDeps, rawInput: unknown) {
 export function switchWorkspace(deps: WorkspaceDeps, rawInput: unknown) {
   const { workspaceId } = switchWorkspaceSchema.parse(rawInput);
   return deps.db.transaction(async (tx) => {
-    await requireSession(tx, deps);
+    await requireSession(tx, deps, true);
     const [workspace] = await tx
       .select(workspaceSelection)
       .from(workspaceMembers)
@@ -155,9 +160,15 @@ export function switchWorkspace(deps: WorkspaceDeps, rawInput: unknown) {
   });
 }
 
-async function lockOwnerWorkspace(tx: Transaction, deps: WorkspaceDeps, tenantId: string) {
-  await requireSession(tx, deps);
-  const [workspace] = await tx.select().from(tenants).where(eq(tenants.id, tenantId)).for("update");
+async function requireOwnerWorkspace(
+  tx: Transaction,
+  deps: WorkspaceDeps,
+  tenantId: string,
+  lock = false
+) {
+  await requireSession(tx, deps, lock);
+  const query = tx.select().from(tenants).where(eq(tenants.id, tenantId));
+  const [workspace] = lock ? await query.for("update") : await query;
   if (!workspace) {
     throw new WorkspaceNotFoundError("Workspace not found");
   }
@@ -172,10 +183,14 @@ async function lockOwnerWorkspace(tx: Transaction, deps: WorkspaceDeps, tenantId
   return workspace;
 }
 
+function lockOwnerWorkspace(tx: Transaction, deps: WorkspaceDeps, tenantId: string) {
+  return requireOwnerWorkspace(tx, deps, tenantId, true);
+}
+
 export function getWorkspaceSettings(deps: WorkspaceDeps, rawTenantId: string) {
   const tenantId = workspaceIdSchema.parse(rawTenantId);
   return deps.db.transaction(async (tx) => {
-    const workspace = await lockOwnerWorkspace(tx, deps, tenantId);
+    const workspace = await requireOwnerWorkspace(tx, deps, tenantId);
     const members = await tx
       .select({
         email: users.email,
@@ -302,6 +317,20 @@ export function inviteWorkspaceMember(
     if (existing) {
       throw new WorkspaceConflictError("This person is already a workspace member");
     }
+    const [pendingInvitation] = await tx
+      .select({ id: workspaceInvitations.id })
+      .from(workspaceInvitations)
+      .where(
+        and(
+          eq(workspaceInvitations.tenantId, tenantId),
+          eq(workspaceInvitations.email, input.email),
+          isNull(workspaceInvitations.acceptedAt),
+          gt(workspaceInvitations.expiresAt, new Date())
+        )
+      );
+    if (pendingInvitation) {
+      throw new WorkspaceConflictError("An invitation is already pending for this email");
+    }
     const [invite] = await tx
       .insert(workspaceInvitations)
       .values({
@@ -407,7 +436,7 @@ async function lockInvitation(tx: Transaction, hash: string) {
 export function acceptWorkspaceInvitation(deps: WorkspaceDeps, rawInput: unknown) {
   const { token } = acceptWorkspaceInvitationSchema.parse(rawInput);
   return deps.db.transaction(async (tx) => {
-    await requireSession(tx, deps);
+    await requireSession(tx, deps, true);
     const invite = await lockInvitation(tx, tokenHash(token));
     if (deps.user.email.toLowerCase() !== invite.email) {
       throw new DashboardForbiddenError(

@@ -152,13 +152,14 @@ test(
 );
 
 test(
-  "workspace settings are owner-only and membership revocation invalidates active context",
+  "workspace settings are owner-only and removed members fall back to another workspace",
   { skip },
   () =>
     withHarness(async ({ db, user, workspace, handlers }) => {
       const owner = await user("owner");
       const target = await workspace(owner, "clinic");
       const admin = await user("admin");
+      const otherWorkspace = await workspace(admin, "other");
       await db
         .insert(workspaceMembers)
         .values({ role: "admin", tenantId: target.id, userId: admin.user.id });
@@ -181,7 +182,7 @@ test(
       await updateWorkspace(owner, target.id, { name: "Renamed clinic" });
       assert.equal((await getWorkspaceSettings(owner, target.id)).workspace.name, "Renamed clinic");
       await removeWorkspaceMember(owner, target.id, admin.user.id);
-      await assert.rejects(resolveActiveWorkspace(admin), WorkspaceRequiredError);
+      assert.equal((await resolveActiveWorkspace(admin)).id, otherWorkspace.id);
     })
 );
 
@@ -287,6 +288,15 @@ test(
         .where(eq(workspaceInvitations.id, created.id));
       assert.equal(stored?.tokenHash, createHash("sha256").update(token).digest("hex"));
       assert.notEqual(stored?.tokenHash, token);
+      await assert.rejects(
+        inviteWorkspaceMember(
+          owner,
+          target.id,
+          { email: email("invitee"), role: "viewer" },
+          origin
+        ),
+        WorkspaceConflictError
+      );
       assert.equal((await getWorkspaceInvitation(db, token)).accountExists, true);
       assert.equal((await handlers(owner).accept(request({ token }))).status, 403);
       const results = await Promise.all([
@@ -301,6 +311,59 @@ test(
       assert.deepEqual(settings.invitations, []);
       assert.ok(settings.members.some((member) => member.userId === invitee.user.id));
     })
+);
+
+test("workspace DELETE operations require the trusted origin", { skip }, () =>
+  withHarness(async ({ db, user, workspace, handlers, email }) => {
+    const owner = await user("owner");
+    const target = await workspace(owner, "clinic");
+    const member = await user("member");
+    await db
+      .insert(workspaceMembers)
+      .values({ role: "viewer", tenantId: target.id, userId: member.user.id });
+    const invitation = await inviteWorkspaceMember(
+      owner,
+      target.id,
+      { email: email("invitee"), role: "viewer" },
+      origin
+    );
+    const requestWithOrigin = (path: string, requestOrigin?: string) =>
+      new Request(`${origin}${path}`, {
+        headers: requestOrigin ? { origin: requestOrigin } : undefined,
+        method: "DELETE",
+      });
+    const api = handlers(owner);
+    const memberPath = `/api/v1/workspaces/${target.id}/members/${member.user.id}`;
+    const invitationPath = `/api/v1/workspaces/${target.id}/invitations/${invitation.id}`;
+    assert.equal(
+      (await api.removeMember(requestWithOrigin(memberPath), target.id, member.user.id)).status,
+      403
+    );
+    assert.equal(
+      (
+        await api.removeMember(
+          requestWithOrigin(memberPath, "https://other.example"),
+          target.id,
+          member.user.id
+        )
+      ).status,
+      403
+    );
+    assert.equal(
+      (await api.revoke(requestWithOrigin(invitationPath), target.id, invitation.id)).status,
+      403
+    );
+    assert.equal(
+      (await api.removeMember(requestWithOrigin(memberPath, origin), target.id, member.user.id))
+        .status,
+      204
+    );
+    assert.equal(
+      (await api.revoke(requestWithOrigin(invitationPath, origin), target.id, invitation.id))
+        .status,
+      204
+    );
+  })
 );
 
 test("invitation previews require the trusted origin", { skip }, () =>
