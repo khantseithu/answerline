@@ -247,7 +247,7 @@ Roadmap: *Outbound calls and webhooks*
 - [x] Shared `calls:write` API key scope (#302)
 - [x] Shared outbound call request/response contracts (#306)
 - [x] Use trunk caller ID by default for workspace isolation (#308)
-- [ ] `POST /api/v1/calls` starts an outbound call (create room, dispatch agent, create SIP participant)
+- [x] `POST /api/v1/calls` starts an outbound call (create room, dispatch agent, create SIP participant)
 - [ ] Outbound-specific config: first message, voicemail detection (AMD), retry policy, calling-hours guard
 - [ ] Webhooks: endpoints per workspace, event subscriptions, HMAC signatures, retries with backoff, delivery log and replay
 - [ ] Events: `call.started`, `call.ended`, `booking.created` (+ `lead.created`, `eval.completed`)
