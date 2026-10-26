@@ -1,5 +1,5 @@
-import { type Database, providerCredentials } from "@answerline/db";
-import { decryptProviderCredential, encryptProviderCredential } from "@answerline/llm";
+import { providerCredentials } from "@answerline/db";
+import { encryptProviderCredential } from "@answerline/llm";
 import {
   type ProviderCredentialProvider,
   providerCredentialProviderSchema,
@@ -65,27 +65,6 @@ export function deleteProviderCredential(
         and(eq(providerCredentials.tenantId, tenantId), eq(providerCredentials.provider, provider))
       );
   });
-}
-
-export async function getProviderCredential(
-  db: Database,
-  tenantId: string,
-  provider: ProviderCredentialProvider,
-  key?: string
-) {
-  const [credential] = await db
-    .select({ encryptedKey: providerCredentials.encryptedKey })
-    .from(providerCredentials)
-    .where(
-      and(
-        eq(providerCredentials.tenantId, workspaceIdSchema.parse(tenantId)),
-        eq(providerCredentials.provider, provider)
-      )
-    )
-    .limit(1);
-  return credential
-    ? decryptProviderCredential(credential.encryptedKey, key ?? encryptionKey())
-    : undefined;
 }
 
 export function deploymentProviderKey(
