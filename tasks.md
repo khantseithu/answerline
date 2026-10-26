@@ -232,8 +232,8 @@ Roadmap: *Multi-tenant workspaces and API keys*
   - [x] Define hashed workspace API key persistence (#289)
 - [x] REST API v1: calls (list, get), agents (CRUD), knowledge (CRUD), evals (run, get) (#108)
 - [x] OpenAPI spec generated from Zod, served at `/api/docs` (#109)
-- [ ] Rate limiting per key (Redis)
-- [ ] Per-tenant provider keys and usage limits
+- [x] Rate limiting per key (Redis) (#110)
+- [x] Per-tenant provider keys and usage limits (#111)
 
 **Done when:** two workspaces run separate agents from one deployment with no data leaking across them, and the README `curl` examples work.
 

@@ -286,7 +286,7 @@ answerline/
 - [ ] Evals runner
 - [ ] Docker Compose and Coolify deploys
 - [ ] Terraform modules for Azure and AWS
-- [ ] Multi-tenant workspaces and API keys
+- [x] Multi-tenant workspaces and API keys
 - [ ] Outbound calls and webhooks
 - [ ] Multilingual agents
 
