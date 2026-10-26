@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import { createDb } from "@answerline/db";
-import { type PostCallJob, QUEUES } from "@answerline/shared";
+import { type PostCallJob, QUEUES, type WebhookDeliveryJob } from "@answerline/shared";
 import { type Job, Queue, Worker } from "bullmq";
 import { createCallEventProcessor } from "./call-events.ts";
 import { env } from "./env.ts";
@@ -8,6 +8,7 @@ import { createEvalProcessor } from "./evals.ts";
 import { createIngestionProcessor, createKnowledgeEmbedderFactory } from "./ingestion.ts";
 import { createPostCallProcessor } from "./post-call.ts";
 import { createRedis } from "./redis.ts";
+import { createWebhookDeliveryProcessor } from "./webhooks.ts";
 
 if (!env.DATABASE_URL) {
   throw new Error(`DATABASE_URL is required to process the ${QUEUES.callEvents} queue`);
@@ -19,9 +20,17 @@ const postCallQueue = new Queue<PostCallJob>(QUEUES.postCall, {
   connection,
   prefix: env.REDIS_PREFIX,
 });
+const webhookQueue = new Queue<WebhookDeliveryJob>(QUEUES.webhookDeliveries, {
+  connection,
+  prefix: env.REDIS_PREFIX,
+});
 
 const handlers: Record<string, (job: Job) => Promise<void> | void> = {
-  [QUEUES.callEvents]: createCallEventProcessor(db, { postCallQueue }),
+  [QUEUES.callEvents]: createCallEventProcessor(db, {
+    postCallQueue,
+    webhookBaseUrl: env.BETTER_AUTH_URL,
+    webhookQueue,
+  }),
   [QUEUES.ingestion]: createIngestionProcessor(
     db,
     createKnowledgeEmbedderFactory(db, process.env),
@@ -30,6 +39,7 @@ const handlers: Record<string, (job: Job) => Promise<void> | void> = {
     }
   ),
   [QUEUES.postCall]: createPostCallProcessor(db),
+  [QUEUES.webhookDeliveries]: createWebhookDeliveryProcessor(db, env.PROVIDER_KEYS_ENCRYPTION_KEY),
   [QUEUES.evals]: createEvalProcessor(db),
 };
 
@@ -58,6 +68,7 @@ async function shutdown() {
   healthServer?.close();
   await Promise.all(workers.map((w) => w.close()));
   await postCallQueue.close();
+  await webhookQueue.close();
   await connection.quit();
   await db.$client.end();
   process.exit(0);

@@ -4,10 +4,12 @@ import type {
   EvalExecutionInput,
   ModelUsage,
   QuestionAnswerPairs,
+  WebhookEvent,
 } from "@answerline/shared";
 import {
   apiKeyScopeSchema,
   providerCredentialProviderSchema,
+  WEBHOOK_EVENT_TYPES,
   workspaceRoleSchema,
 } from "@answerline/shared";
 import { sql } from "drizzle-orm";
@@ -72,6 +74,12 @@ export const evalRunStatus = pgEnum("eval_run_status", [
   "queued",
   "running",
   "completed",
+  "failed",
+]);
+export const webhookEventType = pgEnum("webhook_event_type", WEBHOOK_EVENT_TYPES);
+export const webhookDeliveryStatus = pgEnum("webhook_delivery_status", [
+  "pending",
+  "delivered",
   "failed",
 ]);
 
@@ -511,4 +519,50 @@ export const evalResults = pgTable(
     transcript: jsonb().$type<{ role: "caller" | "agent"; text: string }[]>().notNull(),
   },
   (t) => [index().on(t.runId)]
+);
+
+export const webhookEndpoints = pgTable(
+  "webhook_endpoints",
+  {
+    createdAt: createdAt(),
+    deletedAt: timestamp({ withTimezone: true }),
+    enabled: boolean().notNull().default(true),
+    encryptedSecret: text().notNull(),
+    events: webhookEventType().array().notNull(),
+    id: id(),
+    name: text().notNull(),
+    tenantId: tenantId(),
+    updatedAt: updatedAt(),
+    url: text().notNull(),
+  },
+  (t) => [index().on(t.tenantId), unique().on(t.tenantId, t.id)]
+);
+
+export const webhookDeliveries = pgTable(
+  "webhook_deliveries",
+  {
+    attemptCount: integer().notNull().default(0),
+    createdAt: createdAt(),
+    deliveredAt: timestamp({ withTimezone: true }),
+    endpointId: uuid().notNull(),
+    eventId: text().notNull(),
+    eventType: webhookEventType().notNull(),
+    id: id(),
+    lastError: text(),
+    nextAttemptAt: timestamp({ withTimezone: true }),
+    payload: jsonb().$type<WebhookEvent>().notNull(),
+    replayCount: integer().notNull().default(0),
+    responseBody: text(),
+    responseStatus: integer(),
+    status: webhookDeliveryStatus().notNull().default("pending"),
+    tenantId: tenantId(),
+  },
+  (t) => [
+    index().on(t.tenantId, t.createdAt),
+    uniqueIndex().on(t.endpointId, t.eventId),
+    foreignKey({
+      columns: [t.tenantId, t.endpointId],
+      foreignColumns: [webhookEndpoints.tenantId, webhookEndpoints.id],
+    }).onDelete("cascade"),
+  ]
 );

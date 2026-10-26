@@ -37,6 +37,12 @@ test("the docs route serves an OpenAPI spec generated from the API Zod schemas",
   assert.equal(spec.paths["/api/v1/calls/{id}"].get.operationId, "getCall");
   assert.equal(spec.paths["/api/v1/knowledge"].post.operationId, "createKnowledgeSource");
   assert.equal(spec.paths["/api/v1/evals/{id}"].get.operationId, "getEvalRun");
+  assert.equal(spec.paths["/api/v1/webhooks"].post.operationId, "createWebhookEndpoint");
+  assert.equal(
+    spec.paths["/api/v1/webhooks/{id}/deliveries/{deliveryId}/replay"].post.operationId,
+    "replayWebhookDelivery"
+  );
+  assert.deepEqual(spec.paths["/api/v1/webhooks"].post.security, [{ sessionCookie: [] }]);
 
   const { $schema: _dialect, ...generatedCreateAgent } = z.toJSONSchema(createAgentSchema, {
     io: "input",

@@ -225,6 +225,7 @@ Node.js with BullMQ, run with `tsx`. [`src/index.ts`](../apps/worker/src/index.t
 | `ingestion` | [`ingestion.ts`](../apps/worker/src/ingestion.ts): loads, chunks, embeds through an injected function, and replaces changed sources |
 | `post-call` | Logs the job. **Planned** ([#78](https://github.com/khantseithu/answerline/issues/78)) |
 | `evals` | [`evals.ts`](../apps/worker/src/evals.ts): runs the saved execution snapshot, replaces per-case results transactionally, and records completion or a safe failure |
+| `webhook-deliveries` | [`webhooks.ts`](../apps/worker/src/webhooks.ts): signs event payloads and retries endpoint delivery with a bounded timeout |
 
 `enqueueIngestion` (exported as `@answerline/worker/ingestion`) queues a tenant-scoped source with three attempts and exponential backoff. Eval queue jobs carry run, agent, and tenant IDs; the CLI calls the same processor directly so its persisted run is visible to the dashboard.
 
@@ -342,8 +343,9 @@ erDiagram
 | `knowledge_chunks` | source, seq, content, citation metadata; `embedding vector(1536)` with an HNSW cosine index, `search` tsvector generated from `content` with a GIN index | worker ingestion |
 | `bookings` | agent/call references, name, phone, notes, provider, `external_id`, `starts_at`, `ends_at`, status (`confirmed`, `cancelled`); no overlapping confirmed bookings per agent | agent (native booking) |
 | `eval_runs`, `eval_results` | tenant/agent scoped snapshot, status/error, pass counts, latency, cost, per-case assertions and transcript | worker, dashboard |
+| `webhook_endpoints`, `webhook_deliveries` | workspace subscriptions, encrypted signing secret, event payload, retry state, bounded response details | dashboard, worker |
 
-Every table except `call_turns`, `tool_calls`, and `eval_results` carries `tenant_id` directly; those three inherit it through their parent. Users, API keys, and webhook tables are not in the schema yet ([#72](https://github.com/khantseithu/answerline/issues/72), [#107](https://github.com/khantseithu/answerline/issues/107), [#115](https://github.com/khantseithu/answerline/issues/115)). Recordings themselves live in object storage; Postgres stores only the `s3://` URL.
+Every table except `call_turns`, `tool_calls`, and `eval_results` carries `tenant_id` directly; those three inherit it through their parent. Webhook endpoints are owner-managed and secrets use the deployment encryption key. Event persistence creates one delivery row per subscribed endpoint and stable event ID before queueing signed HTTP delivery; BullMQ handles retries, and owners can inspect or replay delivery records ([setup and signature format](webhooks.md)). Recordings themselves live in object storage; Postgres stores only the `s3://` URL.
 
 ## Contracts and parity
 

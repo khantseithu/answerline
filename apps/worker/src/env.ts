@@ -3,6 +3,7 @@ import { embeddingEnvSchema, parseModelRef } from "@answerline/llm";
 import { z } from "zod";
 
 const envSchema = embeddingEnvSchema.extend({
+  BETTER_AUTH_URL: z.url({ protocol: /^https?$/ }).default("http://localhost:3000"),
   DATABASE_URL: z.url().optional(),
   KNOWLEDGE_FILES_DIR: z
     .string()
