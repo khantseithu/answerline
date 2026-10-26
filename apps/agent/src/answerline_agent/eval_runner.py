@@ -20,7 +20,7 @@ from .call_events import model_usage_lines, parse_tool_args
 from .capture_lead import LeadCaptureContext
 from .config import AgentConfig, BookAppointmentTool, HttpTool, McpTool, TransferCallTool
 from .knowledge_tool import QUERY_DESCRIPTION, TOOL_DESCRIPTION, open_knowledge_tools
-from .languages import language_instructions
+from .languages import language_instructions, stt_language
 from .native_booking import open_booking_provider
 from .prompts import compose_instructions
 from .providers import build_llm_chain, build_stt, build_tts
@@ -447,9 +447,9 @@ async def run_case(
         if mode == "audio":
             audio_output = _CapturedAudioOutput()
             stt_provider = (
-                build_stt(models.stt, provider_keys, language=config.language)
+                build_stt(models.stt, provider_keys, language=stt_language(config, config.language))
                 if provider_keys is not None
-                else build_stt(models.stt, language=config.language)
+                else build_stt(models.stt, language=stt_language(config, config.language))
             )
             tts_provider = (
                 build_tts(models.tts, provider_keys, language=config.language)

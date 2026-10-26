@@ -258,7 +258,7 @@ Roadmap: *Outbound calls and webhooks*
 Roadmap: *Multilingual agents*
 
 - [x] `language` drives STT, TTS voice, and turn-detection model choice (#117)
-- [ ] Auto language detection with per-call switching
+- [x] Auto language detection with per-call switching (#118)
 - [x] Per-language greetings and instructions (#119)
 - [ ] Multilingual KB retrieval (multilingual embeddings)
 - [ ] Eval suites in at least two non-English languages
