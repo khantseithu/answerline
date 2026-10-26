@@ -262,6 +262,7 @@ Roadmap: *Multilingual agents*
 - [x] Per-language greetings and instructions (#119)
 - [ ] Multilingual KB retrieval (multilingual embeddings)
 - [x] Eval suites in at least two non-English languages (#121)
+- [ ] Localized after-hours, wrap-up, and idle messages (#310)
 
 **Done when:** the dental agent handles a full Spanish call, including a booking.
 
