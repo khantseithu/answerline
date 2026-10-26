@@ -2,8 +2,11 @@ import { randomUUID } from "node:crypto";
 import { agents, calls, type Database, tenants } from "@answerline/db";
 import {
   callDispatchMetadataSchema,
+  isWithinCallingHours,
+  type OutboundDialJob,
   outboundCallRequestSchema,
   outboundCallResponseSchema,
+  outboundDialJobSchema,
 } from "@answerline/shared";
 import { and, eq, isNull } from "drizzle-orm";
 import { dashboardErrorResponse } from "@/lib/dashboard/errors";
@@ -12,9 +15,9 @@ import { assertWorkspaceUsageAvailable } from "@/lib/workspaces/usage";
 const noStore = { "Cache-Control": "no-store" };
 
 export class OutboundCallError extends Error {
-  readonly status: 404 | 502 | 503;
+  readonly status: 403 | 404 | 502 | 503;
 
-  constructor(message: string, status: 404 | 502 | 503) {
+  constructor(message: string, status: 403 | 404 | 502 | 503) {
     super(message);
     this.status = status;
   }
@@ -31,22 +34,14 @@ export interface OutboundCallDeps {
   };
   agentName: string;
   db: Database;
+  enqueueDial: (
+    job: OutboundDialJob,
+    options: { attempts: number; delayMs: number }
+  ) => Promise<unknown>;
   livekitTrunkId?: string;
   roomServiceClient: {
-    createRoom: (options: { name: string }) => Promise<unknown>;
+    createRoom: (options: { metadata?: string; name: string }) => Promise<unknown>;
     deleteRoom: (room: string) => Promise<void>;
-  };
-  sipClient: {
-    createSipParticipant: (
-      trunkId: string,
-      number: string,
-      roomName: string,
-      options?: {
-        participantAttributes?: Record<string, string>;
-        participantIdentity?: string;
-        participantName?: string;
-      }
-    ) => Promise<unknown>;
   };
   tenantId: string;
 }
@@ -69,7 +64,7 @@ export async function startOutboundCall(deps: OutboundCallDeps, input: unknown) 
   try {
     await assertWorkspaceUsageAvailable(deps.db, deps.tenantId);
     const [agent] = await deps.db
-      .select({ agentId: agents.id, tenantSlug: tenants.slug })
+      .select({ agentId: agents.id, config: agents.config, tenantSlug: tenants.slug })
       .from(agents)
       .innerJoin(tenants, eq(tenants.id, agents.tenantId))
       .where(
@@ -81,6 +76,13 @@ export async function startOutboundCall(deps: OutboundCallDeps, input: unknown) 
       );
     if (!agent) {
       throw new OutboundCallError("Agent not found", 404);
+    }
+    if (
+      agent.config.outbound?.respect_calling_hours !== false &&
+      agent.config.hours &&
+      !isWithinCallingHours(agent.config.hours)
+    ) {
+      throw new OutboundCallError("Outside configured calling hours", 403);
     }
 
     const callId = randomUUID();
@@ -100,7 +102,16 @@ export async function startOutboundCall(deps: OutboundCallDeps, input: unknown) 
     let roomCreated = false;
     let dispatchId: string | undefined;
     try {
-      await deps.roomServiceClient.createRoom({ name: roomName });
+      await deps.roomServiceClient.createRoom({
+        metadata: JSON.stringify({
+          answerline: {
+            answering_machine_detection:
+              agent.config.outbound?.answering_machine_detection ?? false,
+            direction: "outbound",
+          },
+        }),
+        name: roomName,
+      });
       roomCreated = true;
       const dispatch = await deps.agentDispatchClient.createDispatch(roomName, deps.agentName, {
         metadata: JSON.stringify(
@@ -108,16 +119,18 @@ export async function startOutboundCall(deps: OutboundCallDeps, input: unknown) 
         ),
       });
       dispatchId = dispatch.id;
-      await deps.sipClient.createSipParticipant(
-        deps.livekitTrunkId,
-        parsed.data.toNumber,
+      const dialJob = outboundDialJobSchema.parse({
+        agent: parsed.data.agent,
+        callId,
         roomName,
-        {
-          participantAttributes: { "answerline.direction": "outbound" },
-          participantIdentity: `callee-${callId}`,
-          participantName: "Called party",
-        }
-      );
+        tenant: agent.tenantSlug,
+        toNumber: parsed.data.toNumber,
+        waitForAgentReady: agent.config.outbound?.answering_machine_detection ?? false,
+      });
+      await deps.enqueueDial(dialJob, {
+        attempts: agent.config.outbound?.retry.max_attempts ?? 1,
+        delayMs: (agent.config.outbound?.retry.delay_seconds ?? 60) * 1000,
+      });
     } catch (error) {
       const cleanup: Promise<unknown>[] = [
         Promise.resolve(

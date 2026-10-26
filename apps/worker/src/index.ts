@@ -2,10 +2,12 @@ import { createServer } from "node:http";
 import { createDb } from "@answerline/db";
 import { type PostCallJob, QUEUES, type WebhookDeliveryJob } from "@answerline/shared";
 import { type Job, Queue, Worker } from "bullmq";
+import { RoomServiceClient, SipClient } from "livekit-server-sdk";
 import { createCallEventProcessor } from "./call-events.ts";
 import { env } from "./env.ts";
 import { createEvalProcessor } from "./evals.ts";
 import { createIngestionProcessor, createKnowledgeEmbedderFactory } from "./ingestion.ts";
+import { createOutboundDialProcessor } from "./outbound-calls.ts";
 import { createPostCallProcessor } from "./post-call.ts";
 import { createRedis } from "./redis.ts";
 import { createWebhookDeliveryProcessor } from "./webhooks.ts";
@@ -24,6 +26,19 @@ const webhookQueue = new Queue<WebhookDeliveryJob>(QUEUES.webhookDeliveries, {
   connection,
   prefix: env.REDIS_PREFIX,
 });
+const livekitHost = env.LIVEKIT_URL?.replace(/^ws/, "http");
+const livekit =
+  livekitHost && env.LIVEKIT_API_KEY && env.LIVEKIT_API_SECRET && env.LIVEKIT_SIP_OUTBOUND_TRUNK_ID
+    ? {
+        roomServiceClient: new RoomServiceClient(
+          livekitHost,
+          env.LIVEKIT_API_KEY,
+          env.LIVEKIT_API_SECRET
+        ),
+        sipClient: new SipClient(livekitHost, env.LIVEKIT_API_KEY, env.LIVEKIT_API_SECRET),
+        trunkId: env.LIVEKIT_SIP_OUTBOUND_TRUNK_ID,
+      }
+  : undefined;
 
 const handlers: Record<string, (job: Job) => Promise<void> | void> = {
   [QUEUES.callEvents]: createCallEventProcessor(db, {
@@ -40,6 +55,7 @@ const handlers: Record<string, (job: Job) => Promise<void> | void> = {
   ),
   [QUEUES.postCall]: createPostCallProcessor(db),
   [QUEUES.webhookDeliveries]: createWebhookDeliveryProcessor(db, env.PROVIDER_KEYS_ENCRYPTION_KEY),
+  [QUEUES.outboundCalls]: createOutboundDialProcessor({ db, livekit }),
   [QUEUES.evals]: createEvalProcessor(db),
 };
 

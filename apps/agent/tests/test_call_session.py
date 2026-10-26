@@ -1,5 +1,6 @@
 import asyncio
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 from answerline_agent import call_session
 from answerline_agent.call_session import CallSessionEvents
@@ -65,6 +66,13 @@ def _item(role, text, **kwargs):
 
 def _participant(kind, attributes):
     return SimpleNamespace(kind=kind, attributes=attributes)
+
+
+def test_outbound_wait_for_caller_stays_open_for_delayed_retry():
+    participant = _participant(rtc.ParticipantKind.PARTICIPANT_KIND_SIP, {})
+    ctx = SimpleNamespace(wait_for_participant=AsyncMock(return_value=participant))
+    assert asyncio.run(call_session.wait_for_caller(ctx, timeout=None)) is participant
+    ctx.wait_for_participant.assert_awaited_once()
 
 
 def test_started_for_sip_participant_reads_attributes():

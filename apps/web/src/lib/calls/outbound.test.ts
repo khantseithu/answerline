@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { agents, calls, createDb, tenants } from "@answerline/db";
-import { parseAgentConfig } from "@answerline/shared";
+import { type OutboundDialJob, parseAgentConfig } from "@answerline/shared";
 import { eq } from "drizzle-orm";
 import { DashboardAuthError } from "@/lib/dashboard/errors";
 import {
@@ -13,6 +13,7 @@ import {
 
 const skip = process.env.DATABASE_URL ? false : "DATABASE_URL not set";
 const requestBody = { agent: "primary", toNumber: "+15551234567" };
+const dialEnqueuePattern = /^enqueue:[0-9a-f-]+:3:120000:true$/;
 
 function getDeps(overrides: Partial<OutboundCallDeps> = {}) {
   const events: string[] = [];
@@ -29,6 +30,12 @@ function getDeps(overrides: Partial<OutboundCallDeps> = {}) {
     },
     agentName: "answerline",
     db: overrides.db ?? createDb(),
+    enqueueDial: (job: OutboundDialJob, options: { attempts: number; delayMs: number }) => {
+      events.push(
+        `enqueue:${job.callId}:${options.attempts}:${options.delayMs}:${job.waitForAgentReady}`
+      );
+      return Promise.resolve();
+    },
     livekitTrunkId: "trunk-1",
     roomServiceClient: {
       createRoom: ({ name }: { name: string }) => {
@@ -37,23 +44,6 @@ function getDeps(overrides: Partial<OutboundCallDeps> = {}) {
       },
       deleteRoom: (roomName: string) => {
         events.push(`delete-room:${roomName}`);
-        return Promise.resolve();
-      },
-    },
-    sipClient: {
-      createSipParticipant: (
-        trunkId: string,
-        number: string,
-        roomName: string,
-        options?: {
-          participantAttributes?: Record<string, string>;
-          participantIdentity?: string;
-          participantName?: string;
-        }
-      ) => {
-        events.push(
-          `sip:${trunkId}:${number}:${roomName}:${options?.participantIdentity}:${JSON.stringify(options?.participantAttributes)}`
-        );
         return Promise.resolve();
       },
     },
@@ -78,10 +68,10 @@ async function withAgent(
     assert.ok(tenant);
     tenantId = tenant.id;
     const config = parseAgentConfig(
-      await readFile(
+      `${await readFile(
         new URL("../../../../../agents/bright-smile-dental.yaml", import.meta.url),
         "utf8"
-      )
+      )}\noutbound:\n  respect_calling_hours: false\n`
     );
     await db.insert(agents).values({ config, name: config.name, slug: "primary", tenantId });
     await run({ db, slug, tenantId });
@@ -106,8 +96,30 @@ test("outbound calls require authenticated workspace context", async () => {
   assert.equal(response.status, 401);
 });
 
+test("outbound calls reject outside configured calling hours", { skip }, () =>
+  withAgent(async ({ db, tenantId }) => {
+    const [agent] = await db.select().from(agents).where(eq(agents.tenantId, tenantId));
+    assert.ok(agent?.config.hours);
+    assert.ok(agent.config.outbound);
+    await db
+      .update(agents)
+      .set({
+        config: {
+          ...agent.config,
+          hours: { ...agent.config.hours, timezone: "UTC", weekdays: "25:00-25:00" },
+          outbound: { ...agent.config.outbound, respect_calling_hours: true },
+        },
+      })
+      .where(eq(agents.id, agent.id));
+    const deps = getDeps({ db, tenantId });
+    const response = await startOutboundCall(deps, requestBody);
+    assert.equal(response.status, 403);
+    assert.deepEqual(deps.events, []);
+  })
+);
+
 test(
-  "starts a SIP call after creating its room and dispatching the workspace agent",
+  "queues an outbound dial after creating its room and dispatching the workspace agent",
   { skip },
   () =>
     withAgent(async ({ db, slug, tenantId }) => {
@@ -120,7 +132,7 @@ test(
       assert.deepEqual(deps.events, [
         `room:${body.roomName}`,
         `dispatch:${body.roomName}:answerline:${JSON.stringify({ agent: "primary", tenant: slug })}`,
-        `sip:trunk-1:+15551234567:${body.roomName}:callee-${body.callId}:{"answerline.direction":"outbound"}`,
+        `enqueue:${body.callId}:1:60000:false`,
       ]);
       const [call] = await db.select().from(calls).where(eq(calls.id, body.callId));
       assert.equal(call?.channel, "sip");
@@ -129,19 +141,41 @@ test(
     })
 );
 
-test("marks a failed dial and removes the room and agent dispatch", { skip }, () =>
+test(
+  "AMD-enabled outbound calls enqueue a readiness-gated dial with configured retries",
+  { skip },
+  () =>
+    withAgent(async ({ db, tenantId }) => {
+      const config = parseAgentConfig(
+        `${await readFile(
+          new URL("../../../../../agents/bright-smile-dental.yaml", import.meta.url),
+          "utf8"
+        )}\noutbound:\n  answering_machine_detection: true\n  respect_calling_hours: false\n  retry:\n    max_attempts: 3\n    delay_seconds: 120\n`
+      );
+      await db.update(agents).set({ config }).where(eq(agents.tenantId, tenantId));
+      const deps = getDeps({ db, tenantId });
+      const response = await startOutboundCall(deps, requestBody);
+      assert.equal(response.status, 202);
+      assert.match(
+        deps.events.find((event) => event.startsWith("enqueue:")) ?? "",
+        dialEnqueuePattern
+      );
+    })
+);
+
+test("marks a failed dial queue submission and removes the room and agent dispatch", { skip }, () =>
   withAgent(async ({ db, tenantId }) => {
     const deps = getDeps({ db, tenantId });
-    deps.sipClient.createSipParticipant = () => {
-      deps.events.push("sip-failed");
-      return Promise.reject(new Error("SIP failure"));
+    deps.enqueueDial = () => {
+      deps.events.push("queue-failed");
+      return Promise.reject(new Error("Dial queue failure"));
     };
     const response = await startOutboundCall(deps, requestBody);
     assert.equal(response.status, 502);
     const room = deps.events.find((event) => event.startsWith("room:"))?.slice("room:".length);
     assert.ok(room);
     assert.deepEqual(deps.events.slice(-3), [
-      "sip-failed",
+      "queue-failed",
       `delete-dispatch:dispatch-1:${room}`,
       `delete-room:${room}`,
     ]);

@@ -1,15 +1,34 @@
-from livekit.agents import Agent, AgentServer, AgentSession, JobContext, JobProcess, cli
+import logging
+
+from livekit.agents import (
+    AMD,
+    Agent,
+    AgentServer,
+    AgentSession,
+    AMDCategory,
+    JobContext,
+    JobProcess,
+    cli,
+)
 from livekit.local_inference import init_eot
 from livekit.plugins import silero
 
 from .after_hours import AfterHours
 from .call_limits import SHUTDOWN_PROCESS_TIMEOUT, CallLifecycle, drain_timeout
-from .call_session import CallSessionEvents, wait_for_caller
+from .call_session import PARTICIPANT_WAIT, CallSessionEvents, wait_for_caller
 from .capture_lead import LeadCaptureContext
 from .config import TransferCallTool
 from .knowledge_tool import open_knowledge_tools
 from .languages import call_language, greeting_for, language_instructions
 from .native_booking import open_booking_provider
+from .outbound import (
+    announce_outbound_ready,
+    hang_up_outbound,
+    is_outbound_room,
+    leave_outbound_voicemail,
+    outbound_amd_requested,
+    outbound_participant_identity,
+)
 from .prompts import compose_instructions
 from .providers import build_llm_chain, build_stt, build_tts
 from .publisher import CallEventPublisher
@@ -23,6 +42,7 @@ from .transfer import CallTransfer
 from .turns import build_turn_handling
 
 settings = Settings()
+logger = logging.getLogger("answerline.agent")
 server = AgentServer(
     drain_timeout=drain_timeout(settings),
     shutdown_process_timeout=SHUTDOWN_PROCESS_TIMEOUT,
@@ -43,6 +63,7 @@ async def entrypoint(ctx: JobContext) -> None:
     ctx.log_context_fields = {"room": ctx.room.name}
     resolved = await resolve_agent(ctx.job.metadata, settings)
     config = resolved.config
+    outbound_call = is_outbound_room(ctx.room)
     provider_keys = getattr(resolved, "provider_keys", None)
     language = call_language(config, getattr(resolved, "language", None))
     trace_provider = configure_tracing(settings, ctx.room.name, resolved.slug, resolved.tenant)
@@ -63,7 +84,7 @@ async def entrypoint(ctx: JobContext) -> None:
         (spec for spec in config.tools if isinstance(spec, TransferCallTool)), None
     )
     transfer = CallTransfer(ctx, transfer_spec.to) if transfer_spec else None
-    after_hours = AfterHours(config.hours, config.name, settings)
+    after_hours = AfterHours(None if outbound_call else config.hours, config.name, settings)
     tools = build_configured_tools(
         config,
         settings,
@@ -97,6 +118,17 @@ async def entrypoint(ctx: JobContext) -> None:
         turn_handling=build_turn_handling(settings, language),
         user_away_timeout=settings.idle_timeout_seconds or None,
     )
+    amd = None
+    if outbound_call and outbound_amd_requested(ctx.room):
+        amd = AMD(
+            session,
+            interrupt_on_machine=False,
+            ivr_detection=False,
+            llm=session.llm,
+            participant_identity=outbound_participant_identity(ctx.room.name),
+            stt=session.stt,
+        )
+        ctx.add_shutdown_callback(lambda _reason: amd.aclose())
     tool_log = ToolLog()
     knowledge_args = {"provider_keys": provider_keys} if provider_keys is not None else {}
     knowledge = await open_knowledge_tools(
@@ -126,18 +158,48 @@ async def entrypoint(ctx: JobContext) -> None:
             tools=[*(knowledge.tools if knowledge else []), *tools],
         ),
     )
+    if amd:
+        await announce_outbound_ready(ctx)
     lifecycle = CallLifecycle(session=session, events=events, job=ctx, settings=settings)
-    caller = await wait_for_caller(ctx)
+    caller = await wait_for_caller(ctx, timeout=None if outbound_call else PARTICIPANT_WAIT)
     if transfer:
         transfer.set_caller(caller)
     events.started(caller)
     ctx.add_shutdown_callback(events.on_shutdown)
     lifecycle.watch_caller(ctx.room, caller)
     lifecycle.start()
+    if amd and caller:
+        try:
+            prediction = await amd.execute()
+        except Exception:
+            logger.exception("outbound answering machine detection failed")
+            await hang_up_outbound(ctx, caller)
+            return
+        if prediction.category == AMDCategory.MACHINE_VM:
+            if recording:
+                ctx.add_shutdown_callback(lambda _reason: recording.stop())
+                await start_with_notice(recording, session, config.recording.notice)
+            message = (
+                config.outbound.first_message
+                if config.outbound and config.outbound.first_message
+                else greeting_for(config, language)
+            )
+            await leave_outbound_voicemail(ctx, session, caller, message)
+            return
+        if prediction.category != AMDCategory.HUMAN:
+            await hang_up_outbound(ctx, caller)
+            return
     if recording:
         ctx.add_shutdown_callback(lambda _reason: recording.stop())
         await start_with_notice(recording, session, config.recording.notice)
-    await after_hours.greet(session, greeting_for(config, language), transfer)
+    first_message = greeting_for(config, language)
+    if caller and caller.attributes.get("answerline.direction") == "outbound":
+        if config.outbound and config.outbound.first_message:
+            first_message = config.outbound.first_message
+    if outbound_call:
+        session.say(first_message)
+    else:
+        await after_hours.greet(session, first_message, transfer)
 
 
 def main() -> None:

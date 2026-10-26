@@ -10,6 +10,10 @@ const envSchema = embeddingEnvSchema.extend({
     .min(1)
     .default(() => resolve(process.cwd(), "../../.data/knowledge"))
     .transform((dir) => resolve(dir)),
+  LIVEKIT_API_KEY: z.string().min(1).optional(),
+  LIVEKIT_API_SECRET: z.string().min(1).optional(),
+  LIVEKIT_SIP_OUTBOUND_TRUNK_ID: z.string().min(1).optional(),
+  LIVEKIT_URL: z.url().optional(),
   POST_CALL_MODEL: z
     .string()
     .optional()
