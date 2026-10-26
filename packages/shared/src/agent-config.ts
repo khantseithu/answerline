@@ -62,6 +62,15 @@ const holiday = z.object({
   name: z.string().min(1).optional(),
 });
 
+export const languageCodeSchema = z
+  .string()
+  .regex(/^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/, "expected BCP-47 language code");
+
+const languageOverride = z.object({
+  greeting: z.string().min(1).optional(),
+  instructions: z.string().min(1).optional(),
+});
+
 export const agentConfigSchema = z.object({
   greeting: z.string().min(1),
   hours: z
@@ -76,6 +85,7 @@ export const agentConfigSchema = z.object({
   instructions: z.string().min(1),
   knowledge: z.object({ sources: z.array(knowledgeSource).default([]) }).optional(),
   language: z.string().default("en"),
+  languages: z.record(languageCodeSchema, languageOverride).optional(),
   models: z.object({
     llm: z.object({
       fallback: z.array(modelRefSchema).default([]),
