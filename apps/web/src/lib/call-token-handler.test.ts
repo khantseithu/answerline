@@ -61,6 +61,22 @@ test("call token requests reject other-workspace agents and dispatch the active 
       agent: "desk",
       tenant: workspaceSlug,
     });
+    const spanish = await handler(
+      new Request("http://localhost/api/v1/token?agent=desk&language=es-MX")
+    );
+    const spanishClaims = await new TokenVerifier(options.apiKey, options.apiSecret).verify(
+      ((await spanish.json()) as { participantToken: string }).participantToken
+    );
+    assert.deepEqual(JSON.parse(spanishClaims.roomConfig?.agents?.[0]?.metadata ?? ""), {
+      agent: "desk",
+      language: "es-MX",
+      tenant: workspaceSlug,
+    });
+    assert.equal(
+      (await handler(new Request("http://localhost/api/v1/token?agent=desk&language=Spanish")))
+        .status,
+      400
+    );
     assert.equal(
       (await handler(new Request("http://localhost/api/v1/token?agent=foreign-only"))).status,
       404

@@ -31,3 +31,8 @@ def test_example_agent_prompt_keeps_its_own_instructions():
 def test_call_context_follows_agent_instructions():
     composed = compose_instructions("You are the receptionist for Acme.", "The business is closed.")
     assert composed.endswith("You are the receptionist for Acme.\n\nThe business is closed.\n")
+
+
+def test_call_contexts_are_appended_in_order_and_empty_ones_skipped():
+    composed = compose_instructions("Acme.", "# Language", None, "Closed.")
+    assert composed.endswith("Acme.\n\n# Language\n\nClosed.\n")

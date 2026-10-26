@@ -21,6 +21,9 @@ VOICE_RULES = "\n".join(
 )
 
 
-def compose_instructions(agent_instructions: str, call_context: str | None = None) -> str:
+def compose_instructions(agent_instructions: str, *call_context: str | None) -> str:
     composed = f"{VOICE_RULES}\n{agent_instructions.strip()}\n"
-    return f"{composed}\n{call_context}\n" if call_context else composed
+    for context in call_context:
+        if context:
+            composed += f"\n{context}\n"
+    return composed

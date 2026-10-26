@@ -20,6 +20,7 @@ from .call_events import model_usage_lines, parse_tool_args
 from .capture_lead import LeadCaptureContext
 from .config import AgentConfig, BookAppointmentTool, HttpTool, McpTool, TransferCallTool
 from .knowledge_tool import QUERY_DESCRIPTION, TOOL_DESCRIPTION, open_knowledge_tools
+from .languages import language_instructions
 from .native_booking import open_booking_provider
 from .prompts import compose_instructions
 from .providers import build_llm_chain, build_stt, build_tts
@@ -434,7 +435,11 @@ async def run_case(
                 calls.append({"name": call.name, "args": parse_tool_args(call.arguments)})
 
     agent = Agent(
-        instructions=compose_instructions(config.instructions, after_hours.instructions()),
+        instructions=compose_instructions(
+            config.instructions,
+            language_instructions(config, config.language),
+            after_hours.instructions(),
+        ),
         tools=tools,
     )
     started = time.monotonic()

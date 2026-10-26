@@ -169,6 +169,9 @@ function AvailableCallApp({
   const [startPending, setStartPending] = useState(false);
   const tokenSource = useMemo(() => {
     const query = new URLSearchParams({ agent: selectedAgent.slug, request: requestId });
+    if (typeof navigator !== "undefined" && navigator.language) {
+      query.set("language", navigator.language);
+    }
     return TokenSource.endpoint(`/api/v1/token?${query}`);
   }, [requestId, selectedAgent.slug]);
   const session = useSession(tokenSource);
