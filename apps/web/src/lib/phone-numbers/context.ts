@@ -6,7 +6,6 @@ import { getDashboardContext } from "@/lib/dashboard/context";
 import { requireWorkspaceAccess, type WorkspaceAccess } from "@/lib/workspaces/permissions";
 import type { PhoneNumberDeps } from "./service";
 
-<<<<<<< HEAD
 export async function getPhoneNumberDeps(
   access: WorkspaceAccess = "read"
 ): Promise<PhoneNumberDeps> {

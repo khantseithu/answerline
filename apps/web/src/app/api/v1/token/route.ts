@@ -1,39 +1,10 @@
-import { agents, tenants } from "@answerline/db";
-import { and, eq } from "drizzle-orm";
 import { env } from "@/env";
-import { AGENT_SLUG_PATTERN, createCallToken, DEFAULT_AGENT_SLUG } from "@/lib/call-token";
+import { createCallTokenHandler } from "@/lib/call-token-handler";
 import { getDashboardContext } from "@/lib/dashboard/context";
-import { dashboardErrorResponse } from "@/lib/dashboard/errors";
-import { requireWorkspaceAccess } from "@/lib/workspaces/permissions";
 
-export async function POST(request: Request) {
-  try {
-    const { db, role, tenantId } = await getDashboardContext();
-    requireWorkspaceAccess(role, "write");
-    const agentSlug = new URL(request.url).searchParams.get("agent") ?? DEFAULT_AGENT_SLUG;
-    if (!AGENT_SLUG_PATTERN.test(agentSlug)) {
-      return Response.json({ error: "Invalid agent" }, { status: 400 });
-    }
-
-    const [agent] = await db
-      .select({ id: agents.id, tenantSlug: tenants.slug })
-      .from(agents)
-      .innerJoin(tenants, eq(tenants.id, agents.tenantId))
-      .where(and(eq(agents.tenantId, tenantId), eq(agents.slug, agentSlug)));
-    if (!agent) {
-      return Response.json({ error: "Agent not found" }, { status: 404 });
-    }
-    const details = await createCallToken({
-      agentName: env.AGENT_NAME,
-      agentSlug,
-      apiKey: env.LIVEKIT_API_KEY,
-      apiSecret: env.LIVEKIT_API_SECRET,
-      serverUrl: env.LIVEKIT_URL,
-      tenantSlug: agent.tenantSlug,
-    });
-
-    return Response.json(details, { headers: { "Cache-Control": "no-store" } });
-  } catch (error) {
-    return dashboardErrorResponse(error);
-  }
-}
+export const POST = createCallTokenHandler(getDashboardContext, {
+  agentName: env.AGENT_NAME,
+  apiKey: env.LIVEKIT_API_KEY,
+  apiSecret: env.LIVEKIT_API_SECRET,
+  serverUrl: env.LIVEKIT_URL,
+});

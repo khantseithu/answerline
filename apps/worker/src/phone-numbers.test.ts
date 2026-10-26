@@ -224,6 +224,10 @@ test("workspace SIP lists and dispatches remain separate with identical agent sl
     connectPhoneNumber(client, second, "answerline", { agent: "desk", number: NUMBER }),
     ALREADY_CONNECTED
   );
+  await assert.rejects(
+    addPhoneNumber(client, second, "answerline", { agent: "desk", number: NUMBER }),
+    ALREADY_CONNECTED
+  );
   assert.deepEqual(
     rules.map((rule) => rule.toJson()),
     before
