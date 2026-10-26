@@ -158,7 +158,15 @@ test("outbound dial retries and only marks the call failed after the final attem
           listRooms: () =>
             Promise.resolve([{ metadata: '{"answerline":{"outbound_ready":true}}' }]),
         },
-        sipClient: { createSipParticipant: () => Promise.reject(new Error("No answer")) },
+        sipClient: {
+          createSipParticipant: () =>
+            Promise.reject(
+              new SipCallError("Request Timeout", "No answer", 408, "deadline_exceeded", {
+                sip_status: "Request Timeout",
+                sip_status_code: "408",
+              })
+            ),
+        },
         trunkId: "trunk-1",
       },
     });

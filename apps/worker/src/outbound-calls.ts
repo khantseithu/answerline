@@ -56,6 +56,8 @@ interface RoomMetadataReader {
   listRooms: (names: string[]) => Promise<{ metadata?: string }[]>;
 }
 
+class OutboundAgentNotReadyError extends Error {}
+
 function isRetryableOutboundError(error: unknown) {
   if (error instanceof UnrecoverableError) {
     return false;
@@ -70,7 +72,7 @@ function isRetryableOutboundError(error: unknown) {
   if (error instanceof ServerError) {
     return error.status === 429 || error.status >= 500;
   }
-  return true;
+  return error instanceof OutboundAgentNotReadyError || error instanceof TypeError;
 }
 
 function assertCallingHours(config: AgentConfig, now: () => Date) {
@@ -128,7 +130,9 @@ export function waitForOutboundAgent(roomServiceClient: RoomMetadataReader, room
           if (room?.metadata && hasOutboundReadyMetadata(room.metadata)) {
             resolve();
           } else if (Date.now() >= timeoutAt) {
-            reject(new Error("Outbound agent did not initialize AMD before dialing"));
+            reject(
+              new OutboundAgentNotReadyError("Outbound agent did not initialize AMD before dialing")
+            );
           } else {
             setTimeout(poll, 250);
           }
