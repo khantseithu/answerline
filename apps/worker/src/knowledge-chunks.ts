@@ -30,13 +30,26 @@ function validateChunkSizes(maxChars: number, overlapChars: number) {
   }
 }
 
+function splitsSurrogatePair(text: string, index: number) {
+  const low = text.charCodeAt(index);
+  const high = text.charCodeAt(index - 1);
+  return low >= 0xdc_00 && low <= 0xdf_ff && high >= 0xd8_00 && high <= 0xdb_ff;
+}
+
+function alignToCodePoint(text: string, index: number, floor: number) {
+  if (index <= floor || index >= text.length || !splitsSurrogatePair(text, index)) {
+    return index;
+  }
+  return index - 1 > floor ? index - 1 : index + 1;
+}
+
 export function chunkKnowledge(documents: KnowledgeDocument[], options: ChunkOptions = {}) {
   const maxChars = options.maxChars ?? DEFAULT_CHUNK_OPTIONS.maxChars;
   const overlapChars = options.overlapChars ?? DEFAULT_CHUNK_OPTIONS.overlapChars;
   validateChunkSizes(maxChars, overlapChars);
   const chunks: { content: string; metadata: Record<string, unknown>; seq: number }[] = [];
   for (const document of documents) {
-    const text = document.text.replace(/\r\n?/g, "\n").trim();
+    const text = document.text.normalize("NFC").replace(/\r\n?/g, "\n").trim();
     let start = 0;
     while (start < text.length) {
       let end = Math.min(start + maxChars, text.length);
@@ -46,6 +59,7 @@ export function chunkKnowledge(documents: KnowledgeDocument[], options: ChunkOpt
           end = boundary;
         }
       }
+      end = alignToCodePoint(text, end, start);
       const content = text.slice(start, end).trim();
       if (content) {
         chunks.push({
@@ -57,7 +71,7 @@ export function chunkKnowledge(documents: KnowledgeDocument[], options: ChunkOpt
       if (end === text.length) {
         break;
       }
-      start = end - overlapChars;
+      start = alignToCodePoint(text, end - overlapChars, start);
     }
   }
   return chunks;

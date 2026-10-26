@@ -5,6 +5,7 @@ import { chunkKnowledge, knowledgeContentHash } from "./knowledge-chunks.ts";
 const MODEL = "openai/text-embedding-3-small";
 
 const CHUNK_SIZES = /Chunk sizes/;
+const LONE_SURROGATE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/;
 
 test("chunks with exact overlap, bounded lengths and source metadata", () => {
   const text = "abcdefghijklmnopqrstuvwxyz".repeat(8);
@@ -43,6 +44,37 @@ test("prefers word boundaries, keeps documents separate and skips empty text", (
   assert.equal(chunks.at(-1)?.content, "short answer");
   assert.equal(chunks.at(-1)?.metadata.page, 2);
   assert.ok(chunks.every((chunk) => chunk.content.length <= 25));
+});
+
+test("normalizes text to NFC so decomposed accents match composed ones", () => {
+  const [chunk] = chunkKnowledge([{ metadata: {}, text: "extraccio\u0301n de nin\u0303o" }]);
+  assert.equal(chunk?.content, "extracci\u00f3n de ni\u00f1o");
+});
+
+test("never splits surrogate pairs when chunking non-BMP text", () => {
+  const text = "😀".repeat(40);
+  for (const options of [
+    { maxChars: 7, overlapChars: 3 },
+    { maxChars: 10, overlapChars: 5 },
+    { maxChars: 3, overlapChars: 1 },
+    { maxChars: 2, overlapChars: 1 },
+  ]) {
+    const chunks = chunkKnowledge([{ metadata: {}, text }], options);
+    assert.ok(chunks.length > 1);
+    for (const chunk of chunks) {
+      assert.ok(!LONE_SURROGATE.test(chunk.content), JSON.stringify(options));
+    }
+  }
+});
+
+test("chunks Spanish text on word boundaries without losing accents", () => {
+  const text = "¿Cuál es su horario de atención? Abrimos de lunes a viernes. ".repeat(10);
+  const chunks = chunkKnowledge([{ metadata: {}, text }], { maxChars: 100, overlapChars: 20 });
+  assert.ok(chunks.length > 1);
+  assert.ok(
+    chunks.every((chunk) => !LONE_SURROGATE.test(chunk.content) && chunk.content.length <= 100)
+  );
+  assert.ok(chunks[0]?.content.includes("¿Cuál es su horario de atención?"));
 });
 
 test("validates chunk options and hashes content plus citation metadata", () => {

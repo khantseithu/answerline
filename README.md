@@ -46,7 +46,7 @@ Answerline gives you the same building blocks as open source:
 - Business hours with holiday overrides and after-hours routing: take a voicemail, cold-transfer SIP calls to a human, or answer anyway; warm transfer *(planned)*
 
 **Knowledge and tools**
-- Knowledge base from PDFs, web pages, and Q&A pairs, with hybrid search (vector + keyword) and source citations logged with each knowledge lookup; reranking *(planned)*
+- Knowledge base from PDFs, web pages, and Q&A pairs, with hybrid search (vector + keyword, multilingual with the default embedding model) and source citations logged with each knowledge lookup; reranking *(planned)*
 - Built-in tools: appointment booking, business-hours lookup, call transfer, voicemail, and lead capture; Cal.com and Google Calendar booking *(planned)*
 - Custom HTTP tools defined in config, plus MCP server support for connecting external systems *(planned)*
 

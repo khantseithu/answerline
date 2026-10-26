@@ -4,6 +4,7 @@ import json
 import math
 import os
 import re
+import unicodedata
 import uuid
 from collections import defaultdict
 from collections.abc import Sequence
@@ -20,51 +21,93 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 LIVE = os.environ.get("ANSWERLINE_LIVE_EMBEDDINGS") == "1"
 LIVE_MIN_SIMILARITY = os.environ.get("ANSWERLINE_MIN_SIMILARITY")
 
-FIXTURES = Path(__file__).parent / "fixtures" / "dental-faq"
+FIXTURES = Path(__file__).parent / "fixtures"
 DIMENSIONS = 1536
 WORKER_MAX_CHARS = 1600
 KS = (1, 3, 5)
 TOP_K = max(KS)
 CHUNK_NAMESPACE = uuid.UUID("5d0c7a64-3f55-4a9e-9d7e-1c1c2f0b8a11")
 
+
+@dataclass(frozen=True)
+class Dataset:
+    name: str
+    faq_dir: str
+    queries_dir: str
+    faq_lang: str
+    query_lang: str
+
+
+DATASETS = {
+    "english": Dataset("english", "dental-faq", "dental-faq", "en", "en"),
+    "spanish": Dataset("spanish", "dental-faq-es", "dental-faq-es", "es", "es"),
+    "cross-lingual": Dataset("cross-lingual", "dental-faq", "dental-faq-es", "en", "es"),
+}
+
 THRESHOLDS = {
-    "offline": {"recall@1": 0.55, "recall@3": 0.75, "recall@5": 0.85, "mrr": 0.65},
-    "live": {"recall@1": 0.7, "recall@3": 0.85, "recall@5": 0.9, "mrr": 0.78},
+    "english": {
+        "offline": {"recall@1": 0.55, "recall@3": 0.75, "recall@5": 0.85, "mrr": 0.65},
+        "live": {"recall@1": 0.7, "recall@3": 0.85, "recall@5": 0.9, "mrr": 0.78},
+    },
+    "spanish": {
+        "offline": {"recall@1": 0.55, "recall@3": 0.75, "recall@5": 0.8, "mrr": 0.65},
+        "live": {"recall@1": 0.7, "recall@3": 0.85, "recall@5": 0.9, "mrr": 0.78},
+    },
+    "cross-lingual": {
+        "live": {"recall@1": 0.85, "recall@3": 0.92, "recall@5": 0.95, "mrr": 0.9},
+    },
 }
 
 OFFLINE_MIN_SIMILARITY = 0.15
-OFFLINE_FLOOR_THRESHOLDS = {"recall@1": 0.55, "recall@3": 0.7, "recall@5": 0.7, "mrr": 0.62}
-OFFLINE_FLOOR_MIN_EMPTY_OUT_OF_SCOPE = 4
+OFFLINE_FLOOR_THRESHOLDS = {
+    "english": {"recall@1": 0.55, "recall@3": 0.7, "recall@5": 0.7, "mrr": 0.62},
+    "spanish": {"recall@1": 0.55, "recall@3": 0.72, "recall@5": 0.75, "mrr": 0.64},
+}
+OFFLINE_FLOOR_MIN_EMPTY_OUT_OF_SCOPE = {"english": 4, "spanish": 4}
 
-STOPWORDS = frozenset(
-    "a about an and any are as at be by can could do does for from get go going guys has have how "
-    "i if in is it its just like me my of on or our please so some that the there they this to "
-    "up us was we what when where which who will with would you your um uh question answer "
-    "something".split()
-)
+STOPWORDS = {
+    "en": frozenset(
+        "a about an and any are as at be by can could do does for from get go going guys has have "
+        "how i if in is it its just like me my of on or our please so some that the there they "
+        "this to up us was we what when where which who will with would you your um uh question "
+        "answer something".split()
+    ),
+    "es": frozenset(
+        "a al algo algun alguna ante aqui como con cual cuales cuando de del desde donde dos e el "
+        "ella ellos en entre eh es esa ese eso esta estan este esto fue ha han hay la las le les "
+        "lo los me mi mis muy ni no nos o para pero pues por porque que se si sin sobre son su "
+        "sus te tengo tiene tienen todo tu tus un una uno unos y ya yo question answer".split()
+    ),
+}
+SUFFIXES = {"en": ("ing", "ed", "es", "s"), "es": ("ciones", "cion", "mente", "es", "s")}
 
 
-def stem(word: str) -> str:
-    for suffix in ("ing", "ed", "es", "s"):
+def fold(text: str) -> str:
+    decomposed = unicodedata.normalize("NFKD", text.casefold())
+    return "".join(c for c in decomposed if not unicodedata.combining(c))
+
+
+def stem(word: str, lang: str = "en") -> str:
+    for suffix in SUFFIXES[lang]:
         if len(word) > len(suffix) + 3 and word.endswith(suffix):
             return word[: -len(suffix)]
     return word
 
 
-def features(text: str):
-    for word in re.findall(r"[a-z0-9]+", text.lower()):
-        if word in STOPWORDS:
+def features(text: str, lang: str = "en"):
+    for word in re.findall(r"[^\W_]+", fold(text)):
+        if word in STOPWORDS[lang]:
             continue
-        root = stem(word)
+        root = stem(word, lang)
         yield root, 1.0
         padded = f"#{root}#"
         for i in range(len(padded) - 2):
             yield "~" + padded[i : i + 3], 0.4
 
 
-def hashed_embedding(text: str) -> list[float]:
+def hashed_embedding(text: str, lang: str = "en") -> list[float]:
     vector = [0.0] * DIMENSIONS
-    for feature, weight in features(text):
+    for feature, weight in features(text, lang):
         digest = hashlib.blake2b(feature.encode(), digest_size=8).digest()
         number = int.from_bytes(digest, "big")
         vector[number % DIMENSIONS] += weight if (number >> 63) & 1 else -weight
@@ -76,10 +119,10 @@ def hashed_embedding(text: str) -> list[float]:
 
 
 async def embed(
-    texts: Sequence[str], input_type: Literal["document", "query"]
+    texts: Sequence[str], input_type: Literal["document", "query"], lang: str = "en"
 ) -> list[list[float]]:
     if not LIVE:
-        return [hashed_embedding(t) for t in texts]
+        return [hashed_embedding(t, lang) for t in texts]
     from answerline_llm.embeddings import EmbeddingSettings
 
     return await EmbeddingSettings().create_provider(input_type=input_type).embed(list(texts))
@@ -113,12 +156,12 @@ class QueryResult:
         return self.similarities[rank - 1] if rank else None
 
 
-def load_faq() -> list[dict]:
-    return json.loads((FIXTURES / "faq.json").read_text())
+def load_faq(dataset: Dataset) -> list[dict]:
+    return json.loads((FIXTURES / dataset.faq_dir / "faq.json").read_text(encoding="utf-8"))
 
 
-def load_queries() -> list[dict]:
-    return json.loads((FIXTURES / "queries.json").read_text())
+def load_queries(dataset: Dataset) -> list[dict]:
+    return json.loads((FIXTURES / dataset.queries_dir / "queries.json").read_text(encoding="utf-8"))
 
 
 def chunk_text(entry: dict) -> str:
@@ -170,9 +213,9 @@ def format_floor_report(min_similarity: float, results: list[QueryResult]) -> st
     )
 
 
-def format_report(results: list[QueryResult]) -> str:
+def format_report(dataset: Dataset, results: list[QueryResult]) -> str:
     mode = "live" if LIVE else "offline"
-    lines = [f"retrieval quality ({mode} embeddings)"]
+    lines = [f"retrieval quality: {dataset.name} ({mode} embeddings)"]
     overall = summarize(results)
     lines.append("overall: " + "  ".join(f"{name}={value:.3f}" for name, value in overall.items()))
     by_kind: dict[str, list[QueryResult]] = defaultdict(list)
@@ -207,11 +250,11 @@ def format_report(results: list[QueryResult]) -> str:
 
 
 @asynccontextmanager
-async def seeded_faq():
-    faq = load_faq()
+async def seeded_faq(dataset: Dataset):
+    faq = load_faq(dataset)
     texts = [chunk_text(entry) for entry in faq]
     assert all(len(text) < WORKER_MAX_CHARS for text in texts)
-    embeddings = await embed(texts, "document")
+    embeddings = await embed(texts, "document", dataset.faq_lang)
     conn = await asyncpg.connect(DATABASE_URL)
     tenant_id = await conn.fetchval(
         "insert into tenants (slug, name) values ($1, $1) returning id", f"test-{uuid.uuid4()}"
@@ -244,11 +287,11 @@ async def seeded_faq():
         await conn.close()
 
 
-async def evaluate(min_similarity: float | None = None) -> list[QueryResult]:
-    queries = load_queries()
-    query_embeddings = await embed([q["query"] for q in queries], "query")
+async def evaluate(dataset: Dataset, min_similarity: float | None = None) -> list[QueryResult]:
+    queries = load_queries(dataset)
+    query_embeddings = await embed([q["query"] for q in queries], "query", dataset.query_lang)
     results = []
-    async with seeded_faq() as (conn, tenant_id, faq_ids):
+    async with seeded_faq(dataset) as (conn, tenant_id, faq_ids):
         for spec, embedding in zip(queries, query_embeddings, strict=True):
             hits = await hybrid_search(
                 conn,
@@ -274,17 +317,24 @@ async def evaluate(min_similarity: float | None = None) -> list[QueryResult]:
     return results
 
 
-def test_fixtures_are_consistent():
-    faq = load_faq()
-    ids = [entry["id"] for entry in faq]
+@pytest.mark.parametrize("name", DATASETS)
+def test_fixtures_are_consistent(name):
+    dataset = DATASETS[name]
+    ids = [entry["id"] for entry in load_faq(dataset)]
     assert len(ids) == len(set(ids))
-    queries = load_queries()
+    queries = load_queries(dataset)
     assert 25 <= len(queries) <= 50
     for spec in queries:
         assert set(spec["expected"]) <= set(ids), spec
         assert (spec["kind"] == "out_of_scope") == (not spec["expected"]), spec
     covered = {faq_id for spec in queries for faq_id in spec["expected"]}
     assert len(covered) >= 20
+
+
+def test_spanish_fixture_mirrors_english_ids():
+    english = [entry["id"] for entry in load_faq(DATASETS["english"])]
+    spanish = [entry["id"] for entry in load_faq(DATASETS["spanish"])]
+    assert english == spanish
 
 
 def test_hashed_embedding_is_deterministic_and_normalized():
@@ -299,38 +349,73 @@ def test_hashed_embedding_is_deterministic_and_normalized():
     assert dot > far
 
 
+def test_features_are_unicode_aware():
+    roots = {
+        feature
+        for feature, weight in features("¿Cuánto cuesta la extracción, niño?", "es")
+        if weight == 1.0
+    }
+    assert roots == {"cuanto", "cuesta", "extrac", "nino"}
+    assert hashed_embedding("¿Está abierto mañana?", "es") == hashed_embedding(
+        "esta abierto manana", "es"
+    )
+    assert {f for f, w in features("你好 世界", "en") if w == 1.0} == {"你好", "世界"}
+
+
+def test_spanish_embedding_ranks_spanish_answer_above_unrelated():
+    query = hashed_embedding("¿Cuánto cuesta una limpieza?", "es")
+    answer = hashed_embedding("Un examen y una limpieza cuesta 135 dólares", "es")
+    unrelated = hashed_embedding("El edificio tiene entrada sin escalones", "es")
+    assert sum(a * b for a, b in zip(query, answer, strict=True)) > sum(
+        a * b for a, b in zip(query, unrelated, strict=True)
+    )
+
+
+def skip_unless_available(name: str):
+    if DATASETS[name].query_lang != DATASETS[name].faq_lang and not LIVE:
+        pytest.skip(
+            "cross-lingual retrieval needs real embeddings: set ANSWERLINE_LIVE_EMBEDDINGS=1"
+        )
+
+
 @pytest.mark.skipif(not DATABASE_URL, reason="DATABASE_URL not set")
-def test_dental_faq_retrieval_quality():
-    results = asyncio.run(evaluate())
-    report = format_report(results)
+@pytest.mark.parametrize("name", DATASETS)
+def test_dental_faq_retrieval_quality(name):
+    skip_unless_available(name)
+    dataset = DATASETS[name]
+    results = asyncio.run(evaluate(dataset))
+    report = format_report(dataset, results)
     print("\n" + report)
-    thresholds = THRESHOLDS["live" if LIVE else "offline"]
+    thresholds = THRESHOLDS[name]["live" if LIVE else "offline"]
     summary = summarize(results)
     failures = [
-        f"{name}: {summary[name]:.3f} < {floor:.3f}"
-        for name, floor in thresholds.items()
-        if summary[name] < floor
+        f"{metric}: {summary[metric]:.3f} < {floor:.3f}"
+        for metric, floor in thresholds.items()
+        if summary[metric] < floor
     ]
     assert not failures, "\n".join(failures) + "\n" + report
 
 
 @pytest.mark.skipif(not DATABASE_URL, reason="DATABASE_URL not set")
-def test_dental_faq_relevance_floor():
+@pytest.mark.parametrize("name", DATASETS)
+def test_dental_faq_relevance_floor(name):
+    skip_unless_available(name)
     if LIVE and LIVE_MIN_SIMILARITY is None:
         pytest.skip("set ANSWERLINE_MIN_SIMILARITY to evaluate a live relevance floor")
+    dataset = DATASETS[name]
     min_similarity = float(LIVE_MIN_SIMILARITY) if LIVE else OFFLINE_MIN_SIMILARITY
-    baseline = asyncio.run(evaluate())
-    results = asyncio.run(evaluate(min_similarity))
+    baseline = asyncio.run(evaluate(dataset))
+    results = asyncio.run(evaluate(dataset, min_similarity))
     print("\n" + format_floor_report(min_similarity, results))
     if LIVE:
         return
     summary = summarize(results)
     failures = [
-        f"{name}: {summary[name]:.3f} < {floor:.3f}"
-        for name, floor in OFFLINE_FLOOR_THRESHOLDS.items()
-        if summary[name] < floor
+        f"{metric}: {summary[metric]:.3f} < {floor:.3f}"
+        for metric, floor in OFFLINE_FLOOR_THRESHOLDS[name].items()
+        if summary[metric] < floor
     ]
     assert not failures, "\n".join(failures)
     assert summary["recall@1"] >= summarize(baseline)["recall@1"]
     empty = sum(not r.ranked for r in results if not r.expected)
-    assert empty >= OFFLINE_FLOOR_MIN_EMPTY_OUT_OF_SCOPE
+    assert empty >= OFFLINE_FLOOR_MIN_EMPTY_OUT_OF_SCOPE[name]

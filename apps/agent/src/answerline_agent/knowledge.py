@@ -1,4 +1,5 @@
 import json
+import unicodedata
 from collections.abc import Sequence
 from typing import Any
 from uuid import UUID
@@ -10,6 +11,12 @@ DEFAULT_TOP_K = 5
 DEFAULT_CANDIDATES = 20
 DEFAULT_RRF_K = 60
 DEFAULT_MIN_KEYWORD_TERMS = 2
+DEFAULT_STOPWORD_LANGUAGES = ("english", "spanish")
+SUPPORTED_STOPWORD_LANGUAGES = frozenset(
+    "arabic basque catalan danish dutch english finnish french german greek hindi hungarian "
+    "indonesian irish italian lithuanian nepali norwegian portuguese romanian russian serbian "
+    "spanish swedish tamil turkish".split()
+)
 
 HYBRID_SEARCH_SQL = """
 with q as (
@@ -17,7 +24,11 @@ with q as (
     coalesce(string_agg(term, ' | '), '')::tsquery as query,
     coalesce(array_agg(term), '{}') as terms
   from regexp_split_to_table(plainto_tsquery('simple', $5)::text, ' & ') as term
-  where term <> '' and ts_lexize('english_stem', trim(both '''' from term)) is distinct from '{}'
+  where term <> '' and not exists (
+    select 1
+    from unnest($10::text[]) as lang
+    where ts_lexize((lang || '_stem')::regdictionary, trim(both '''' from term)) = '{}'
+  )
 ),
 vec as (
   select id, row_number() over (order by embedding <=> $1::vector, id) as rank
@@ -112,9 +123,13 @@ async def hybrid_search(
     source_ids: Sequence[UUID] | None = None,
     min_similarity: float | None = None,
     min_keyword_terms: int = DEFAULT_MIN_KEYWORD_TERMS,
+    stopword_languages: Sequence[str] = DEFAULT_STOPWORD_LANGUAGES,
 ) -> list[KnowledgeHit]:
     if top_k < 1 or candidates < 1 or rrf_k < 1 or min_keyword_terms < 1:
         raise ValueError("top_k, candidates, rrf_k and min_keyword_terms must be at least 1")
+    unsupported = set(stopword_languages) - SUPPORTED_STOPWORD_LANGUAGES
+    if unsupported:
+        raise ValueError(f"Unsupported stopword languages: {', '.join(sorted(unsupported))}")
     async with conn.transaction():
         await conn.execute("set local hnsw.iterative_scan = strict_order")
         rows = await conn.fetch(
@@ -123,11 +138,12 @@ async def hybrid_search(
             tenant_id,
             list(source_ids) if source_ids is not None else None,
             candidates,
-            query,
+            unicodedata.normalize("NFC", query),
             rrf_k,
             top_k,
             min_similarity,
             min_keyword_terms,
+            list(stopword_languages),
         )
     return [
         KnowledgeHit(

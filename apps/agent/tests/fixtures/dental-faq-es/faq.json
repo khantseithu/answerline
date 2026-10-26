@@ -1,0 +1,152 @@
+[
+  {
+    "id": "hours",
+    "question": "¿Cuál es su horario de atención?",
+    "answer": "Abrimos de lunes a viernes de 9:00 a 18:00. Los domingos y los días festivos importantes estamos cerrados."
+  },
+  {
+    "id": "saturday",
+    "question": "¿Abren los fines de semana?",
+    "answer": "Ofrecemos citas limitadas los sábados de 9:00 a 13:00 el primer y el tercer sábado de cada mes. La clínica está cerrada los domingos."
+  },
+  {
+    "id": "location",
+    "question": "¿Dónde está ubicada la clínica?",
+    "answer": "Bright Smile Dental está en el 214 de Maple Avenue, Oficina 3, en el centro de Springfield, justo enfrente de la biblioteca pública y al lado de la farmacia."
+  },
+  {
+    "id": "parking",
+    "question": "¿Hay estacionamiento disponible?",
+    "answer": "Sí. Hay estacionamiento gratuito en el lote detrás del edificio, con espacios accesibles junto a la entrada trasera. El estacionamiento en la calle Maple Avenue es de pago por parquímetro."
+  },
+  {
+    "id": "transit",
+    "question": "¿Puedo llegar a la clínica en autobús o en metro?",
+    "answer": "Los autobuses número 12 y número 40 paran justo frente a nuestra puerta. La estación de metro más cercana es Central Square, a cinco minutos caminando."
+  },
+  {
+    "id": "services",
+    "question": "¿Qué servicios ofrecen?",
+    "answer": "Brindamos odontología general: revisiones, limpiezas, empastes, coronas, puentes, tratamientos de conducto, extracciones, blanqueamiento dental, alineadores transparentes, implantes dentales, dentaduras y atención de urgencias."
+  },
+  {
+    "id": "cleaning",
+    "question": "¿Cada cuánto debo hacerme una limpieza dental y cuánto dura?",
+    "answer": "Recomendamos una limpieza profesional y un examen cada seis meses. Una visita de rutina dura unos 60 minutos e incluye la limpieza con la higienista y una revisión con el dentista."
+  },
+  {
+    "id": "whitening",
+    "question": "¿Hacen blanqueamiento dental?",
+    "answer": "Sí. El blanqueamiento en el consultorio dura unos 90 minutos y aclara los dientes varios tonos en una sola visita. También ofrecemos cubetas personalizadas para blanquear en casa."
+  },
+  {
+    "id": "braces",
+    "question": "¿Colocan brackets o alineadores transparentes?",
+    "answer": "Ofrecemos alineadores transparentes para enderezar los dientes de adolescentes y adultos. Los brackets metálicos tradicionales están a cargo de nuestro ortodoncista asociado, que atiende aquí los jueves."
+  },
+  {
+    "id": "implants",
+    "question": "¿Pueden reemplazar un diente perdido con un implante?",
+    "answer": "Sí. La doctora Patel coloca implantes dentales en la clínica. Reemplazar un diente perdido suele requerir dos o tres visitas a lo largo de varios meses mientras el implante cicatriza."
+  },
+  {
+    "id": "root-canal",
+    "question": "¿Hacen tratamientos de conducto?",
+    "answer": "Sí. El tratamiento de conducto se realiza en nuestra clínica con anestesia local para que esté cómodo. La mayoría de los tratamientos de conducto requieren una o dos visitas."
+  },
+  {
+    "id": "wisdom",
+    "question": "¿Extraen las muelas del juicio?",
+    "answer": "Extraemos la mayoría de las muelas del juicio en la clínica. Los casos complicados, como las muelas muy incrustadas en el hueso de la mandíbula, se derivan a un cirujano oral."
+  },
+  {
+    "id": "dentures",
+    "question": "¿Fabrican dentaduras postizas?",
+    "answer": "Sí. Fabricamos dentaduras completas y parciales, y también reparamos dentaduras rotas. Muchas reparaciones se completan en un día."
+  },
+  {
+    "id": "emergency",
+    "question": "¿Qué debo hacer en una urgencia dental?",
+    "answer": "Si tiene dolor intenso, hinchazón, un diente que se salió o un diente roto, llámenos de inmediato y lo atenderemos el mismo día. Fuera del horario de atención, transferimos su llamada al dentista de guardia."
+  },
+  {
+    "id": "insurance",
+    "question": "¿Qué planes de seguro aceptan?",
+    "answer": "Aceptamos la mayoría de los planes PPO principales, incluidos Delta Dental, Cigna, Aetna, MetLife y Guardian. También aceptamos Medicaid para niños. Nosotros presentamos las reclamaciones a su seguro por usted."
+  },
+  {
+    "id": "no-insurance",
+    "question": "¿Qué pasa si no tengo seguro dental?",
+    "answer": "No hay problema. Nuestro plan de membresía de la clínica cuesta 25 dólares al mes e incluye dos limpiezas, exámenes y radiografías al año, además de un 20 por ciento de descuento en otros tratamientos."
+  },
+  {
+    "id": "pricing",
+    "question": "¿Cuánto cuesta una revisión con limpieza?",
+    "answer": "Un examen para paciente nuevo con radiografías y limpieza cuesta 189 dólares sin seguro. Una limpieza y examen regular de seis meses cuesta 135 dólares. Un empaste empieza en 150 dólares por diente."
+  },
+  {
+    "id": "payment",
+    "question": "¿Ofrecen planes de pago o financiamiento?",
+    "answer": "Sí. Ofrecemos planes de pago sin intereses de hasta 12 meses a través de CareCredit y financiamiento propio. Aceptamos efectivo, las principales tarjetas de crédito y tarjetas HSA o FSA."
+  },
+  {
+    "id": "cancellation",
+    "question": "¿Cuál es su política de cancelación?",
+    "answer": "Le pedimos avisar con al menos 24 horas de anticipación para cancelar o reprogramar una cita. Las cancelaciones con menos aviso y las citas a las que no se asiste pueden tener un cargo de 50 dólares."
+  },
+  {
+    "id": "late",
+    "question": "¿Qué pasa si llego tarde?",
+    "answer": "Por favor llámenos en cuanto sepa que se retrasará. Si llega con más de 15 minutos de retraso, es posible que tengamos que acortar su tratamiento o pasarlo a otro día."
+  },
+  {
+    "id": "new-patient",
+    "question": "¿Qué debo llevar a mi primera cita?",
+    "answer": "Traiga una identificación con foto, su tarjeta del seguro, una lista de sus medicamentos actuales y cualquier radiografía dental reciente. Llegue 15 minutos antes para llenar los formularios de paciente nuevo, o complételos en línea con anticipación."
+  },
+  {
+    "id": "xrays",
+    "question": "¿Son seguras las radiografías dentales?",
+    "answer": "Sí. Usamos radiografías digitales de baja radiación, que lo exponen a mucha menos radiación que la película tradicional. Las tomamos aproximadamente una vez al año, o cuando hace falta por un problema específico."
+  },
+  {
+    "id": "kids",
+    "question": "¿Atienden a niños y desde qué edad?",
+    "answer": "Sí. Recibimos a niños de todas las edades. Recomendamos una primera visita antes del primer cumpleaños o cuando salga el primer diente. Las visitas infantiles incluyen un recorrido divertido y una limpieza sin presiones."
+  },
+  {
+    "id": "anxiety",
+    "question": "Me da miedo ir al dentista. ¿Pueden ayudarme?",
+    "answer": "Por supuesto. Ofrecemos óxido nitroso o gas de la risa, audífonos con cancelación de ruido y pausas cuando las necesite. Cuéntenos de su ansiedad al reservar y planearemos una visita tranquila."
+  },
+  {
+    "id": "pain",
+    "question": "¿Me va a doler el tratamiento?",
+    "answer": "Usamos gel anestésico tópico y anestesia local, así que la mayoría de los pacientes solo sienten presión. Si siente molestia durante el tratamiento, levante la mano y nos detendremos."
+  },
+  {
+    "id": "accessibility",
+    "question": "¿La clínica es accesible para sillas de ruedas?",
+    "answer": "Sí. El edificio tiene entrada sin escalones, un ascensor hasta la Oficina 3, consultorios amplios y un baño accesible."
+  },
+  {
+    "id": "languages",
+    "question": "¿Tienen personal que hable otros idiomas?",
+    "answer": "Sí. Nuestro equipo habla inglés, español y mandarín. Podemos coordinar un intérprete telefónico para otros idiomas si nos avisa con anticipación."
+  },
+  {
+    "id": "records",
+    "question": "¿Cómo transfiero mi historial dental o consigo una copia de mis radiografías?",
+    "answer": "Firme un formulario de autorización en la recepción o en línea y solicitaremos su historial a su dentista anterior. También podemos enviarle por correo una copia de sus radiografías en un plazo de dos días hábiles."
+  },
+  {
+    "id": "second-opinion",
+    "question": "¿Puedo pedir una segunda opinión sobre un plan de tratamiento?",
+    "answer": "Sí. Traiga sus radiografías y su plan de tratamiento y la doctora Patel los revisará. La consulta de segunda opinión cuesta 60 dólares, que se abonan al tratamiento si decide continuar."
+  },
+  {
+    "id": "booking",
+    "question": "¿Cómo puedo reservar una cita?",
+    "answer": "Puede reservar llamando a este número, usando el programador en línea de nuestro sitio web o pidiéndolo a nuestra recepcionista. Las citas para pacientes nuevos suelen estar disponibles en menos de una semana."
+  }
+]

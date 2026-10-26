@@ -401,3 +401,101 @@ def test_rejects_invalid_limits():
                 )
 
     run(scenario())
+
+
+async def seed_spanish(conn: asyncpg.Connection, tenant_id: uuid.UUID):
+    source_id = await create_source(conn, tenant_id)
+    hours = await add_chunk(
+        conn,
+        tenant_id,
+        source_id,
+        0,
+        "¿Cuál es su horario de atención? Abrimos de lunes a viernes de 9:00 a 18:00.",
+        axis((0, 1.0)),
+    )
+    extraction = await add_chunk(
+        conn,
+        tenant_id,
+        source_id,
+        1,
+        "Hacemos la extracción de muelas del juicio en la clínica.",
+        axis((1, 1.0)),
+    )
+    return hours, extraction
+
+
+def test_spanish_stopwords_do_not_count_as_keyword_matches():
+    async def scenario():
+        async with database() as (conn, tenant):
+            tenant_id = await tenant()
+            hours, _ = await seed_spanish(conn, tenant_id)
+            query = "¿Cómo va a estar el clima de mañana en la ciudad?"
+            unfiltered = await hybrid_search(
+                conn, tenant_id=tenant_id, query=query, embedding=UNRELATED
+            )
+            assert all(h.matched_terms == 0 for h in unfiltered)
+            floored = await hybrid_search(
+                conn, tenant_id=tenant_id, query=query, embedding=UNRELATED, min_similarity=0.5
+            )
+            assert floored == []
+            related = await hybrid_search(
+                conn,
+                tenant_id=tenant_id,
+                query="¿Cuál es el horario de atención?",
+                embedding=UNRELATED,
+                min_similarity=0.5,
+            )
+            assert [h.chunk_id for h in related] == [hours]
+            assert (related[0].matched_terms, related[0].query_terms) == (3, 3)
+
+    run(scenario())
+
+
+def test_english_only_stopwords_keep_spanish_function_words():
+    async def scenario():
+        async with database() as (conn, tenant):
+            tenant_id = await tenant()
+            await seed_spanish(conn, tenant_id)
+            hits = await hybrid_search(
+                conn,
+                tenant_id=tenant_id,
+                query="de la en el",
+                embedding=UNRELATED,
+                stopword_languages=("english",),
+            )
+            assert hits[0].matched_terms > 0
+
+    run(scenario())
+
+
+def test_accented_and_decomposed_queries_match_composed_text():
+    async def scenario():
+        async with database() as (conn, tenant):
+            tenant_id = await tenant()
+            _, extraction = await seed_spanish(conn, tenant_id)
+            for query in ("extracción", "extracción", "EXTRACCIÓN"):
+                hits = await hybrid_search(
+                    conn,
+                    tenant_id=tenant_id,
+                    query=query,
+                    embedding=UNRELATED,
+                    min_similarity=0.5,
+                )
+                assert [h.chunk_id for h in hits] == [extraction], query
+
+    run(scenario())
+
+
+def test_rejects_unsupported_stopword_languages():
+    async def scenario():
+        async with database() as (conn, _):
+            with pytest.raises(ValueError):
+                await hybrid_search(
+                    conn,
+                    tenant_id=uuid.uuid4(),
+                    query="x",
+                    embedding=axis((0, 1.0)),
+                    stopword_languages=("klingon",),
+                )
+
+    run(scenario())
