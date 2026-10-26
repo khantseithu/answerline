@@ -19,7 +19,14 @@ from .call_session import PARTICIPANT_WAIT, CallSessionEvents, wait_for_caller
 from .capture_lead import LeadCaptureContext
 from .config import TransferCallTool
 from .knowledge_tool import open_knowledge_tools
-from .languages import call_language, greeting_for, language_instructions
+from .languages import (
+    CallerLanguage,
+    agent_languages,
+    call_language,
+    greeting_for,
+    language_instructions,
+    stt_language,
+)
 from .native_booking import open_booking_provider
 from .outbound import (
     announce_outbound_ready,
@@ -98,26 +105,29 @@ async def entrypoint(ctx: JobContext) -> None:
         transfer=transfer,
         ensure_voicemail=after_hours.takes_voicemail,
     )
+    tts = (
+        build_tts(config.models.tts, provider_keys, language=language)
+        if provider_keys is not None
+        else build_tts(config.models.tts, language=language)
+    )
     session = AgentSession(
         stt=(
-            build_stt(config.models.stt, provider_keys, language=language)
+            build_stt(config.models.stt, provider_keys, language=stt_language(config, language))
             if provider_keys is not None
-            else build_stt(config.models.stt, language=language)
+            else build_stt(config.models.stt, language=stt_language(config, language))
         ),
         llm=(
             build_llm_chain(config.models, provider_keys)
             if provider_keys is not None
             else build_llm_chain(config.models)
         ),
-        tts=(
-            build_tts(config.models.tts, provider_keys, language=language)
-            if provider_keys is not None
-            else build_tts(config.models.tts, language=language)
-        ),
+        tts=tts,
         vad=ctx.proc.userdata["vad"],
         turn_handling=build_turn_handling(settings, language),
         user_away_timeout=settings.idle_timeout_seconds or None,
     )
+    if len(agent_languages(config)) > 1:
+        session.on("user_input_transcribed", CallerLanguage(config, language, tts).on_transcribed)
     amd = None
     if outbound_call and outbound_amd_requested(ctx.room):
         amd = AMD(
