@@ -197,6 +197,44 @@
       "type": "string",
       "minLength": 1
     },
+    "outbound": {
+      "type": "object",
+      "properties": {
+        "answering_machine_detection": {
+          "default": false,
+          "type": "boolean"
+        },
+        "first_message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "respect_calling_hours": {
+          "default": true,
+          "type": "boolean"
+        },
+        "retry": {
+          "default": {
+            "delay_seconds": 60,
+            "max_attempts": 1
+          },
+          "type": "object",
+          "properties": {
+            "delay_seconds": {
+              "default": 60,
+              "type": "integer",
+              "minimum": 10,
+              "maximum": 3600
+            },
+            "max_attempts": {
+              "default": 1,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            }
+          }
+        }
+      }
+    },
     "recording": {
       "default": {},
       "type": "object",
