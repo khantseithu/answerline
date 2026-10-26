@@ -20,7 +20,7 @@ test("workspace usage counts UTC month overlap and blocks exhausted call and spe
   const tenantId = crypto.randomUUID();
   const tenantSlug = `usage-${id}`;
   const periodStart = new Date("2026-01-01T00:00:00.000Z");
-  const now = new Date("2026-01-01T00:02:00.000Z");
+  const now = new Date("2026-01-01T00:01:00.000Z");
   try {
     await db.insert(tenants).values({
       id: tenantId,
