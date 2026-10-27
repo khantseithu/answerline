@@ -128,6 +128,7 @@ connectivity alone does not prove audio works. See [LiveKit setup](livekit.md).
 | `OLLAMA_BASE_URL` | Ollama endpoint for embeddings and worker post-call analysis, default `http://localhost:11434`. A host's localhost is not the agent/worker container's localhost. Live-call LLM endpoint wiring is tracked in [#279](https://github.com/khantseithu/answerline/issues/279). |
 | `POST_CALL_MODEL` | Optional provider/model override for summaries, outcome, and sentiment. If omitted, the worker uses the agent's LLM primary/fallback chain. |
 | `EVAL_JUDGE_MODEL` | Optional provider/model for grading eval `judge` rubrics, so the model under test does not grade itself. A run's `judgeModel` (`--judge-model`, dashboard) wins; if neither is set, the agent's LLM judges. |
+| `EVAL_REFERENCE_STT` | Optional provider/model for the fixed listener that transcribes the agent's synthesized audio in audio-mode evals, to check how names, numbers, and dates are pronounced. A run's `referenceStt` (`--reference-stt`, dashboard) wins; if neither is set, the agent's own `models.stt` is used. `--stt` never changes it. |
 | `COST_PRICES_JSON` | Optional JSON array of price overrides with `stage`, `provider`, `model`, `unit`, and `unitPriceUsd`. The example file shows the format. |
 
 The sample agent uses Deepgram, Cartesia, and an OpenRouter primary LLM with

@@ -3,6 +3,7 @@
     "caller": ["Hi", "Can I book tomorrow?"],
     "expect": {
       "max_wer": 0.2,
+      "pronounces": ["202-555-0147", "Bright Smile Dental"],
       "tool_args": {
         "book_appointment": {
           "date": "tomorrow"

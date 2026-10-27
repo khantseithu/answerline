@@ -6,6 +6,7 @@ import {
   callsListQuerySchema,
   costLineSchema,
   createAgentSchema,
+  evalPronunciationSchema,
   evalRunCreateSchema,
   evalStageLatencySchema,
   outboundCallRequestSchema,
@@ -88,6 +89,7 @@ const evalResult = z.object({
   id: z.uuid(),
   latencyMs: z.number().nullable(),
   passed: z.boolean(),
+  pronunciation: evalPronunciationSchema.nullable(),
   stageLatency: evalStageLatencySchema.nullable(),
   transcript: z.array(z.object({ role: z.enum(["caller", "agent"]), text: z.string() })),
 });

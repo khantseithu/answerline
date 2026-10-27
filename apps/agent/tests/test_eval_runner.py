@@ -902,6 +902,7 @@ def test_run_suite_opens_http_context_for_provider_execution(monkeypatch):
             "costUsd": None,
             "modelUsage": [],
             "wer": None,
+            "pronunciation": None,
         }
 
     monkeypatch.setattr(eval_runner, "run_case", run_case_with_http_context)
@@ -1029,3 +1030,201 @@ def test_judge_model_is_not_built_for_cases_without_a_judge(monkeypatch):
     )
     assert refs == []
     assert result["passed"] is True
+
+
+class _AgentSpeechLLM(llm.LLM):
+    def __init__(self, reply: str):
+        super().__init__()
+        self.reply = reply
+
+    def chat(self, *, chat_ctx, tools=None, conn_options=None, **kwargs):
+        reply = self.reply
+
+        class Stream(llm.LLMStream):
+            async def _run(self) -> None:
+                self._event_ch.send_nowait(
+                    llm.ChatChunk(id="test", delta=llm.ChoiceDelta(role="assistant", content=reply))
+                )
+
+        return Stream(
+            self,
+            chat_ctx=chat_ctx,
+            tools=tools or [],
+            conn_options=conn_options or DEFAULT_API_CONNECT_OPTIONS,
+        )
+
+
+def _stub_pronunciation_providers(monkeypatch, caller_stt, reference_stt):
+    built: list[str] = []
+    providers = {"deepgram/nova-3": caller_stt, "deepgram/nova-2": reference_stt}
+
+    def build_stt(ref, *_args, **_kwargs):
+        built.append(ref)
+        return providers[ref]
+
+    monkeypatch.setattr(eval_runner, "build_stt", build_stt)
+    monkeypatch.setattr(eval_runner, "build_tts", lambda _ref, **_kwargs: _FakeTTS())
+    monkeypatch.setattr(eval_runner, "_build_caller_tts", lambda _ref, **_kwargs: _FakeTTS())
+    return built
+
+
+def _pronunciation_case(**expect):
+    return {"name": "pronunciation", "caller": "What is your number?", "expect": expect}
+
+
+def _run_pronunciation(case, reply, **kwargs):
+    return asyncio.run(
+        run_case(
+            _config(),
+            case,
+            llm_provider=_AgentSpeechLLM(reply),
+            mode="audio",
+            **kwargs,
+        )
+    )
+
+
+def test_audio_eval_scores_entities_in_every_agent_turn_including_the_greeting(monkeypatch):
+    reference = _FakeSTT(["hello", "call two oh two five five five zero one four nine on monday"])
+    built = _stub_pronunciation_providers(monkeypatch, _FakeSTT(["what is your number"]), reference)
+    result = _run_pronunciation(
+        _pronunciation_case(), "Call 202-555-0147 on Monday.", reference_stt="deepgram/nova-2"
+    )
+    assert built == ["deepgram/nova-3", "deepgram/nova-2"]
+    assert result["pronunciation"] == {
+        "checked": 2,
+        "matched": 1,
+        "missed": ["202-555-0147"],
+    }
+    assert result["passed"] is True
+
+
+def test_audio_eval_pronunciation_is_null_when_nothing_is_checkable(monkeypatch):
+    built = _stub_pronunciation_providers(monkeypatch, _FakeSTT(["hi"]), _FakeSTT(["hello"]))
+    result = _run_pronunciation(_pronunciation_case(), "Hello there.")
+    assert result["pronunciation"] is None
+    assert built == ["deepgram/nova-3"]
+
+
+@pytest.mark.parametrize(
+    ("settings", "reference_stt", "expected"),
+    [
+        (Settings(), "deepgram/nova-2", "deepgram/nova-2"),
+        (Settings(eval_reference_stt="deepgram/nova-1"), None, "deepgram/nova-1"),
+        (Settings(eval_reference_stt="deepgram/nova-1"), "deepgram/nova-2", "deepgram/nova-2"),
+        (Settings(), None, "deepgram/nova-3"),
+    ],
+)
+def test_reference_stt_resolution_prefers_input_then_env_then_agent_stt(
+    monkeypatch, settings, reference_stt, expected
+):
+    built = []
+    stub = _FakeSTT(["hello", "call two oh two five five five zero one four seven"])
+
+    def build_stt(ref, *_args, **_kwargs):
+        built.append(ref)
+        return stub
+
+    monkeypatch.setattr(eval_runner, "build_stt", build_stt)
+    monkeypatch.setattr(eval_runner, "build_tts", lambda _ref, **_kwargs: _FakeTTS())
+    monkeypatch.setattr(eval_runner, "_build_caller_tts", lambda _ref, **_kwargs: _FakeTTS())
+    _run_pronunciation(
+        _pronunciation_case(), "Call 202-555-0147.", settings=settings, reference_stt=reference_stt
+    )
+    assert built == ["deepgram/nova-3", expected]
+
+
+def test_stt_override_does_not_change_the_reference_stt(monkeypatch):
+    built = []
+    stub = _FakeSTT(["hello", "call two oh two five five five zero one four seven"])
+
+    def build_stt(ref, *_args, **_kwargs):
+        built.append(ref)
+        return stub
+
+    monkeypatch.setattr(eval_runner, "build_stt", build_stt)
+    monkeypatch.setattr(eval_runner, "build_tts", lambda _ref, **_kwargs: _FakeTTS())
+    monkeypatch.setattr(eval_runner, "_build_caller_tts", lambda _ref, **_kwargs: _FakeTTS())
+    result = _run_pronunciation(
+        _pronunciation_case(), "Call 202-555-0147.", stt_override="deepgram/nova-2"
+    )
+    assert built == ["deepgram/nova-2", "deepgram/nova-3"]
+    assert result["pronunciation"] == {"checked": 1, "matched": 1, "missed": []}
+
+
+def test_reference_stt_usage_is_added_to_model_usage(monkeypatch):
+    reference = _FakeSTT(["hello", "call two oh two five five five zero one four seven"])
+    _stub_pronunciation_providers(monkeypatch, _FakeSTT(["number"]), reference)
+    result = _run_pronunciation(
+        _pronunciation_case(), "Call 202-555-0147.", reference_stt="deepgram/nova-2"
+    )
+    assert len([line for line in result["modelUsage"] if line["stage"] == "stt"]) == 3
+
+
+def test_pronounces_fails_naming_the_missing_string(monkeypatch):
+    reference = _FakeSTT(["hello", "the code is one two four"])
+    _stub_pronunciation_providers(monkeypatch, _FakeSTT(["number"]), reference)
+    result = _run_pronunciation(
+        _pronunciation_case(pronounces=["123", "the code"]),
+        "The code is 123.",
+        reference_stt="deepgram/nova-2",
+    )
+    assert result["passed"] is False
+    assert result["failures"] == ["agent audio does not pronounce '123'"]
+
+
+def test_pronounces_passes_when_every_string_is_heard(monkeypatch):
+    reference = _FakeSTT(["hello", "the code is one two three"])
+    _stub_pronunciation_providers(monkeypatch, _FakeSTT(["number"]), reference)
+    result = _run_pronunciation(
+        _pronunciation_case(pronounces=["123"]),
+        "No entities here.",
+        reference_stt="deepgram/nova-2",
+    )
+    assert result["passed"] is True
+    assert result["pronunciation"] is None
+
+
+def test_text_mode_ignores_pronounces_and_has_no_pronunciation():
+    case = _pronunciation_case(pronounces=["123"])
+    result = asyncio.run(run_case(_config(), case, llm_provider=_TextLLM()))
+    assert result["pronunciation"] is None
+    assert result["passed"] is True
+
+
+def test_assertions_skip_pronounces_without_reference_transcripts():
+    case = {"expect": {"pronounces": ["123"]}}
+    assert _evaluate_assertions(case, [], [], None, None) == []
+    assert _evaluate_assertions(case, [], [], None, ["one two three"]) == []
+    assert _evaluate_assertions(case, [], [], None, ["one two"]) == [
+        "agent audio does not pronounce '123'"
+    ]
+
+
+def test_run_suite_aggregates_pronunciation_score_across_cases(monkeypatch):
+    reference = _FakeSTT(["hello", "call two oh two five five five zero one four nine"])
+    _stub_pronunciation_providers(monkeypatch, _FakeSTT(["number"]), reference)
+    monkeypatch.setattr(
+        eval_runner, "build_llm_chain", lambda _models: _AgentSpeechLLM("Call 202-555-0147.")
+    )
+    payload = {
+        "agent": CONFIG,
+        "mode": "audio",
+        "referenceStt": "deepgram/nova-2",
+        "suite": [{"name": "digits", "caller": "Number?", "expect": {}}],
+    }
+    output = asyncio.run(run_suite(payload))
+    assert output["results"][0]["pronunciation"] == {
+        "checked": 1,
+        "matched": 0,
+        "missed": ["202-555-0147"],
+    }
+    assert output["aggregate"]["pronunciationScore"] == 0
+
+
+def test_run_suite_pronunciation_score_is_null_in_text_mode(monkeypatch):
+    monkeypatch.setattr(eval_runner, "build_llm_chain", lambda _models: _TextLLM())
+    payload = {"agent": CONFIG, "suite": [{"name": "text", "caller": "Hi", "expect": {}}]}
+    output = asyncio.run(run_suite(payload))
+    assert output["aggregate"]["pronunciationScore"] is None
+    assert output["results"][0]["pronunciation"] is None

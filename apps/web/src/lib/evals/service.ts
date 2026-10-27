@@ -41,6 +41,7 @@ const runColumns = {
   id: evalRuns.id,
   modelOverride: evalRuns.modelOverride,
   passed: evalRuns.passed,
+  pronunciationScore: evalRuns.pronunciationScore,
   stageLatency: evalRuns.stageLatency,
   startedAt: evalRuns.startedAt,
   status: evalRuns.status,
@@ -60,6 +61,7 @@ interface RunRow {
     callerAudio?: EvalCallerAudio;
     liveTools?: boolean;
     mode?: "text" | "audio";
+    referenceStt?: string;
     sttOverride?: string;
     ttsOverride?: string;
   } | null;
@@ -67,6 +69,7 @@ interface RunRow {
   id: string;
   modelOverride: string | null;
   passed: number | null;
+  pronunciationScore: number | null;
   stageLatency: EvalRunStageLatency | null;
   startedAt: Date | null;
   status: EvalRunView["status"];
@@ -90,6 +93,8 @@ function runView(row: RunRow): EvalRunView {
     mode: row.executionInput?.mode ?? "text",
     modelOverride: row.modelOverride,
     passed: row.passed,
+    pronunciationScore: row.pronunciationScore,
+    referenceStt: row.executionInput?.referenceStt ?? null,
     stageLatency: row.stageLatency,
     startedAt: row.startedAt?.toISOString() ?? null,
     status: row.status,
@@ -146,6 +151,7 @@ function resultsFor(deps: EvalDeps, runIds: string[]) {
       id: evalResults.id,
       latencyMs: evalResults.latencyMs,
       passed: evalResults.passed,
+      pronunciation: evalResults.pronunciation,
       runId: evalResults.runId,
       stageLatency: evalResults.stageLatency,
       transcript: evalResults.transcript,
@@ -228,6 +234,7 @@ export async function createEvalRun(deps: EvalDeps, rawInput: unknown) {
     liveTools: input.liveTools,
     mode: input.mode,
     modelOverride: input.modelOverride,
+    referenceStt: input.referenceStt,
     sttOverride: input.sttOverride,
     suite,
     ttsOverride: input.ttsOverride,

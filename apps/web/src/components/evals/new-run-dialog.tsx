@@ -50,6 +50,11 @@ function callerAudioFromForm(form: FormData): EvalRunCreate["callerAudio"] {
   };
 }
 
+function audioOnlyField(form: FormData, audio: boolean, name: string) {
+  const value = String(form.get(name) ?? "").trim();
+  return audio && value ? value : undefined;
+}
+
 export function NewRunDialog({
   onCreated,
   options,
@@ -116,6 +121,7 @@ export function NewRunDialog({
           liveTools,
           mode: audio ? "audio" : "text",
           modelOverride: modelOverride || undefined,
+          referenceStt: audioOnlyField(form, audio, "referenceStt"),
           sttOverride: (audio && sttOverride) || undefined,
           suite,
           ttsOverride: (audio && ttsOverride) || undefined,
@@ -310,6 +316,20 @@ export function NewRunDialog({
                     />
                     <FieldDescription>
                       The same seed gives identical noise, so runs stay comparable.
+                    </FieldDescription>
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="eval-reference-stt">Reference STT</FieldLabel>
+                    <Input
+                      autoComplete="off"
+                      id="eval-reference-stt"
+                      name="referenceStt"
+                      placeholder="deepgram/nova-3"
+                    />
+                    <FieldDescription>
+                      Optional. Transcribes the agent’s spoken replies to check names, numbers, and
+                      dates. Ignores the STT override. Defaults to EVAL_REFERENCE_STT, then the
+                      agent’s STT.
                     </FieldDescription>
                   </Field>
                 </>

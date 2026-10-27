@@ -350,3 +350,75 @@ test("eval fixtures validate against the matching contracts", async () => {
     assert.throws(() => evalRunCreateSchema.parse(data), Error, file);
   }
 });
+
+test("pronounces is a list of non-empty strings per case", () => {
+  const suite = (pronounces: unknown) => [{ caller: "Hi", expect: { pronounces }, name: "hello" }];
+  assert.deepEqual(evalSuiteSchema.parse(suite(["202-555-0147"]))[0]?.expect.pronounces, [
+    "202-555-0147",
+  ]);
+  assert.throws(() => evalSuiteSchema.parse(suite([""])));
+  assert.throws(() => evalSuiteSchema.parse(suite("202-555-0147")));
+});
+
+test("reference stt is a validated model ref on input and run create", () => {
+  const agentId = "0b9c1c3e-2f4a-4e8e-9d3a-5f1f2b7c9a10";
+  assert.equal(
+    evalRunCreateSchema.parse({
+      agentId,
+      referenceStt: "deepgram/nova-3",
+      suite: "bright-smile-dental",
+    }).referenceStt,
+    "deepgram/nova-3"
+  );
+  assert.throws(() =>
+    evalRunCreateSchema.parse({ agentId, referenceStt: "nova-3", suite: "bright-smile-dental" })
+  );
+  assert.equal(
+    evalExecutionInputSchema.parse({
+      agent: minimalAgent,
+      mode: "audio",
+      referenceStt: "deepgram/nova-3",
+      suite: [{ caller: "Hi", expect: {}, name: "hello" }],
+    }).referenceStt,
+    "deepgram/nova-3"
+  );
+});
+
+test("pronunciation results and score validate counts and bounds", () => {
+  const output = (pronunciation: unknown, pronunciationScore: unknown) => ({
+    aggregate: {
+      avgLatencyMs: null,
+      avgWer: null,
+      costUsd: null,
+      passed: 1,
+      pronunciationScore,
+      total: 1,
+    },
+    results: [
+      {
+        caseName: "hello",
+        costUsd: null,
+        failures: [],
+        latencyMs: null,
+        passed: true,
+        pronunciation,
+        transcript: [{ role: "caller", text: "Hi" }],
+        wer: null,
+      },
+    ],
+  });
+  const parsed = evalExecutionOutputSchema.parse(
+    output({ checked: 2, matched: 1, missed: ["202-555-0147"] }, 0.5)
+  );
+  assert.deepEqual(parsed.results[0]?.pronunciation, {
+    checked: 2,
+    matched: 1,
+    missed: ["202-555-0147"],
+  });
+  assert.equal(parsed.aggregate.pronunciationScore, 0.5);
+  assert.equal(evalExecutionOutputSchema.parse(output(null, null)).results[0]?.pronunciation, null);
+  assert.throws(() => evalExecutionOutputSchema.parse(output({ checked: 1, matched: 1 }, 1)));
+  assert.throws(() =>
+    evalExecutionOutputSchema.parse(output({ checked: 1, matched: 1, missed: [] }, 1.5))
+  );
+});

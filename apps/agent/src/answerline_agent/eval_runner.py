@@ -21,6 +21,7 @@ from .capture_lead import LeadCaptureContext
 from .config import AgentConfig, BookAppointmentTool, HttpTool, McpTool, TransferCallTool
 from .eval_audio import degrade_caller_audio
 from .eval_latency import agent_turn_stages
+from .eval_pronunciation import check_entities, extract_entities, missing_pronunciations
 from .eval_wer import word_error_rate
 from .knowledge_tool import QUERY_DESCRIPTION, TOOL_DESCRIPTION, open_knowledge_tools
 from .languages import language_instructions, localizes_messages, stt_language
@@ -234,6 +235,7 @@ def _evaluate_assertions(
     transcript: list[dict[str, str]],
     calls: list[dict],
     wer: float | None = None,
+    reference_transcripts: list[str] | None = None,
 ) -> list[str]:
     expect = case.get("expect", {})
     agent_text = "\n".join(turn["text"] for turn in transcript if turn["role"] == "agent")
@@ -261,6 +263,9 @@ def _evaluate_assertions(
     max_wer = expect.get("max_wer")
     if max_wer is not None and wer is not None and wer > max_wer:
         failures.append(f"word error rate {wer:.4f} is over max_wer {max_wer}")
+    if reference_transcripts is not None:
+        for phrase in missing_pronunciations(expect.get("pronounces", []), reference_transcripts):
+            failures.append(f"agent audio does not pronounce {phrase!r}")
     return failures
 
 
@@ -325,10 +330,16 @@ class _CapturedAudioOutput(io.AudioOutput):
             label="eval playback", capabilities=io.AudioOutputCapabilities(pause=False)
         )
         self.frame_count = 0
+        self.frames: list[rtc.AudioFrame] = []
 
     async def capture_frame(self, frame: rtc.AudioFrame) -> None:
         self.frame_count += 1
+        self.frames.append(frame)
         await super().capture_frame(frame)
+
+    def take_frames(self) -> list[rtc.AudioFrame]:
+        frames, self.frames = self.frames, []
+        return frames
 
     def flush(self) -> None:
         super().flush()
@@ -378,6 +389,45 @@ async def _recognize_caller_audio(
     return transcript, model_usage_lines(collector.flatten()) or []
 
 
+def _needs_reference_stt(
+    case: dict[str, Any], agent_audio: list[tuple[str, list[rtc.AudioFrame]]], agent_name: str
+) -> bool:
+    return bool(case.get("expect", {}).get("pronounces")) or any(
+        extract_entities(text, agent_name) for text, _frames in agent_audio
+    )
+
+
+async def _transcribe_agent_audio(
+    provider: stt.STT, agent_audio: list[tuple[str, list[rtc.AudioFrame]]]
+) -> tuple[list[str], list[dict[str, Any]]]:
+    transcripts: list[str] = []
+    usage: list[dict[str, Any]] = []
+    for _text, frames in agent_audio:
+        if not frames:
+            transcripts.append("")
+            continue
+        heard, lines = await asyncio.wait_for(
+            _recognize_caller_audio(provider, frames), EVAL_PHASE_TIMEOUT
+        )
+        transcripts.append(heard)
+        usage.extend(lines)
+    return transcripts, usage
+
+
+def _score_pronunciation(
+    agent_audio: list[tuple[str, list[rtc.AudioFrame]]], heard: list[str], agent_name: str
+) -> dict[str, Any] | None:
+    checked = 0
+    missed: list[str] = []
+    for (text, _frames), transcript in zip(agent_audio, heard, strict=True):
+        turn_checked, turn_missed = check_entities(text, transcript, agent_name)
+        checked += turn_checked
+        missed.extend(turn_missed)
+    if not checked:
+        return None
+    return {"checked": checked, "matched": checked - len(missed), "missed": missed}
+
+
 async def run_case(
     config: AgentConfig,
     case: dict[str, Any],
@@ -387,6 +437,7 @@ async def run_case(
     stt_override: str | None = None,
     tts_override: str | None = None,
     caller_audio: dict[str, Any] | None = None,
+    reference_stt: str | None = None,
     settings: Settings | None = None,
     llm_provider: llm.LLM | None = None,
     judge_provider: llm.LLM | None = None,
@@ -444,6 +495,7 @@ async def run_case(
     usage: list[dict[str, Any]] = []
     audio_output = None
     stt_provider = None
+    reference_stt_provider = None
     tts_provider = None
     caller_tts_provider = None
     session = None
@@ -453,6 +505,7 @@ async def run_case(
     stage_latency: dict[str, list[int]] = {}
     speech_failures: list[str] = []
     turn_wers: list[float] = []
+    agent_audio: list[tuple[str, list[rtc.AudioFrame]]] = []
 
     def on_item(event) -> None:
         if event.item.type == "message" and event.item.role == "assistant":
@@ -529,6 +582,8 @@ async def run_case(
         if error := greeting.exception():
             speech_failures.append(_speech_failure_summary("agent greeting", error))
         transcript.append({"role": "agent", "text": greeting_text})
+        if audio_output:
+            agent_audio.append((greeting_text, audio_output.take_frames()))
         for turn in turns:
             start = len(responses)
             llm_start = len(llm_durations)
@@ -572,9 +627,33 @@ async def run_case(
             response = "\n".join(responses[start:]).strip()
             if response:
                 transcript.append({"role": "agent", "text": response})
+            if audio_output:
+                agent_audio.append((response, audio_output.take_frames()))
         provider.off("metrics_collected", on_llm_metrics)
         wer = round(sum(turn_wers) / len(turn_wers), 4) if turn_wers else None
-        failures = speech_failures + _evaluate_assertions(case, transcript, calls, wer)
+        reference_transcripts = None
+        pronunciation = None
+        reference_ms = 0
+        if mode == "audio" and _needs_reference_stt(case, agent_audio, config.name):
+            reference_ref = (
+                reference_stt or runtime_settings.eval_reference_stt or config.models.stt
+            )
+            reference_language = stt_language(config, config.language)
+            reference_stt_provider = (
+                build_stt(reference_ref, provider_keys, language=reference_language)
+                if provider_keys is not None
+                else build_stt(reference_ref, language=reference_language)
+            )
+            reference_started = time.monotonic()
+            reference_transcripts, reference_usage = await _transcribe_agent_audio(
+                reference_stt_provider, agent_audio
+            )
+            reference_ms = round((time.monotonic() - reference_started) * 1000)
+            usage.extend(reference_usage)
+            pronunciation = _score_pronunciation(agent_audio, reference_transcripts, config.name)
+        failures = speech_failures + _evaluate_assertions(
+            case, transcript, calls, wer, reference_transcripts
+        )
         usage.extend(model_usage_lines(session.usage.model_usage) or [])
         if case.get("expect", {}).get("judge"):
             judge_ref = judge_model or runtime_settings.eval_judge_model
@@ -590,7 +669,7 @@ async def run_case(
             usage.extend(judge_usage)
             if not passed:
                 failures.append(f"judge failed: {reason}")
-        latency = max(int((time.monotonic() - started) * 1000), 0)
+        latency = max(int((time.monotonic() - started) * 1000) - reference_ms, 0)
         return {
             "caseName": case["name"],
             "passed": not failures,
@@ -600,6 +679,7 @@ async def run_case(
             "costUsd": None,
             "modelUsage": usage,
             "wer": wer,
+            "pronunciation": pronunciation,
             "stageLatency": stage_latency,
         }
     finally:
@@ -609,7 +689,12 @@ async def run_case(
                 await session.aclose()
         finally:
             try:
-                for audio_provider in (caller_tts_provider, tts_provider, stt_provider):
+                for audio_provider in (
+                    caller_tts_provider,
+                    tts_provider,
+                    stt_provider,
+                    reference_stt_provider,
+                ):
                     if audio_provider:
                         await audio_provider.aclose()
             finally:
@@ -637,6 +722,7 @@ async def run_suite(
                 stt_override=payload.get("sttOverride"),
                 tts_override=payload.get("ttsOverride"),
                 caller_audio=payload.get("callerAudio"),
+                reference_stt=payload.get("referenceStt"),
                 settings=Settings(),
                 mode=payload.get("mode", "text"),
                 live_tools=payload.get("liveTools", False),
@@ -649,6 +735,10 @@ async def run_suite(
         latencies = [result["latencyMs"] for result in results if result["latencyMs"] is not None]
         costs = [result["costUsd"] for result in results if result["costUsd"] is not None]
         wers = [result["wer"] for result in results if result["wer"] is not None]
+        pronunciations = [
+            result["pronunciation"] for result in results if result["pronunciation"] is not None
+        ]
+        checked = sum(item["checked"] for item in pronunciations)
         passed = sum(result["passed"] for result in results)
         output = {
             "results": results,
@@ -657,6 +747,11 @@ async def run_suite(
                 "total": total,
                 "avgLatencyMs": round(sum(latencies) / len(latencies)) if latencies else None,
                 "avgWer": round(sum(wers) / len(wers), 4) if wers else None,
+                "pronunciationScore": (
+                    round(sum(item["matched"] for item in pronunciations) / checked, 4)
+                    if checked
+                    else None
+                ),
                 "costUsd": sum(costs) if len(costs) == total else None,
             },
         }

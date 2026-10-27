@@ -110,6 +110,31 @@ test("averages WER over cases that have one", () => {
   );
 });
 
+test("scores pronunciation as matched over checked entities across cases", () => {
+  const suiteInput = {
+    ...input,
+    suite: [
+      ...input.suite,
+      { caller: "Hi", expect: {}, name: "second" },
+      { caller: "Hi", expect: {}, name: "third" },
+    ],
+  };
+  const normalized = normalizeEvalOutput(suiteInput, {
+    ...output,
+    results: [
+      { ...greetingResult, pronunciation: { checked: 4, matched: 3, missed: ["Nguyen"] } },
+      {
+        ...greetingResult,
+        caseName: "second",
+        pronunciation: { checked: 2, matched: 0, missed: [] },
+      },
+      { ...greetingResult, caseName: "third", pronunciation: null },
+    ],
+  });
+  assert.equal(normalized.aggregate.pronunciationScore, 0.5);
+  assert.equal(normalizeEvalOutput(input, output).aggregate.pronunciationScore, null);
+});
+
 test("summarizes per-stage latency percentiles across all cases", () => {
   const multiInput = evalExecutionInputSchema.parse({
     ...input,
@@ -210,7 +235,13 @@ test("persists eval runs, retries safely, and executes queue jobs", {
         calls += 1;
         return Promise.resolve({
           ...output,
-          results: [{ ...greetingResult, wer: 0.25 }],
+          results: [
+            {
+              ...greetingResult,
+              pronunciation: { checked: 4, matched: 3, missed: ["Nguyen"] },
+              wer: 0.25,
+            },
+          ],
         });
       },
     };
@@ -226,6 +257,12 @@ test("persists eval runs, retries safely, and executes queue jobs", {
     assert.equal(savedResults[0]?.costUsd, "0.000400");
     assert.equal(savedRun?.avgWer, 0.25);
     assert.equal(savedResults[0]?.wer, 0.25);
+    assert.equal(savedRun?.pronunciationScore, 0.75);
+    assert.deepEqual(savedResults[0]?.pronunciation, {
+      checked: 4,
+      matched: 3,
+      missed: ["Nguyen"],
+    });
     assert.deepEqual(savedResults[0]?.stageLatency, {
       llmTotalMs: [800, 1200],
       llmTtftMs: [300, 500],

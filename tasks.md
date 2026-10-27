@@ -187,7 +187,7 @@ Roadmap: *Evals runner*
   - [x] STT word error rate in audio mode, plus `--stt`/`--tts` overrides (#330)
   - [x] Per-stage latency (STT, LLM TTFT, TTS TTFB) in eval results (#331)
   - [x] Realistic caller audio: telephony band, noise, distinct caller voice (#332)
-  - [ ] TTS pronunciation check for names, numbers, and dates (#333)
+  - [x] TTS pronunciation check for names, numbers, and dates (#333)
 
 **Done when:** `docker compose run --rm worker eval agents/bright-smile-dental.yaml` prints pass rate, latency, and cost, and the same run appears in the dashboard.
 

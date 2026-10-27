@@ -4,6 +4,7 @@
     "avgWer": 0.125,
     "costUsd": null,
     "passed": 0,
+    "pronunciationScore": 0.5,
     "total": 1,
     "stageLatency": {
       "llmTtftMs": {
@@ -28,6 +29,11 @@
         }
       ],
       "passed": false,
+      "pronunciation": {
+        "checked": 2,
+        "matched": 1,
+        "missed": ["202-555-0147"]
+      },
       "transcript": [{ "role": "caller", "text": "Hi" }],
       "wer": 0.125,
       "stageLatency": {

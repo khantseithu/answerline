@@ -41,6 +41,16 @@ function formatWer(wer: number | null) {
   return wer === null ? "n/a" : `${(wer * 100).toFixed(1)}%`;
 }
 
+function caseMetrics(result: typeof evalResults.$inferSelect) {
+  const metrics = [
+    ...(result.wer === null ? [] : [`WER ${formatWer(result.wer)}`]),
+    ...(result.pronunciation
+      ? [`pronunciation ${result.pronunciation.matched}/${result.pronunciation.checked}`]
+      : []),
+  ];
+  return metrics.length ? ` (${metrics.join(", ")})` : "";
+}
+
 function fail(message: string): never {
   console.error(message);
   process.exit(1);
@@ -61,14 +71,14 @@ function printEvalRun(
   }
   console.log(`cost: ${run.costUsd === null ? "n/a" : `$${run.costUsd}`}`);
   console.log(`average WER: ${formatWer(run.avgWer)}`);
+  console.log(`pronunciation score: ${formatWer(run.pronunciationScore)}`);
   for (const result of results) {
-    console.log(
-      `${result.passed ? "PASS" : "FAIL"} ${result.caseName}${
-        result.wer === null ? "" : ` (WER ${formatWer(result.wer)})`
-      }`
-    );
+    console.log(`${result.passed ? "PASS" : "FAIL"} ${result.caseName}${caseMetrics(result)}`);
     for (const failure of result.failures) {
       console.log(`  ${failure}`);
+    }
+    for (const missed of result.pronunciation?.missed ?? []) {
+      console.log(`  not pronounced: ${missed}`);
     }
   }
 }
@@ -97,6 +107,7 @@ async function runEval(args: string[]) {
       "judge-model": { type: "string" },
       "live-tools": { type: "boolean" },
       model: { type: "string" },
+      "reference-stt": { type: "string" },
       seed: { type: "string" },
       stt: { type: "string" },
       tenant: { type: "string" },
@@ -106,7 +117,7 @@ async function runEval(args: string[]) {
   const [agentPath, ...extra] = positionals;
   if (!agentPath || extra.length) {
     throw new Error(
-      "usage: worker eval <agents/name.yaml> [--model provider/model] [--judge-model provider/model] [--live-tools] [--audio] [--stt provider/model] [--tts provider/model] [--caller-audio clean|phone] [--caller-noise-snr dB] [--caller-tts provider/model] [--caller-voice id] [--seed n] [--tenant workspace-slug]"
+      "usage: worker eval <agents/name.yaml> [--model provider/model] [--judge-model provider/model] [--live-tools] [--audio] [--stt provider/model] [--tts provider/model] [--reference-stt provider/model] [--caller-audio clean|phone] [--caller-noise-snr dB] [--caller-tts provider/model] [--caller-voice id] [--seed n] [--tenant workspace-slug]"
     );
   }
 
@@ -144,6 +155,7 @@ async function runEval(args: string[]) {
       liveTools: values["live-tools"],
       mode: values.audio ? "audio" : "text",
       modelOverride: values.model,
+      referenceStt: values["reference-stt"],
       sttOverride: values.stt,
       suite,
       ttsOverride: values.tts,

@@ -1,17 +1,20 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import type { EvalPronunciation } from "@answerline/shared";
 import { compareEvalCases, compareEvalTotals, compareStageLatency, passRate } from "./compare.ts";
 
 const result = (
   caseName: string,
   passed: boolean,
   latencyMs: number | null = 100,
-  wer: number | null = null
+  wer: number | null = null,
+  pronunciation: EvalPronunciation | null = null
 ) => ({
   caseName,
   costUsd: "0.001000",
   latencyMs,
   passed,
+  pronunciation,
   wer,
 });
 
@@ -52,6 +55,30 @@ test("computes WER deltas only when both sides have a value", () => {
   );
 });
 
+test("computes pronunciation rate deltas only when both sides checked entities", () => {
+  const pronunciation = (checked: number, matched: number) => ({ checked, matched, missed: [] });
+  const cases = compareEvalCases(
+    [
+      result("books", true, 100, null, pronunciation(4, 2)),
+      result("hours", true, 100, null, pronunciation(2, 2)),
+      result("new", true),
+    ],
+    [
+      result("books", true, 100, null, pronunciation(4, 3)),
+      result("hours", true),
+      result("new", true, 100, null, pronunciation(1, 1)),
+    ]
+  );
+  assert.deepEqual(
+    cases.map((item) => [item.caseName, item.pronunciationDelta]),
+    [
+      ["books", 0.25],
+      ["hours", null],
+      ["new", null],
+    ]
+  );
+});
+
 test("uses the first result when a run repeats a case name", () => {
   const [item] = compareEvalCases(
     [result("books", true), result("books", false)],
@@ -63,22 +90,62 @@ test("uses the first result when a run repeats a case name", () => {
 test("computes run deltas and keeps unknown cost null", () => {
   assert.deepEqual(
     compareEvalTotals(
-      { avgLatencyMs: 800, avgWer: 0.2, costUsd: "0.010000", passed: 2, total: 4 },
-      { avgLatencyMs: 650, avgWer: 0.1, costUsd: "0.012500", passed: 3, total: 4 }
+      {
+        avgLatencyMs: 800,
+        avgWer: 0.2,
+        costUsd: "0.010000",
+        passed: 2,
+        pronunciationScore: 0.5,
+        total: 4,
+      },
+      {
+        avgLatencyMs: 650,
+        avgWer: 0.1,
+        costUsd: "0.012500",
+        passed: 3,
+        pronunciationScore: 0.75,
+        total: 4,
+      }
     ),
-    { costDeltaUsd: 0.0025, latencyDeltaMs: -150, passRateDelta: 0.25, werDelta: -0.1 }
+    {
+      costDeltaUsd: 0.0025,
+      latencyDeltaMs: -150,
+      passRateDelta: 0.25,
+      pronunciationDelta: 0.25,
+      werDelta: -0.1,
+    }
   );
   assert.deepEqual(
     compareEvalTotals(
-      { avgLatencyMs: null, avgWer: null, costUsd: null, passed: null, total: null },
-      { avgLatencyMs: 650, avgWer: 0.1, costUsd: "0.012500", passed: 3, total: 4 }
+      {
+        avgLatencyMs: null,
+        avgWer: null,
+        costUsd: null,
+        passed: null,
+        pronunciationScore: null,
+        total: null,
+      },
+      {
+        avgLatencyMs: 650,
+        avgWer: 0.1,
+        costUsd: "0.012500",
+        passed: 3,
+        pronunciationScore: 0.75,
+        total: 4,
+      }
     ),
-    { costDeltaUsd: null, latencyDeltaMs: null, passRateDelta: null, werDelta: null }
+    {
+      costDeltaUsd: null,
+      latencyDeltaMs: null,
+      passRateDelta: null,
+      pronunciationDelta: null,
+      werDelta: null,
+    }
   );
 });
 
 test("pass rate is null until a run has totals", () => {
-  const totals = { avgLatencyMs: null, avgWer: null, costUsd: null };
+  const totals = { avgLatencyMs: null, avgWer: null, costUsd: null, pronunciationScore: null };
   assert.equal(passRate({ ...totals, passed: 0, total: 0 }), null);
   assert.equal(passRate({ ...totals, passed: 1, total: 2 }), 0.5);
 });

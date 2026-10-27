@@ -8,6 +8,7 @@ const evalExpectationSchema = z.object({
   max_wer: z.number().min(0).max(1).optional(),
   mentions: z.array(z.string()).optional(),
   not_mentions: z.array(z.string()).optional(),
+  pronounces: z.array(z.string().min(1)).optional(),
   tool_args: z.record(z.string(), z.record(z.string(), z.json())).optional(),
   tool_called: z.string().optional(),
 });
@@ -52,6 +53,12 @@ export const evalRunStageLatencySchema = z.object({
   ttsTtfbMs: stagePercentilesSchema.optional(),
 });
 
+export const evalPronunciationSchema = z.object({
+  checked: z.number().int().nonnegative(),
+  matched: z.number().int().nonnegative(),
+  missed: z.array(z.string()),
+});
+
 export const evalCaseResultSchema = z.object({
   caseName: z.string().min(1),
   costUsd: z.number().nonnegative().nullable(),
@@ -59,6 +66,7 @@ export const evalCaseResultSchema = z.object({
   latencyMs: z.number().int().nonnegative().nullable(),
   modelUsage: z.array(modelUsageSchema).optional(),
   passed: z.boolean(),
+  pronunciation: evalPronunciationSchema.nullable().optional(),
   stageLatency: evalStageLatencySchema.optional(),
   transcript: z.array(evalTranscriptTurnSchema),
   wer: z.number().nonnegative().nullable(),
@@ -69,6 +77,7 @@ export const evalRunAggregateSchema = z.object({
   avgWer: z.number().nonnegative().nullable(),
   costUsd: z.number().nonnegative().nullable(),
   passed: z.number().int().nonnegative(),
+  pronunciationScore: z.number().min(0).max(1).nullable().optional(),
   stageLatency: evalRunStageLatencySchema.nullable().optional(),
   total: z.number().int().nonnegative(),
 });
@@ -100,6 +109,7 @@ export const evalExecutionInputSchema = z
     liveTools: z.boolean().default(false),
     mode: z.enum(["text", "audio"]).default("text"),
     modelOverride: modelRefSchema.optional(),
+    referenceStt: modelRefSchema.optional(),
     sttOverride: modelRefSchema.optional(),
     suite: evalSuiteSchema,
     ttsOverride: modelRefSchema.optional(),
@@ -122,6 +132,7 @@ export const evalRunCreateSchema = z.object({
   liveTools: z.boolean().optional(),
   mode: z.enum(["text", "audio"]).optional(),
   modelOverride: modelRefSchema.optional(),
+  referenceStt: modelRefSchema.optional(),
   sttOverride: modelRefSchema.optional(),
   suite: z.string().regex(/^[a-z0-9][a-z0-9-]*$/, "expected suite basename slug"),
   ttsOverride: modelRefSchema.optional(),
@@ -133,6 +144,7 @@ export type EvalCaseResult = z.infer<typeof evalCaseResultSchema>;
 export type EvalExecutionInput = z.infer<typeof evalExecutionInputSchema>;
 export type EvalExecutionOutput = z.infer<typeof evalExecutionOutputSchema>;
 export type EvalJob = z.infer<typeof evalJobSchema>;
+export type EvalPronunciation = z.infer<typeof evalPronunciationSchema>;
 export type EvalRunAggregate = z.infer<typeof evalRunAggregateSchema>;
 export type EvalRunStageLatency = z.infer<typeof evalRunStageLatencySchema>;
 export type EvalStageLatency = z.infer<typeof evalStageLatencySchema>;
