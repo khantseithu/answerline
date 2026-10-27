@@ -25,6 +25,7 @@ from .languages import (
     call_language,
     greeting_for,
     language_instructions,
+    localizes_messages,
     stt_language,
 )
 from .native_booking import open_booking_provider
@@ -91,7 +92,10 @@ async def entrypoint(ctx: JobContext) -> None:
         (spec for spec in config.tools if isinstance(spec, TransferCallTool)), None
     )
     transfer = CallTransfer(ctx, transfer_spec.to) if transfer_spec else None
-    after_hours = AfterHours(None if outbound_call else config.hours, config.name, settings)
+    localize = localizes_messages(config)
+    after_hours = AfterHours(
+        None if outbound_call else config.hours, config.name, settings, localize=localize
+    )
     tools = build_configured_tools(
         config,
         settings,
@@ -170,7 +174,9 @@ async def entrypoint(ctx: JobContext) -> None:
     )
     if amd:
         await announce_outbound_ready(ctx)
-    lifecycle = CallLifecycle(session=session, events=events, job=ctx, settings=settings)
+    lifecycle = CallLifecycle(
+        session=session, events=events, job=ctx, settings=settings, localize=localize
+    )
     caller = await wait_for_caller(ctx, timeout=None if outbound_call else PARTICIPANT_WAIT)
     if transfer:
         transfer.set_caller(caller)

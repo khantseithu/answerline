@@ -63,6 +63,7 @@ storage and provider keys before making calls.
 | `PORT` | Local web port, default 3000. The production web container always listens on 3000 behind Caddy. |
 | `POSTGRES_PORT`, `REDIS_PORT` | Development host ports, default 5432/6379. Production does not publish these services. |
 | `DATABASE_URL` | Postgres URL. Required for persistent app/worker operations. Production sets the internal `postgres:5432` URL from its password. |
+| `PGX_DB` | Set to `1` in the main checkout's `.env` to give each worktree slot a [PGX](https://github.com/pgrundev/pgx) database instead of one on the compose Postgres. Development only; needs `pgx` on `PATH`. |
 | `REDIS_URL` | Default `redis://localhost:6379` locally; production sets `redis://redis:6379`. |
 | `REDIS_PREFIX` | BullMQ namespace, default `bull`. Match it across agent, worker, and web. Production sets `bull`; worktree slots use separate prefixes. |
 | `WORKER_HEALTH_PORT` | Optional local worker readiness HTTP port, 1–65535. Production sets 8080 privately. Omit it to disable the local listener. |

@@ -31,6 +31,7 @@ Legend: `[x]` done · `[ ]` todo · **Done when** = acceptance criteria for the 
   - [x] Python: uv sync, ruff, pytest
   - [ ] Turbo remote cache (optional)
 - [x] Per-session PGX database branches for Claude Code (`.pgx.toml`) (#326)
+- [x] Opt-in PGX databases for worktree slots (`PGX_DB=1`) (#324)
 - [x] Repo hygiene: `CLAUDE.md`/`AGENTS.md` for the root, PR template, issue templates, Renovate or Dependabot
 
 **Done when:** fresh clone → `pnpm install && uv sync && pnpm infra:up && pnpm db:migrate` works and CI is green on `main`.
@@ -266,8 +267,9 @@ Roadmap: *Multilingual agents*
 - [x] `language` drives STT, TTS voice, and turn-detection model choice (#117)
 - [x] Auto language detection with per-call switching (#118)
 - [x] Per-language greetings and instructions (#119)
-- [ ] Multilingual KB retrieval (multilingual embeddings)
+- [x] Multilingual KB retrieval (multilingual embeddings) (#120)
 - [ ] Eval suites in at least two non-English languages
+- [x] Localized after-hours, wrap-up, and idle messages (#310)
 
 **Done when:** the dental agent handles a full Spanish call, including a booking.
 
@@ -287,7 +289,7 @@ Roadmap: *Multilingual agents*
 
 ## Decisions
 
-- M11 languages: `language` is the primary language. An optional `languages` map keyed by language code holds per-language `greeting` and `instructions`; a non-empty map turns on auto-detection (Deepgram `multi`) and per-call switching of TTS language and instructions. Calls greet in the primary language unless the dispatch selects one. Eval suites cover Spanish and French (#117, #118, #119, #121).
+- M11 languages: `language` is the primary language. An optional `languages` map keyed by language code holds per-language `greeting` and `instructions`; a non-empty map turns on auto-detection (Deepgram `multi`) and per-call switching of TTS language and instructions. Calls greet in the primary language unless the dispatch selects one. Eval suites cover Spanish and French (#117, #118, #119, #121). For non-English or multilingual agents, after-hours, transfer-failed, wrap-up, and idle messages are spoken by the LLM in the caller's language rather than as fixed English strings (#310).
 - M9 workspace policy: any signed-in user can create workspaces; copyable invite links can provision password accounts while unrestricted signup stays disabled. Owners manage members/settings/API keys, admins manage agents/knowledge/evals/calls, and viewers read only (#106, #107, #284).
 - M9 provider credentials: dashboard-managed keys encrypted at rest with a deployment encryption key, with deployment credentials as an explicit fallback. Usage limits use UTC calendar-month call minutes and optional provider spend; exhaustion blocks new work (#111).
 - M9 agent lifecycle: REST API DELETE archives agents and preserves call and knowledge history (#108).
