@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { compareEvalCases, compareEvalTotals, passRate } from "./compare.ts";
+import { compareEvalCases, compareEvalTotals, compareStageLatency, passRate } from "./compare.ts";
 
 const result = (
   caseName: string,
@@ -81,4 +81,37 @@ test("pass rate is null until a run has totals", () => {
   const totals = { avgLatencyMs: null, avgWer: null, costUsd: null };
   assert.equal(passRate({ ...totals, passed: 0, total: 0 }), null);
   assert.equal(passRate({ ...totals, passed: 1, total: 2 }), 0.5);
+});
+
+test("compares stage latency percentiles and keeps stages missing on one side", () => {
+  assert.deepEqual(
+    compareStageLatency(
+      { llmTtftMs: { p50: 400, p95: 700 }, sttMs: { p50: 150, p95: 200 } },
+      { llmTtftMs: { p50: 300, p95: 650 }, ttsTtfbMs: { p50: 90, p95: 120 } }
+    ),
+    [
+      {
+        base: { p50: 150, p95: 200 },
+        head: null,
+        p50DeltaMs: null,
+        p95DeltaMs: null,
+        stage: "sttMs",
+      },
+      {
+        base: { p50: 400, p95: 700 },
+        head: { p50: 300, p95: 650 },
+        p50DeltaMs: -100,
+        p95DeltaMs: -50,
+        stage: "llmTtftMs",
+      },
+      {
+        base: null,
+        head: { p50: 90, p95: 120 },
+        p50DeltaMs: null,
+        p95DeltaMs: null,
+        stage: "ttsTtfbMs",
+      },
+    ]
+  );
+  assert.deepEqual(compareStageLatency(null, null), []);
 });

@@ -1,3 +1,5 @@
+import { EVAL_LATENCY_STAGES, type EvalRunStageLatency } from "@answerline/shared";
+
 export interface EvalCaseOutcome {
   caseName: string;
   costUsd: string | null;
@@ -103,4 +105,34 @@ export function compareEvalTotals(base: EvalRunTotals, head: EvalRunTotals) {
     werDelta:
       base.avgWer === null || head.avgWer === null ? null : roundWer(head.avgWer - base.avgWer),
   };
+}
+
+export interface StageLatencyComparison {
+  base: EvalRunStageLatency[(typeof EVAL_LATENCY_STAGES)[number]] | null;
+  head: EvalRunStageLatency[(typeof EVAL_LATENCY_STAGES)[number]] | null;
+  p50DeltaMs: number | null;
+  p95DeltaMs: number | null;
+  stage: (typeof EVAL_LATENCY_STAGES)[number];
+}
+
+export function compareStageLatency(
+  base: EvalRunStageLatency | null,
+  head: EvalRunStageLatency | null
+): StageLatencyComparison[] {
+  return EVAL_LATENCY_STAGES.flatMap((stage) => {
+    const before = base?.[stage] ?? null;
+    const after = head?.[stage] ?? null;
+    if (!(before || after)) {
+      return [];
+    }
+    return [
+      {
+        base: before,
+        head: after,
+        p50DeltaMs: before && after ? after.p50 - before.p50 : null,
+        p95DeltaMs: before && after ? after.p95 - before.p95 : null,
+        stage,
+      },
+    ];
+  });
 }

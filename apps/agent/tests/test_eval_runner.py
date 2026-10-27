@@ -52,6 +52,22 @@ class _TextLLM(llm.LLM):
         )
 
 
+class _MetricsStream(_TextStream):
+    async def _run(self) -> None:
+        await asyncio.sleep(0.05)
+        await super()._run()
+
+
+class _MetricsLLM(llm.LLM):
+    def chat(self, *, chat_ctx, tools=None, conn_options=None, **kwargs):
+        return _MetricsStream(
+            self,
+            chat_ctx=chat_ctx,
+            tools=tools or [],
+            conn_options=conn_options or DEFAULT_API_CONNECT_OPTIONS,
+        )
+
+
 class _ToolStream(llm.LLMStream):
     def __init__(self, *args, tool_call: bool, **kwargs):
         super().__init__(*args, **kwargs)
@@ -493,6 +509,55 @@ def test_run_suite_reports_null_wer_in_text_mode(monkeypatch):
     output = asyncio.run(run_suite(payload))
     assert output["results"][0]["wer"] is None
     assert output["aggregate"]["avgWer"] is None
+
+
+def test_text_eval_records_llm_stage_latency_per_turn():
+    result = asyncio.run(
+        run_case(
+            _config(),
+            {"name": "two turns", "caller": ["Hi", "Hours?"], "expect": {}},
+            llm_provider=_MetricsLLM(),
+        )
+    )
+    stages = result["stageLatency"]
+    assert set(stages) == {"llmTtftMs", "llmTotalMs"}
+    for samples in stages.values():
+        assert len(samples) == 2
+        assert all(isinstance(value, int) and value >= 40 for value in samples)
+
+
+def test_audio_eval_records_stt_llm_and_tts_stage_latency(monkeypatch):
+    agent_tts, caller_tts = _FakeTTS(), _FakeTTS()
+    monkeypatch.setattr(eval_runner, "build_tts", lambda _ref, **_kwargs: agent_tts)
+    monkeypatch.setattr(eval_runner, "build_stt", lambda _ref, **_kwargs: _FakeSTT())
+    monkeypatch.setattr(eval_runner, "_build_caller_tts", lambda _ref, **_kwargs: caller_tts)
+    result = asyncio.run(
+        run_case(
+            _config(),
+            {"name": "audio stages", "caller": "Please save it.", "expect": {}},
+            llm_provider=_MetricsLLM(),
+            mode="audio",
+        )
+    )
+    stages = result["stageLatency"]
+    assert set(stages) == {"sttMs", "llmTtftMs", "llmTotalMs", "ttsTtfbMs"}
+    assert all(len(samples) == 1 for samples in stages.values())
+    assert all(isinstance(samples[0], int) and samples[0] >= 0 for samples in stages.values())
+    assert stages["llmTotalMs"][0] >= 40
+
+
+def test_run_suite_output_with_stage_latency_matches_wire_schema(monkeypatch):
+    monkeypatch.setattr(eval_runner, "build_llm_chain", lambda _models: _MetricsLLM())
+    output = asyncio.run(
+        run_suite(
+            {
+                "agent": CONFIG,
+                "suite": [{"name": "stages", "caller": "Hi", "expect": {}}],
+            }
+        )
+    )
+    stages = output["results"][0]["stageLatency"]
+    assert len(stages["llmTotalMs"]) == 1
 
 
 def test_audio_eval_timeout_closes_session_and_providers(monkeypatch):

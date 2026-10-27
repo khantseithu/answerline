@@ -3,7 +3,12 @@ import { basename, dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { agents, createDb, evalResults, evalRuns, tenants } from "@answerline/db";
-import { evalExecutionInputSchema, parseAgentConfig, parseEvalSuite } from "@answerline/shared";
+import {
+  evalExecutionInputSchema,
+  formatStageLatency,
+  parseAgentConfig,
+  parseEvalSuite,
+} from "@answerline/shared";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { createEvalRun, findTenantAgent, processEvalRun } from "./evals.ts";
@@ -113,6 +118,10 @@ async function runEval(args: string[]) {
     console.log(`eval run: ${runId}`);
     console.log(`${agent.name}: ${run.passed}/${run.total} passed (${rate}%)`);
     console.log(`average latency: ${run.avgLatencyMs === null ? "n/a" : `${run.avgLatencyMs} ms`}`);
+    const stageLine = formatStageLatency(run.stageLatency);
+    if (stageLine) {
+      console.log(`stage latency: ${stageLine}`);
+    }
     console.log(`cost: ${run.costUsd === null ? "n/a" : `$${run.costUsd}`}`);
     console.log(`average WER: ${formatWer(run.avgWer)}`);
     for (const result of results) {

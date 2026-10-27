@@ -3,6 +3,7 @@ export * from "./agent-hours.ts";
 export * from "./call-dispatch.ts";
 export * from "./call-events.ts";
 export * from "./dashboard.ts";
+export * from "./eval-stage-latency.ts";
 export * from "./eval-suite.ts";
 export * from "./events.ts";
 export * from "./ingestion.ts";

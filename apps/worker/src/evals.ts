@@ -6,6 +6,7 @@ import {
   evalExecutionInputSchema,
   evalExecutionOutputSchema,
   evalJobSchema,
+  summarizeStageLatency,
   type WebhookDeliveryJob,
   type WebhookEvent,
 } from "@answerline/shared";
@@ -62,6 +63,7 @@ export function normalizeEvalOutput(
           ? Math.round(costs.reduce((sum, cost) => sum + cost, 0) * 1_000_000) / 1_000_000
           : null,
       passed: results.filter((result) => result.passed).length,
+      stageLatency: summarizeStageLatency(results.map((result) => result.stageLatency)),
       total: results.length,
     },
     results,
@@ -164,6 +166,7 @@ async function saveEvalOutput(db: Database, job: EvalJob, output: EvalExecutionO
           latencyMs: result.latencyMs,
           passed: result.passed,
           runId: job.runId,
+          stageLatency: result.stageLatency ?? null,
           transcript: result.transcript,
           wer: result.wer,
         }))
@@ -178,6 +181,7 @@ async function saveEvalOutput(db: Database, job: EvalJob, output: EvalExecutionO
         error: null,
         finishedAt: new Date(),
         passed: output.aggregate.passed,
+        stageLatency: output.aggregate.stageLatency ?? null,
         status: "completed",
         total: output.aggregate.total,
       })

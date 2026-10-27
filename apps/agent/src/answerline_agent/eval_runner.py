@@ -10,7 +10,7 @@ from uuid import uuid4
 from jsonschema import Draft202012Validator, FormatChecker
 from livekit import rtc
 from livekit.agents import Agent, AgentSession, RunContext, io, llm, stt, tts
-from livekit.agents.metrics import ModelUsageCollector
+from livekit.agents.metrics import LLMMetrics, ModelUsageCollector
 from livekit.agents.utils import http_context
 from pydantic import Field
 
@@ -20,6 +20,7 @@ from .call_events import model_usage_lines, parse_tool_args
 from .capture_lead import LeadCaptureContext
 from .config import AgentConfig, BookAppointmentTool, HttpTool, McpTool, TransferCallTool
 from .eval_wer import word_error_rate
+from .eval_latency import agent_turn_stages
 from .knowledge_tool import QUERY_DESCRIPTION, TOOL_DESCRIPTION, open_knowledge_tools
 from .languages import language_instructions, localizes_messages, stt_language
 from .native_booking import open_booking_provider
@@ -440,6 +441,9 @@ async def run_case(
     caller_tts_provider = None
     session = None
     responses: list[str] = []
+    response_metrics: list[dict] = []
+    llm_durations: list[float] = []
+    stage_latency: dict[str, list[int]] = {}
     speech_failures: list[str] = []
     turn_wers: list[float] = []
 
@@ -447,6 +451,15 @@ async def run_case(
         if event.item.type == "message" and event.item.role == "assistant":
             if event.item.text_content:
                 responses.append(event.item.text_content)
+                response_metrics.append(dict(event.item.metrics))
+
+    def on_llm_metrics(metrics) -> None:
+        if isinstance(metrics, LLMMetrics):
+            llm_durations.append(metrics.duration)
+
+    def record_stages(stages: dict[str, int]) -> None:
+        for stage, value in stages.items():
+            stage_latency.setdefault(stage, []).append(value)
 
     if live_tools:
 
@@ -489,6 +502,7 @@ async def run_case(
         else:
             session = AgentSession(llm=provider)
         session.on("conversation_item_added", on_item)
+        provider.on("metrics_collected", on_llm_metrics)
         if live_tools:
             session.on("function_tools_executed", on_tools)
         await session.start(agent=agent)
@@ -507,16 +521,20 @@ async def run_case(
         transcript.append({"role": "agent", "text": greeting_text})
         for turn in turns:
             start = len(responses)
+            llm_start = len(llm_durations)
+            turn_stages: dict[str, int] = {}
             if mode == "audio":
                 caller_frames, caller_usage = await asyncio.wait_for(
                     _synthesize_caller_audio(caller_tts_provider, turn),
                     EVAL_PHASE_TIMEOUT,
                 )
                 usage.extend(caller_usage)
+                stt_started = time.monotonic()
                 recognized, stt_usage = await asyncio.wait_for(
                     _recognize_caller_audio(stt_provider, caller_frames),
                     EVAL_PHASE_TIMEOUT,
                 )
+                turn_stages["sttMs"] = max(round((time.monotonic() - stt_started) * 1000), 0)
                 usage.extend(stt_usage)
                 if not recognized:
                     raise ValueError("caller STT returned an empty transcript")
@@ -530,9 +548,14 @@ async def run_case(
                 await handle.wait_for_playout()
             if error := handle.exception():
                 speech_failures.append(_speech_failure_summary("agent response", error))
+            turn_stages.update(
+                agent_turn_stages(response_metrics[start:], llm_durations[llm_start:])
+            )
+            record_stages(turn_stages)
             response = "\n".join(responses[start:]).strip()
             if response:
                 transcript.append({"role": "agent", "text": response})
+        provider.off("metrics_collected", on_llm_metrics)
         wer = round(sum(turn_wers) / len(turn_wers), 4) if turn_wers else None
         failures = speech_failures + _evaluate_assertions(case, transcript, calls, wer)
         usage.extend(model_usage_lines(session.usage.model_usage) or [])
@@ -560,8 +583,10 @@ async def run_case(
             "costUsd": None,
             "modelUsage": usage,
             "wer": wer,
+            "stageLatency": stage_latency,
         }
     finally:
+        provider.off("metrics_collected", on_llm_metrics)
         try:
             if session:
                 await session.aclose()

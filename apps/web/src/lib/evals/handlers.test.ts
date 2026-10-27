@@ -262,6 +262,7 @@ test("lists and shows only the current tenant's runs", { skip }, () =>
       latencyMs: 820,
       passed: false,
       runId: run.id,
+      stageLatency: { llmTtftMs: [310, 420] },
       transcript: [
         { role: "caller", text: "Can I book a cleaning?" },
         { role: "agent", text: "Sure." },
@@ -283,12 +284,14 @@ test("lists and shows only the current tenant's runs", { skip }, () =>
         costUsd: string | null;
         failures: string[];
         wer: number | null;
+        stageLatency: { llmTtftMs?: number[] } | null;
       }[];
     };
     assert.equal(body.results[0]?.caseName, "books a cleaning");
     assert.equal(body.results[0]?.costUsd, null);
     assert.equal(body.results[0]?.wer, 0.125);
     assert.deepEqual(body.results[0]?.failures, ["did not call check_availability"]);
+    assert.deepEqual(body.results[0]?.stageLatency, { llmTtftMs: [310, 420] });
 
     assert.equal((await harness.handlers.detail(otherRun.id)).status, 404);
     assert.equal((await harness.handlers.detail("not-a-uuid")).status, 404);
@@ -307,6 +310,7 @@ test("compares two tenant runs by case name", { skip }, () =>
         avgWer: 0.3,
         costUsd: "0.010000",
         passed: 1,
+        stageLatency: { llmTtftMs: { p50: 400, p95: 700 } },
         status: "completed",
         total: 2,
       })
@@ -318,6 +322,7 @@ test("compares two tenant runs by case name", { skip }, () =>
         avgWer: 0.1,
         costUsd: null,
         passed: 2,
+        stageLatency: { llmTtftMs: { p50: 300, p95: 650 } },
         status: "completed",
         total: 2,
       })
@@ -363,6 +368,15 @@ test("compares two tenant runs by case name", { skip }, () =>
         ["shares hours", "unchanged", -100, null],
       ]
     );
+    assert.deepEqual(comparison.stageLatency, [
+      {
+        base: { p50: 400, p95: 700 },
+        head: { p50: 300, p95: 650 },
+        p50DeltaMs: -100,
+        p95DeltaMs: -50,
+        stage: "llmTtftMs",
+      },
+    ]);
     assert.deepEqual(comparison.totals, {
       costDeltaUsd: null,
       latencyDeltaMs: -200,

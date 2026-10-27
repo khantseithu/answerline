@@ -1,3 +1,4 @@
+import { EVAL_LATENCY_STAGE_LABELS } from "@answerline/shared";
 import { AlertCircleIcon, ArrowLeftIcon } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -14,13 +15,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { EvalCaseChange, EvalCaseOutcome } from "@/lib/evals/compare";
+import type { EvalCaseChange, EvalCaseOutcome, StageLatencyComparison } from "@/lib/evals/compare";
 import { getEvalDeps } from "@/lib/evals/context";
 import {
   displayCost,
   displayDate,
   displayLatency,
   displayPassRate,
+  displayStageLatency,
   displayWer,
 } from "@/lib/evals/format";
 import { compareEvalRuns, type EvalRunComparison } from "@/lib/evals/service";
@@ -68,8 +70,15 @@ function RunSummary({ label, run }: { label: string; run: EvalRunView }) {
         {displayPassRate(run.passed, run.total)} · {displayLatency(run.avgLatencyMs)} ·{" "}
         {displayWer(run.avgWer)} WER · {displayCost(run.costUsd)}
       </p>
+      <p className="numeric text-muted-foreground text-xs">
+        {displayStageLatency(run.stageLatency)}
+      </p>
     </div>
   );
+}
+
+function percentiles(value: StageLatencyComparison["base"]) {
+  return value ? `${value.p50}/${value.p95} ms` : "—";
 }
 
 function first(value: string | string[] | undefined) {
@@ -107,7 +116,7 @@ export default async function CompareEvalRunsPage({
   if (!comparison) {
     notFound();
   }
-  const { base, cases, head, totals } = comparison;
+  const { base, cases, head, stageLatency, totals } = comparison;
 
   return (
     <PageContainer>
@@ -149,6 +158,36 @@ export default async function CompareEvalRunsPage({
           </dd>
         </div>
       </dl>
+      {stageLatency.length > 0 ? (
+        <div className="overflow-x-auto rounded-xl border bg-card shadow-xs">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Stage (p50/p95)</TableHead>
+                <TableHead>Baseline</TableHead>
+                <TableHead>Candidate</TableHead>
+                <TableHead className="text-right">p50 delta</TableHead>
+                <TableHead className="text-right">p95 delta</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {stageLatency.map((item) => (
+                <TableRow key={item.stage}>
+                  <TableCell>{EVAL_LATENCY_STAGE_LABELS[item.stage]}</TableCell>
+                  <TableCell className="numeric">{percentiles(item.base)}</TableCell>
+                  <TableCell className="numeric">{percentiles(item.head)}</TableCell>
+                  <TableCell className="numeric text-right">
+                    {displayDelta(item.p50DeltaMs, (value) => `${Math.round(value)} ms`)}
+                  </TableCell>
+                  <TableCell className="numeric text-right">
+                    {displayDelta(item.p95DeltaMs, (value) => `${Math.round(value)} ms`)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      ) : null}
       {cases.length === 0 ? (
         <p className="rounded-lg border border-dashed px-4 py-6 text-center text-muted-foreground text-sm">
           Neither run has case results yet.

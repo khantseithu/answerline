@@ -1,3 +1,5 @@
+import { type EvalRunStageLatency, formatStageLatency } from "@answerline/shared";
+
 export function displayDate(value: string) {
   return new Intl.DateTimeFormat("en", {
     dateStyle: "medium",
@@ -23,4 +25,8 @@ export function displayPassRate(passed: number | null, total: number | null) {
     return "—";
   }
   return `${passed}/${total} (${Math.round((passed / total) * 100)}%)`;
+}
+
+export function displayStageLatency(summary: EvalRunStageLatency | null) {
+  return formatStageLatency(summary) ?? "—";
 }

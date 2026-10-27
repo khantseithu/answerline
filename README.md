@@ -217,6 +217,8 @@ Audio mode synthesizes caller turns, transcribes each complete audio buffer with
 
 Audio mode also scores speech recognition. Each scripted caller turn is compared with its STT transcript as a word error rate (word-level edit distance over the reference word count; case, punctuation, and digit grouping are ignored, and number words such as "five" match "5"). A case reports the mean over its turns and a run reports the mean over its cases, in the CLI output, the dashboard run page, and the run comparison. Add `max_wer: 0.1` to a case's `expect` to fail the case when its error rate is over 10%; text mode reports no WER and ignores `max_wer`. `--stt` and `--tts` (or the dashboard fields) replace the agent's speech models for the run, including the synthesized caller, the way `--model` replaces the LLM.
 
+Each case also records per-turn stage latency (`stageLatency`, milliseconds): LLM time to first token and total LLM time in both modes, plus STT recognition time and TTS time to first byte in audio mode. Caller synthesis is not an agent stage. The CLI prints a `stage latency` line with run-wide p50/p95 per stage (nearest-rank, across all turns of all cases), and the dashboard run page and run comparison show the same numbers next to the existing latency. `latencyMs` and the average latency are unchanged.
+
 `judge` rubrics are graded by `--judge-model` (or `EVAL_JUDGE_MODEL`), falling back to the agent's LLM. Pin a judge when comparing models with `--model`, so each candidate is not grading its own answers.
 
 To run the same CLI in Docker, put your model provider keys in `.env`, then build the worker and prepare the Compose database:

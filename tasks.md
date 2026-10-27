@@ -185,7 +185,7 @@ Roadmap: *Evals runner*
 - [ ] Eval quality follow-ups
   - [x] Separate judge model for `judge` assertions (#329)
   - [x] STT word error rate in audio mode, plus `--stt`/`--tts` overrides (#330)
-  - [ ] Per-stage latency (STT, LLM TTFT, TTS TTFB) in eval results (#331)
+  - [x] Per-stage latency (STT, LLM TTFT, TTS TTFB) in eval results (#331)
   - [ ] Realistic caller audio: telephony band, noise, distinct caller voice (#332)
   - [ ] TTS pronunciation check for names, numbers, and dates (#333)
 

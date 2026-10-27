@@ -1,8 +1,13 @@
 import { agents, type Database, evalResults, evalRuns, tenants } from "@answerline/db";
-import { type EvalJob, evalExecutionInputSchema, evalRunCreateSchema } from "@answerline/shared";
+import {
+  type EvalJob,
+  type EvalRunStageLatency,
+  evalExecutionInputSchema,
+  evalRunCreateSchema,
+} from "@answerline/shared";
 import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import { z } from "zod";
-import { compareEvalCases, compareEvalTotals } from "./compare";
+import { compareEvalCases, compareEvalTotals, compareStageLatency } from "./compare";
 import { EvalSuiteNotFoundError, listEvalSuites, readEvalSuite } from "./suites";
 import type { EvalRunView } from "./types";
 
@@ -35,6 +40,7 @@ const runColumns = {
   id: evalRuns.id,
   modelOverride: evalRuns.modelOverride,
   passed: evalRuns.passed,
+  stageLatency: evalRuns.stageLatency,
   startedAt: evalRuns.startedAt,
   status: evalRuns.status,
   suite: evalRuns.suite,
@@ -59,6 +65,7 @@ interface RunRow {
   id: string;
   modelOverride: string | null;
   passed: number | null;
+  stageLatency: EvalRunStageLatency | null;
   startedAt: Date | null;
   status: EvalRunView["status"];
   suite: string;
@@ -80,6 +87,7 @@ function runView(row: RunRow): EvalRunView {
     mode: row.executionInput?.mode ?? "text",
     modelOverride: row.modelOverride,
     passed: row.passed,
+    stageLatency: row.stageLatency,
     startedAt: row.startedAt?.toISOString() ?? null,
     status: row.status,
     sttOverride: row.executionInput?.sttOverride ?? null,
@@ -136,6 +144,7 @@ function resultsFor(deps: EvalDeps, runIds: string[]) {
       latencyMs: evalResults.latencyMs,
       passed: evalResults.passed,
       runId: evalResults.runId,
+      stageLatency: evalResults.stageLatency,
       transcript: evalResults.transcript,
       wer: evalResults.wer,
     })
@@ -178,6 +187,7 @@ export async function compareEvalRuns(deps: EvalDeps, rawBaseId: string, rawHead
       results.filter((result) => result.runId === head.id)
     ),
     head,
+    stageLatency: compareStageLatency(base.stageLatency, head.stageLatency),
     totals: compareEvalTotals(base, head),
   };
 }

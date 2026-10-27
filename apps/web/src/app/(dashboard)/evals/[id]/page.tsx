@@ -15,16 +15,26 @@ import {
   displayDate,
   displayLatency,
   displayPassRate,
+  displayStageLatency,
   displayWer,
 } from "@/lib/evals/format";
 import { type EvalRunDetail, getEvalRun } from "@/lib/evals/service";
 import { isEvalRunInFlight } from "@/lib/evals/types";
+import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Eval run" };
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
+function Field({
+  label,
+  children,
+  className,
+}: {
+  label: string;
+  children: ReactNode;
+  className?: string;
+}) {
   return (
-    <div className="flex flex-col gap-1">
+    <div className={cn("flex flex-col gap-1", className)}>
       <dt className="text-muted-foreground text-xs">{label}</dt>
       <dd className="text-sm">{children}</dd>
     </div>
@@ -136,6 +146,9 @@ export default async function EvalRunPage({ params }: PageProps<"/evals/[id]">) 
           </Field>
           <Field label="Total cost">
             <span className="numeric">{displayCost(run.costUsd)}</span>
+          </Field>
+          <Field className="sm:col-span-2 lg:col-span-4" label="Stage latency">
+            <span className="numeric">{displayStageLatency(run.stageLatency)}</span>
           </Field>
           <Field label="Model">
             <span className="font-mono text-xs">{run.modelOverride ?? "Agent default"}</span>

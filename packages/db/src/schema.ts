@@ -2,6 +2,8 @@ import type {
   AgentConfig,
   CostLine,
   EvalExecutionInput,
+  EvalRunStageLatency,
+  EvalStageLatency,
   ModelUsage,
   QuestionAnswerPairs,
   WebhookEvent,
@@ -491,6 +493,7 @@ export const evalRuns = pgTable(
     id: id(),
     modelOverride: text(),
     passed: integer(),
+    stageLatency: jsonb().$type<EvalRunStageLatency>(),
     startedAt: timestamp({ withTimezone: true }),
     status: evalRunStatus().notNull().default("queued"),
     suite: text().notNull(),
@@ -518,6 +521,7 @@ export const evalResults = pgTable(
     runId: uuid()
       .notNull()
       .references(() => evalRuns.id, { onDelete: "cascade" }),
+    stageLatency: jsonb().$type<EvalStageLatency>(),
     transcript: jsonb().$type<{ role: "caller" | "agent"; text: string }[]>().notNull(),
     wer: doublePrecision(),
   },

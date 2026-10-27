@@ -4,7 +4,13 @@
     "avgWer": 0.125,
     "costUsd": null,
     "passed": 0,
-    "total": 1
+    "total": 1,
+    "stageLatency": {
+      "llmTtftMs": {
+        "p50": 320,
+        "p95": 320
+      }
+    }
   },
   "results": [
     {
@@ -23,7 +29,10 @@
       ],
       "passed": false,
       "transcript": [{ "role": "caller", "text": "Hi" }],
-      "wer": 0.125
+      "wer": 0.125,
+      "stageLatency": {
+        "llmTtftMs": [320]
+      }
     }
   ]
 }
