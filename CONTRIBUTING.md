@@ -28,7 +28,15 @@ pre_destroy = ["[ ! -x ./scripts/worktree-teardown.sh ] || ./scripts/worktree-te
 
 Keep a plaintext `.env` in the main checkout (it is copied into each slot). Dotenvx loads each slot's root file after Turbo starts its tasks, preserving the slot's port, database, Redis prefix, and agent name. Do not encrypt the local file: setup and Docker Compose read it directly. See [environment configuration](docs/environment.md). Then `pnpm infra:up` once and `treehouse get -b feat/my-change` per task. See "Parallel work" in `AGENTS.md`.
 
-Slot databases can live in [PGX](https://github.com/pgrundev/pgx) instead of the compose Postgres: install it (`pnpm add -g pgxdb`, Apple silicon or Linux) and set `PGX_DB=1` in the main checkout's `.env`. Setup starts PGX, creates `answerline_wtN` there, and writes its URL to the slot's `DATABASE_URL`; teardown drops it. PGX is AGPL-3.0 and early (v0.1), so use it for slot and test databases only, never for real call data.
+## Per-session agent databases (optional)
+
+With [PGX](https://github.com/pgrundev/pgx) installed (`pnpm add -g pgxdb`, Apple silicon or Linux, `pgx` on `PATH` or in `~/.local/bin`), every Claude Code session and subagent gets its own copy-on-write branch of `answerline_template`, with `DATABASE_URL` set for its shell. The hooks in `.claude/settings.json` do nothing when `pgx` is missing. One-time setup:
+
+```bash
+scripts/pgx-template.sh    # build answerline_template from migrations + seed; rerun after new migrations
+```
+
+Branches expire 2h after the last activity, or 10 minutes after the session ends (`.pgx.toml`). The session's `DATABASE_URL` wins over `.env`, so `pnpm test` and `pnpm db:migrate` inside a session hit its branch. Run `pgx agent doctor` if a session reports `PGX_ISOLATION=failed`. PGX is AGPL-3.0 and early (v0.1): use it for development and test databases only, never for real call data.
 
 ## Checks
 

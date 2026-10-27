@@ -30,6 +30,7 @@ Legend: `[x]` done · `[ ]` todo · **Done when** = acceptance criteria for the 
   - [x] JS: install, lint, typecheck, test, web build
   - [x] Python: uv sync, ruff, pytest
   - [ ] Turbo remote cache (optional)
+- [x] Per-session PGX database branches for Claude Code (`.pgx.toml`) (#326)
 - [x] Opt-in PGX databases for worktree slots (`PGX_DB=1`) (#324)
 - [x] Repo hygiene: `CLAUDE.md`/`AGENTS.md` for the root, PR template, issue templates, Renovate or Dependabot
 
