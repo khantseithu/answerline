@@ -67,6 +67,7 @@ const output = {
         },
       ],
       passed: true,
+      stageLatency: { llmTotalMs: [800, 1200], llmTtftMs: [300, 500] },
       transcript: [
         { role: "caller" as const, text: "Hi" },
         { role: "agent" as const, text: "Hello" },
@@ -107,6 +108,41 @@ test("averages WER over cases that have one", () => {
     normalized.results.map((result) => result.wer),
     [0.25, 0.5, null]
   );
+});
+
+test("summarizes per-stage latency percentiles across all cases", () => {
+  const multiInput = evalExecutionInputSchema.parse({
+    ...input,
+    suite: [
+      { caller: "Hi", expect: {}, name: "greeting" },
+      { caller: "Bye", expect: {}, name: "farewell" },
+    ],
+  });
+  const [first] = output.results;
+  const normalized = normalizeEvalOutput(multiInput, {
+    ...output,
+    results: [
+      first,
+      {
+        ...first,
+        caseName: "farewell",
+        stageLatency: { llmTtftMs: [100], sttMs: [150] },
+      },
+    ],
+  });
+  assert.deepEqual(normalized.aggregate.stageLatency, {
+    llmTotalMs: { p50: 800, p95: 1200 },
+    llmTtftMs: { p50: 300, p95: 500 },
+    sttMs: { p50: 150, p95: 150 },
+  });
+});
+
+test("reports null aggregate stage latency when no case has samples", () => {
+  const normalized = normalizeEvalOutput(input, {
+    ...output,
+    results: [{ ...output.results[0], stageLatency: undefined }],
+  });
+  assert.equal(normalized.aggregate.stageLatency, null);
 });
 
 test("keeps cost unknown when a case has no model usage", () => {
@@ -190,6 +226,14 @@ test("persists eval runs, retries safely, and executes queue jobs", {
     assert.equal(savedResults[0]?.costUsd, "0.000400");
     assert.equal(savedRun?.avgWer, 0.25);
     assert.equal(savedResults[0]?.wer, 0.25);
+    assert.deepEqual(savedResults[0]?.stageLatency, {
+      llmTotalMs: [800, 1200],
+      llmTtftMs: [300, 500],
+    });
+    assert.deepEqual(savedRun?.stageLatency, {
+      llmTotalMs: { p50: 800, p95: 1200 },
+      llmTtftMs: { p50: 300, p95: 500 },
+    });
 
     const [failedRun] = await db
       .insert(evalRuns)

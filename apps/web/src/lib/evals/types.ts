@@ -1,3 +1,4 @@
+import { evalRunStageLatencySchema } from "@answerline/shared";
 import { z } from "zod";
 
 export const evalRunStatus = z.enum(["queued", "running", "completed", "failed"]);
@@ -16,6 +17,7 @@ export const evalRunView = z.object({
   mode: z.enum(["text", "audio"]),
   modelOverride: z.string().nullable(),
   passed: z.number().nullable(),
+  stageLatency: evalRunStageLatencySchema.nullable(),
   startedAt: z.string().nullable(),
   status: evalRunStatus,
   sttOverride: z.string().nullable(),

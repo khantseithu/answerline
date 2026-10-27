@@ -220,6 +220,46 @@ test("stt and tts overrides are validated model refs on input and run create", (
   );
 });
 
+test("eval output round-trips per-stage latency and rejects bad samples", () => {
+  const output = {
+    aggregate: {
+      avgLatencyMs: 900,
+      avgWer: 0.1,
+      costUsd: null,
+      passed: 1,
+      stageLatency: { llmTtftMs: { p50: 300, p95: 500 }, sttMs: { p50: 150, p95: 150 } },
+      total: 1,
+    },
+    results: [
+      {
+        caseName: "hello",
+        costUsd: null,
+        failures: [],
+        latencyMs: 900,
+        passed: true,
+        stageLatency: { llmTtftMs: [300, 500], sttMs: [150] },
+        transcript: [{ role: "caller", text: "Hi" }],
+        wer: 0.1,
+      },
+    ],
+  };
+  assert.deepEqual(evalExecutionOutputSchema.parse(output), output);
+  assert.equal(
+    evalExecutionOutputSchema.parse({
+      ...output,
+      aggregate: { ...output.aggregate, stageLatency: null },
+    }).aggregate.stageLatency,
+    null
+  );
+  const [first] = output.results;
+  assert.ok(first);
+  for (const stageLatency of [{ sttMs: [-1] }, { sttMs: [1.5] }, { llmTtftMs: "fast" }]) {
+    assert.throws(() =>
+      evalExecutionOutputSchema.parse({ ...output, results: [{ ...first, stageLatency }] })
+    );
+  }
+});
+
 test("generated eval JSON Schemas match their Zod contracts", async () => {
   const names = [
     "eval-execution-input",

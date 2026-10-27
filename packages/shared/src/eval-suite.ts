@@ -31,6 +31,27 @@ export const evalTranscriptTurnSchema = z.object({
   text: z.string(),
 });
 
+const stageSamplesSchema = z.array(z.number().int().nonnegative());
+
+export const evalStageLatencySchema = z.object({
+  llmTotalMs: stageSamplesSchema.optional(),
+  llmTtftMs: stageSamplesSchema.optional(),
+  sttMs: stageSamplesSchema.optional(),
+  ttsTtfbMs: stageSamplesSchema.optional(),
+});
+
+const stagePercentilesSchema = z.object({
+  p50: z.number().int().nonnegative(),
+  p95: z.number().int().nonnegative(),
+});
+
+export const evalRunStageLatencySchema = z.object({
+  llmTotalMs: stagePercentilesSchema.optional(),
+  llmTtftMs: stagePercentilesSchema.optional(),
+  sttMs: stagePercentilesSchema.optional(),
+  ttsTtfbMs: stagePercentilesSchema.optional(),
+});
+
 export const evalCaseResultSchema = z.object({
   caseName: z.string().min(1),
   costUsd: z.number().nonnegative().nullable(),
@@ -38,6 +59,7 @@ export const evalCaseResultSchema = z.object({
   latencyMs: z.number().int().nonnegative().nullable(),
   modelUsage: z.array(modelUsageSchema).optional(),
   passed: z.boolean(),
+  stageLatency: evalStageLatencySchema.optional(),
   transcript: z.array(evalTranscriptTurnSchema),
   wer: z.number().nonnegative().nullable(),
 });
@@ -47,6 +69,7 @@ export const evalRunAggregateSchema = z.object({
   avgWer: z.number().nonnegative().nullable(),
   costUsd: z.number().nonnegative().nullable(),
   passed: z.number().int().nonnegative(),
+  stageLatency: evalRunStageLatencySchema.nullable().optional(),
   total: z.number().int().nonnegative(),
 });
 
@@ -100,6 +123,8 @@ export type EvalExecutionInput = z.infer<typeof evalExecutionInputSchema>;
 export type EvalExecutionOutput = z.infer<typeof evalExecutionOutputSchema>;
 export type EvalJob = z.infer<typeof evalJobSchema>;
 export type EvalRunAggregate = z.infer<typeof evalRunAggregateSchema>;
+export type EvalRunStageLatency = z.infer<typeof evalRunStageLatencySchema>;
+export type EvalStageLatency = z.infer<typeof evalStageLatencySchema>;
 export type EvalRunCreate = z.infer<typeof evalRunCreateSchema>;
 
 export function parseEvalSuite(source: string): EvalCase[] {

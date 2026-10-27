@@ -127,6 +127,13 @@
       "when": 1793121721882,
       "tag": "0017_dusty_calypso",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793123535914,
+      "tag": "0018_lame_absorbing_man",
+      "breakpoints": true
     }
   ]
 }

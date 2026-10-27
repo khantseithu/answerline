@@ -44,6 +44,94 @@
           "minimum": 0,
           "maximum": 9007199254740991
         },
+        "stageLatency": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "llmTotalMs": {
+                  "type": "object",
+                  "properties": {
+                    "p50": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "p95": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "p50",
+                    "p95"
+                  ]
+                },
+                "llmTtftMs": {
+                  "type": "object",
+                  "properties": {
+                    "p50": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "p95": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "p50",
+                    "p95"
+                  ]
+                },
+                "sttMs": {
+                  "type": "object",
+                  "properties": {
+                    "p50": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "p95": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "p50",
+                    "p95"
+                  ]
+                },
+                "ttsTtfbMs": {
+                  "type": "object",
+                  "properties": {
+                    "p50": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "p95": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "p50",
+                    "p95"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "total": {
           "type": "integer",
           "minimum": 0,
@@ -208,6 +296,43 @@
           },
           "passed": {
             "type": "boolean"
+          },
+          "stageLatency": {
+            "type": "object",
+            "properties": {
+              "llmTotalMs": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "llmTtftMs": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "sttMs": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "ttsTtfbMs": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              }
+            }
           },
           "transcript": {
             "type": "array",

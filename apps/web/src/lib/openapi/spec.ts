@@ -7,6 +7,7 @@ import {
   costLineSchema,
   createAgentSchema,
   evalRunCreateSchema,
+  evalStageLatencySchema,
   outboundCallRequestSchema,
   outboundCallResponseSchema,
   updateAgentSchema,
@@ -87,6 +88,7 @@ const evalResult = z.object({
   id: z.uuid(),
   latencyMs: z.number().nullable(),
   passed: z.boolean(),
+  stageLatency: evalStageLatencySchema.nullable(),
   transcript: z.array(z.object({ role: z.enum(["caller", "agent"]), text: z.string() })),
 });
 const evalRunDetail = z.object({ results: z.array(evalResult), run: evalRunView });
