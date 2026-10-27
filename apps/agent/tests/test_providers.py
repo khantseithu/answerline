@@ -146,6 +146,14 @@ def test_stt_and_tts_default_to_english(monkeypatch):
     assert build_tts(TTS)["language"] == "en"
 
 
+def test_tts_voice_is_passed_only_when_set(monkeypatch):
+    monkeypatch.setattr(providers.cartesia, "TTS", lambda **kwargs: kwargs)
+
+    assert "voice" not in build_tts(TTS)
+    assert "voice" not in build_tts(TTS, voice="")
+    assert build_tts(TTS, voice="voice-123")["voice"] == "voice-123"
+
+
 def test_build_reranker_is_off_unless_configured(monkeypatch):
     monkeypatch.delenv("RERANK_MODEL", raising=False)
     monkeypatch.setenv("COHERE_API_KEY", "test-key")

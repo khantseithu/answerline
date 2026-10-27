@@ -19,6 +19,7 @@ from .booking import Booking, Slot
 from .call_events import model_usage_lines, parse_tool_args
 from .capture_lead import LeadCaptureContext
 from .config import AgentConfig, BookAppointmentTool, HttpTool, McpTool, TransferCallTool
+from .eval_audio import degrade_caller_audio
 from .eval_latency import agent_turn_stages
 from .eval_wer import word_error_rate
 from .knowledge_tool import QUERY_DESCRIPTION, TOOL_DESCRIPTION, open_knowledge_tools
@@ -36,9 +37,13 @@ EVAL_PHASE_TIMEOUT = 30
 
 
 def _build_caller_tts(
-    ref: str, provider_keys: dict[str, str] | None = None, *, language: str = "en"
+    ref: str,
+    provider_keys: dict[str, str] | None = None,
+    *,
+    language: str = "en",
+    voice: str | None = None,
 ) -> tts.TTS:
-    return build_tts(ref, provider_keys, language=language)
+    return build_tts(ref, provider_keys, language=language, voice=voice)
 
 
 def _validate_wire_payload(payload: Any, schema_name: str) -> None:
@@ -381,6 +386,7 @@ async def run_case(
     judge_model: str | None = None,
     stt_override: str | None = None,
     tts_override: str | None = None,
+    caller_audio: dict[str, Any] | None = None,
     settings: Settings | None = None,
     llm_provider: llm.LLM | None = None,
     judge_provider: llm.LLM | None = None,
@@ -394,6 +400,7 @@ async def run_case(
     turns = case["caller"] if isinstance(case["caller"], list) else [case["caller"]]
     if not turns or any(not isinstance(turn, str) or not turn.strip() for turn in turns):
         raise ValueError(f"eval case {case.get('name', '<unnamed>')!r} must have caller text turns")
+    caller_audio = caller_audio or {}
     models = config.models.model_copy(deep=True)
     if model_override:
         models.llm.primary = model_override
@@ -489,10 +496,13 @@ async def run_case(
                 if provider_keys is not None
                 else build_tts(models.tts, language=config.language)
             )
-            caller_tts_provider = (
-                _build_caller_tts(models.tts, provider_keys, language=config.language)
-                if provider_keys is not None
-                else _build_caller_tts(models.tts, language=config.language)
+            caller_tts_ref = caller_audio.get("tts") or models.tts
+            caller_tts_args = (provider_keys,) if provider_keys is not None else ()
+            caller_tts_provider = _build_caller_tts(
+                caller_tts_ref,
+                *caller_tts_args,
+                language=config.language,
+                voice=caller_audio.get("voice"),
             )
             session = AgentSession(
                 llm=provider,
@@ -529,6 +539,13 @@ async def run_case(
                     EVAL_PHASE_TIMEOUT,
                 )
                 usage.extend(caller_usage)
+                caller_frames = degrade_caller_audio(
+                    caller_frames,
+                    profile=caller_audio.get("profile", "clean"),
+                    noise_snr_db=caller_audio.get("noiseSnrDb"),
+                    seed=caller_audio.get("seed", 0),
+                    padding_frames=1,
+                )
                 stt_started = time.monotonic()
                 recognized, stt_usage = await asyncio.wait_for(
                     _recognize_caller_audio(stt_provider, caller_frames),
@@ -619,6 +636,7 @@ async def run_suite(
                 judge_model=payload.get("judgeModel"),
                 stt_override=payload.get("sttOverride"),
                 tts_override=payload.get("ttsOverride"),
+                caller_audio=payload.get("callerAudio"),
                 settings=Settings(),
                 mode=payload.get("mode", "text"),
                 live_tools=payload.get("liveTools", False),

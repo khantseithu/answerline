@@ -8,6 +8,7 @@ dependencies = [
   "bullmq>=3.4.3",
   "livekit-agents[anthropic,cartesia,deepgram,google,openai,silero]~=1.8",
   "jsonschema>=4.26.0",
+  "numpy>=2.0",
   "opentelemetry-exporter-otlp-proto-http>=1.45.1",
   "opentelemetry-sdk>=1.45.1",
   "pydantic>=2.14.1",

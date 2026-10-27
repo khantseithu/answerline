@@ -112,10 +112,12 @@ class _FakeSTT(stt.STT):
     def __init__(self, transcripts: list[str] | None = None):
         super().__init__(capabilities=stt.STTCapabilities(streaming=False, interim_results=False))
         self.transcripts = list(transcripts or ["Please save Alex's appointment question."])
+        self.buffers: list[list[rtc.AudioFrame]] = []
 
     async def _recognize_impl(self, buffer, *, language, conn_options):
         assert isinstance(buffer, list)
         assert buffer
+        self.buffers.append(buffer)
         return stt.SpeechEvent(
             type=stt.SpeechEventType.FINAL_TRANSCRIPT,
             alternatives=[
@@ -464,6 +466,152 @@ def test_stt_and_tts_overrides_replace_models_for_pipeline_and_caller(monkeypatc
         "tts": "cartesia/sonic-2",
         "caller_tts": "cartesia/sonic-2",
     }
+
+
+def _stub_caller_audio_providers(monkeypatch, stt_provider):
+    built: dict[str, tuple] = {}
+    agent_tts, caller_tts = _FakeTTS(), _FakeTTS()
+
+    def build_agent_tts(ref, *_args, **kwargs):
+        built["tts"] = (ref, kwargs)
+        return agent_tts
+
+    def build_caller_tts(ref, *_args, **kwargs):
+        built["caller_tts"] = (ref, kwargs)
+        return caller_tts
+
+    monkeypatch.setattr(eval_runner, "build_tts", build_agent_tts)
+    monkeypatch.setattr(eval_runner, "build_stt", lambda *_args, **_kwargs: stt_provider)
+    monkeypatch.setattr(eval_runner, "_build_caller_tts", build_caller_tts)
+    return built
+
+
+def test_caller_audio_tts_and_voice_apply_to_the_caller_only(monkeypatch):
+    built = _stub_caller_audio_providers(monkeypatch, _FakeSTT())
+    asyncio.run(
+        run_case(
+            _config(),
+            {"name": "caller voice", "caller": "Hello", "expect": {}},
+            llm_provider=_TextLLM(),
+            mode="audio",
+            tts_override="cartesia/sonic-2",
+            caller_audio={"tts": "cartesia/sonic-turbo", "voice": "voice-123"},
+        )
+    )
+    assert built["tts"] == ("cartesia/sonic-2", {"language": "en"})
+    assert built["caller_tts"] == (
+        "cartesia/sonic-turbo",
+        {"language": "en", "voice": "voice-123"},
+    )
+
+
+def test_caller_audio_without_tts_falls_back_to_the_agent_tts_with_the_voice(monkeypatch):
+    built = _stub_caller_audio_providers(monkeypatch, _FakeSTT())
+    asyncio.run(
+        run_case(
+            _config(),
+            {"name": "caller voice", "caller": "Hello", "expect": {}},
+            llm_provider=_TextLLM(),
+            mode="audio",
+            tts_override="cartesia/sonic-2",
+            caller_audio={"voice": "voice-123"},
+        )
+    )
+    assert built["caller_tts"][0] == "cartesia/sonic-2"
+    assert built["caller_tts"][1]["voice"] == "voice-123"
+
+
+def test_phone_profile_feeds_narrowband_frames_to_stt(monkeypatch):
+    stt_provider = _FakeSTT()
+    _stub_caller_audio_providers(monkeypatch, stt_provider)
+    asyncio.run(
+        run_case(
+            _config(),
+            {"name": "phone", "caller": "Hello", "expect": {}},
+            llm_provider=_TextLLM(),
+            mode="audio",
+            caller_audio={"profile": "phone", "noiseSnrDb": 20, "seed": 4},
+        )
+    )
+    (buffer,) = stt_provider.buffers
+    assert {frame.sample_rate for frame in buffer} == {8000}
+    assert {frame.num_channels for frame in buffer} == {1}
+
+
+def test_clean_caller_audio_reaches_stt_at_the_synthesized_rate(monkeypatch):
+    stt_provider = _FakeSTT()
+    _stub_caller_audio_providers(monkeypatch, stt_provider)
+    asyncio.run(
+        run_case(
+            _config(),
+            {"name": "clean", "caller": "Hello", "expect": {}},
+            llm_provider=_TextLLM(),
+            mode="audio",
+            caller_audio={"profile": "clean"},
+        )
+    )
+    (buffer,) = stt_provider.buffers
+    assert {frame.sample_rate for frame in buffer} == {48000}
+
+
+def test_caller_audio_settings_reach_the_degrader(monkeypatch):
+    _stub_caller_audio_providers(monkeypatch, _FakeSTT())
+    seen = {}
+
+    def record(frames, **kwargs):
+        seen.update(kwargs)
+        return frames
+
+    monkeypatch.setattr(eval_runner, "degrade_caller_audio", record)
+    asyncio.run(
+        run_case(
+            _config(),
+            {"name": "wiring", "caller": "Hello", "expect": {}},
+            llm_provider=_TextLLM(),
+            mode="audio",
+            caller_audio={"profile": "phone", "noiseSnrDb": 12.5, "seed": 9},
+        )
+    )
+    assert seen == {"profile": "phone", "noise_snr_db": 12.5, "seed": 9, "padding_frames": 1}
+
+
+def test_caller_audio_is_ignored_in_text_mode(monkeypatch):
+    def fail(*_args, **_kwargs):
+        raise AssertionError("caller audio must not run in text mode")
+
+    monkeypatch.setattr(eval_runner, "degrade_caller_audio", fail)
+    monkeypatch.setattr(eval_runner, "_build_caller_tts", fail)
+    result = asyncio.run(
+        run_case(
+            _config(),
+            {"name": "text", "caller": "Hi", "expect": {}},
+            llm_provider=_TextLLM(),
+            caller_audio={"profile": "phone", "noiseSnrDb": 10, "tts": "cartesia/x", "voice": "v"},
+        )
+    )
+    assert result["passed"] is True
+    assert result["wer"] is None
+
+
+def test_run_suite_passes_caller_audio_to_the_runner(monkeypatch):
+    stt_provider = _FakeSTT()
+    built = _stub_caller_audio_providers(monkeypatch, stt_provider)
+    monkeypatch.setattr(eval_runner, "build_llm_chain", lambda _models: _TextLLM())
+    payload = {
+        "agent": CONFIG,
+        "callerAudio": {
+            "noiseSnrDb": 25,
+            "profile": "phone",
+            "seed": 3,
+            "tts": "cartesia/sonic-2",
+            "voice": "voice-9",
+        },
+        "mode": "audio",
+        "suite": [{"name": "phone", "caller": "Hello", "expect": {}}],
+    }
+    asyncio.run(run_suite(payload))
+    assert built["caller_tts"] == ("cartesia/sonic-2", {"language": "en", "voice": "voice-9"})
+    assert {frame.sample_rate for frame in stt_provider.buffers[0]} == {8000}
 
 
 def test_audio_models_default_to_the_agent_config_without_overrides(monkeypatch):

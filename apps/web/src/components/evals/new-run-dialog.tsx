@@ -1,5 +1,6 @@
 "use client";
 
+import type { EvalRunCreate } from "@answerline/shared";
 import { PlayIcon, TriangleAlertIcon } from "lucide-react";
 import { type ChangeEvent, type FormEvent, useCallback, useState } from "react";
 import { toast } from "sonner";
@@ -31,6 +32,22 @@ import type { EvalRunView } from "@/lib/evals/types";
 export interface EvalRunOptions {
   agents: { id: string; name: string; slug: string }[];
   suites: string[];
+}
+
+function formText(form: FormData, name: string) {
+  return String(form.get(name) ?? "").trim();
+}
+
+function callerAudioFromForm(form: FormData): EvalRunCreate["callerAudio"] {
+  const noise = formText(form, "callerNoiseSnrDb");
+  const seed = formText(form, "callerSeed");
+  return {
+    noiseSnrDb: noise ? Number(noise) : undefined,
+    profile: form.get("callerProfile") === "phone" ? "phone" : "clean",
+    seed: seed ? Number(seed) : 0,
+    tts: formText(form, "callerTts") || undefined,
+    voice: formText(form, "callerVoice") || undefined,
+  };
 }
 
 export function NewRunDialog({
@@ -94,6 +111,7 @@ export function NewRunDialog({
       try {
         const run = await startEvalRun({
           agentId,
+          callerAudio: audio ? callerAudioFromForm(form) : undefined,
           judgeModel: judgeModel || undefined,
           liveTools,
           mode: audio ? "audio" : "text",
@@ -235,6 +253,63 @@ export function NewRunDialog({
                     <FieldDescription>
                       Optional. Replaces the agent’s text-to-speech model, including the synthesized
                       caller.
+                    </FieldDescription>
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="eval-caller-profile">Caller audio</FieldLabel>
+                    <NativeSelect id="eval-caller-profile" name="callerProfile">
+                      <NativeSelectOption value="clean">Clean: full bandwidth</NativeSelectOption>
+                      <NativeSelectOption value="phone">
+                        Phone: 8 kHz, 300–3400 Hz band, G.711 μ-law
+                      </NativeSelectOption>
+                    </NativeSelect>
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="eval-caller-noise">Caller noise SNR (dB)</FieldLabel>
+                    <Input
+                      autoComplete="off"
+                      id="eval-caller-noise"
+                      inputMode="decimal"
+                      max={60}
+                      min={0}
+                      name="callerNoiseSnrDb"
+                      placeholder="20"
+                      step="any"
+                      type="number"
+                    />
+                    <FieldDescription>
+                      Optional. Adds seeded background noise at this signal-to-noise ratio, 0 to 60.
+                    </FieldDescription>
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="eval-caller-tts">Caller TTS</FieldLabel>
+                    <Input
+                      autoComplete="off"
+                      id="eval-caller-tts"
+                      name="callerTts"
+                      placeholder="cartesia/sonic-3"
+                    />
+                    <FieldDescription>
+                      Optional. Synthesizes the caller with a different model than the agent.
+                    </FieldDescription>
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="eval-caller-voice">Caller voice</FieldLabel>
+                    <Input autoComplete="off" id="eval-caller-voice" name="callerVoice" />
+                    <FieldDescription>Optional. Provider voice id for the caller.</FieldDescription>
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="eval-caller-seed">Caller audio seed</FieldLabel>
+                    <Input
+                      defaultValue={0}
+                      id="eval-caller-seed"
+                      min={0}
+                      name="callerSeed"
+                      step={1}
+                      type="number"
+                    />
+                    <FieldDescription>
+                      The same seed gives identical noise, so runs stay comparable.
                     </FieldDescription>
                   </Field>
                 </>

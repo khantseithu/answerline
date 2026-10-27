@@ -209,11 +209,14 @@ pnpm eval agents/bright-smile-dental.yaml
 pnpm eval agents/bright-smile-dental.yaml --model openai/gpt-4.1-mini --judge-model anthropic/claude-sonnet-4-5
 pnpm eval agents/bright-smile-dental.yaml --live-tools --audio
 pnpm eval agents/bright-smile-dental.yaml --audio --stt deepgram/nova-2 --tts cartesia/sonic-2
+pnpm eval agents/bright-smile-dental.yaml --audio --caller-audio phone --caller-noise-snr 20 --seed 1
 ```
 
 The eval command exits `0` when all cases pass, `1` for failed cases (including model-generation failures), and `2` for setup failures or runner crashes. Runs use the repository's `evals/<agent>.yaml` suite and the seeded `default` tenant agent; options and the parsed inputs are saved with each run.
 
 Audio mode synthesizes caller turns, transcribes each complete audio buffer with batch STT, and evaluates the recognized text through the agent and TTS. Its case latency includes caller synthesis, batch recognition, agent processing, and captured output completion. It excludes RTC transport, VAD, and real-time playback duration. Caller synthesis usage is included in the run cost.
+
+By default the synthesized caller is a clean, full-bandwidth best case. `--caller-audio phone` (or the dashboard field) degrades each caller turn like a phone call before STT: downmix to mono, resample to 8 kHz, a 300–3400 Hz band-pass, and a G.711 μ-law encode/decode round trip. `--caller-noise-snr <dB>` (0–60) adds Gaussian background noise at that signal-to-noise ratio, measured against the caller speech level. Processing is seeded (`--seed`, default 0), so the same seed and input give identical audio and runs stay comparable; compare the average WER of a clean run and a phone run to see what the line costs. `--caller-tts provider/model` and `--caller-voice <id>` synthesize the caller with a different model or voice than the agent, so the agent's STT is not hearing its own TTS; the agent's TTS keeps the agent config or `--tts`. These options are saved with the run, shown on the run page, and ignored in text mode.
 
 Audio mode also scores speech recognition. Each scripted caller turn is compared with its STT transcript as a word error rate (word-level edit distance over the reference word count; case, punctuation, and digit grouping are ignored, and number words such as "five" match "5"). A case reports the mean over its turns and a run reports the mean over its cases, in the CLI output, the dashboard run page, and the run comparison. Add `max_wer: 0.1` to a case's `expect` to fail the case when its error rate is over 10%; text mode reports no WER and ignores `max_wer`. `--stt` and `--tts` (or the dashboard fields) replace the agent's speech models for the run, including the synthesized caller, the way `--model` replaces the LLM.
 

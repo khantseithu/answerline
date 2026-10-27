@@ -28,13 +28,18 @@ def build_stt(
 
 
 def build_tts(
-    ref: str, provider_keys: dict[str, str] | None = None, *, language: str = "en"
+    ref: str,
+    provider_keys: dict[str, str] | None = None,
+    *,
+    language: str = "en",
+    voice: str | None = None,
 ) -> tts.TTS:
     provider, _, model = ref.partition("/")
     if provider == "cartesia":
         return cartesia.TTS(
             model=model,
             language=base_language(language),
+            **({"voice": voice} if voice else {}),
             **_api_key("cartesia", provider_keys),
         )
     raise ValueError(f"Unsupported TTS provider: {ref}")

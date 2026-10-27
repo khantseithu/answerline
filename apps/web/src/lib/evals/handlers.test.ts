@@ -117,6 +117,28 @@ async function createRun(harness: Harness, input: Record<string, unknown> = {}) 
   return ((await bodyOf(response)) as { run: EvalRunView }).run;
 }
 
+test("persists caller audio settings in the snapshot and exposes them on the run", { skip }, () =>
+  withHarness(async (harness) => {
+    const callerAudio = {
+      noiseSnrDb: 18.5,
+      profile: "phone",
+      seed: 11,
+      tts: "cartesia/sonic-2",
+      voice: "voice-123",
+    };
+    const run = await createRun(harness, { callerAudio, mode: "audio" });
+    assert.deepEqual(run.callerAudio, callerAudio);
+    const [row] = await harness.deps.db.select().from(evalRuns).where(eq(evalRuns.id, run.id));
+    assert.deepEqual(row?.executionInput?.callerAudio, callerAudio);
+
+    const defaulted = await createRun(harness, { callerAudio: {}, mode: "audio" });
+    assert.deepEqual(defaulted.callerAudio, { profile: "clean", seed: 0 });
+
+    const plain = await createRun(harness);
+    assert.equal(plain.callerAudio, null);
+  })
+);
+
 test("queues a run with an immutable snapshot and a minimal job", { skip }, () =>
   withHarness(async (harness) => {
     const run = await createRun(harness, {
@@ -192,12 +214,15 @@ test("rejects unsafe or unknown suites and invalid bodies", { skip }, () =>
         { agentId: harness.agentId, judgeModel: "claude", suite: "dental" },
         { agentId: harness.agentId, sttOverride: "nova-3", suite: "dental" },
         { agentId: harness.agentId, suite: "dental", ttsOverride: "sonic-3" },
+        { agentId: harness.agentId, callerAudio: { noiseSnrDb: 61 }, suite: "dental" },
+        { agentId: harness.agentId, callerAudio: { profile: "vinyl" }, suite: "dental" },
+        { agentId: harness.agentId, callerAudio: { tts: "sonic-3" }, suite: "dental" },
         "{",
       ].map((body) => harness.handlers.create(post(body)))
     );
     assert.deepEqual(
       responses.map((response) => response.status),
-      [400, 400, 400, 400, 400, 400, 400, 400, 400]
+      [400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400]
     );
     assert.equal(harness.enqueued.length, 0);
     const rows = await harness.deps.db

@@ -11,6 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { getEvalDeps } from "@/lib/evals/context";
 import {
+  displayCallerAudio,
+  displayCallerVoice,
   displayCost,
   displayDate,
   displayLatency,
@@ -162,6 +164,14 @@ export default async function EvalRunPage({ params }: PageProps<"/evals/[id]">) 
           <Field label="Mode">
             <span className="capitalize">{run.mode}</span>
           </Field>
+          {run.mode === "audio" ? (
+            <>
+              <Field label="Caller audio">{displayCallerAudio(run.callerAudio)}</Field>
+              <Field label="Caller TTS">
+                <span className="font-mono text-xs">{displayCallerVoice(run.callerAudio)}</span>
+              </Field>
+            </>
+          ) : null}
           <Field label="Tools">{run.liveTools ? "Live" : "Mocked"}</Field>
           <Field label="Finished (UTC)">{run.finishedAt ? displayDate(run.finishedAt) : "—"}</Field>
         </dl>

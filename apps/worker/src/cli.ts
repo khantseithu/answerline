@@ -73,15 +73,31 @@ function printEvalRun(
   }
 }
 
+function parseNumberFlag(value: string | undefined, flag: string) {
+  if (value === undefined) {
+    return;
+  }
+  const parsed = Number(value);
+  if (value.trim() === "" || Number.isNaN(parsed)) {
+    throw new Error(`${flag} expects a number, got ${JSON.stringify(value)}`);
+  }
+  return parsed;
+}
+
 async function runEval(args: string[]) {
   const { positionals, values } = parseArgs({
     allowPositionals: true,
     args,
     options: {
       audio: { type: "boolean" },
+      "caller-audio": { type: "string" },
+      "caller-noise-snr": { type: "string" },
+      "caller-tts": { type: "string" },
+      "caller-voice": { type: "string" },
       "judge-model": { type: "string" },
       "live-tools": { type: "boolean" },
       model: { type: "string" },
+      seed: { type: "string" },
       stt: { type: "string" },
       tenant: { type: "string" },
       tts: { type: "string" },
@@ -90,7 +106,7 @@ async function runEval(args: string[]) {
   const [agentPath, ...extra] = positionals;
   if (!agentPath || extra.length) {
     throw new Error(
-      "usage: worker eval <agents/name.yaml> [--model provider/model] [--judge-model provider/model] [--live-tools] [--audio] [--stt provider/model] [--tts provider/model] [--tenant workspace-slug]"
+      "usage: worker eval <agents/name.yaml> [--model provider/model] [--judge-model provider/model] [--live-tools] [--audio] [--stt provider/model] [--tts provider/model] [--caller-audio clean|phone] [--caller-noise-snr dB] [--caller-tts provider/model] [--caller-voice id] [--seed n] [--tenant workspace-slug]"
     );
   }
 
@@ -111,8 +127,18 @@ async function runEval(args: string[]) {
         `agent ${agentSlug} was not found in workspace ${tenantSlug}; run pnpm db:seed`
       );
     }
+    const callerAudio = {
+      noiseSnrDb: parseNumberFlag(values["caller-noise-snr"], "--caller-noise-snr"),
+      profile: values["caller-audio"],
+      seed: parseNumberFlag(values.seed, "--seed"),
+      tts: values["caller-tts"],
+      voice: values["caller-voice"],
+    };
     const executionInput = evalExecutionInputSchema.parse({
       agent,
+      callerAudio: Object.values(callerAudio).some((value) => value !== undefined)
+        ? callerAudio
+        : undefined,
       context: { agentSlug: agentRow.agentSlug, tenantSlug: agentRow.tenantSlug },
       judgeModel: values["judge-model"],
       liveTools: values["live-tools"],

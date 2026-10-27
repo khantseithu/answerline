@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readdir, readFile } from "node:fs/promises";
 import { test } from "node:test";
 import {
+  evalCallerAudioSchema,
   evalExecutionInputSchema,
   evalExecutionOutputSchema,
   evalJobSchema,
@@ -218,6 +219,59 @@ test("stt and tts overrides are validated model refs on input and run create", (
       suite: [{ caller: "Hi", expect: {}, name: "hello" }],
     })
   );
+});
+
+test("caller audio defaults to the clean profile and validates its bounds", () => {
+  assert.deepEqual(evalCallerAudioSchema.parse({}), { profile: "clean", seed: 0 });
+  const full = {
+    noiseSnrDb: 0,
+    profile: "phone",
+    seed: 7,
+    tts: "cartesia/sonic-2",
+    voice: "voice-1",
+  };
+  assert.deepEqual(evalCallerAudioSchema.parse(full), full);
+  assert.doesNotThrow(() => evalCallerAudioSchema.parse({ noiseSnrDb: 60 }));
+  for (const bad of [
+    { noiseSnrDb: -1 },
+    { noiseSnrDb: 60.5 },
+    { profile: "vinyl" },
+    { seed: 1.5 },
+    { seed: -1 },
+    { tts: "sonic-2" },
+    { voice: "" },
+  ]) {
+    assert.throws(() => evalCallerAudioSchema.parse(bad), JSON.stringify(bad));
+  }
+});
+
+test("caller audio is accepted on run create and execution input", () => {
+  const agentId = "0b9c1c3e-2f4a-4e8e-9d3a-5f1f2b7c9a10";
+  const created = evalRunCreateSchema.parse({
+    agentId,
+    callerAudio: { noiseSnrDb: 20, profile: "phone" },
+    mode: "audio",
+    suite: "bright-smile-dental",
+  });
+  assert.deepEqual(created.callerAudio, { noiseSnrDb: 20, profile: "phone", seed: 0 });
+  assert.equal(
+    evalRunCreateSchema.parse({ agentId, suite: "bright-smile-dental" }).callerAudio,
+    undefined
+  );
+  assert.throws(() =>
+    evalRunCreateSchema.parse({
+      agentId,
+      callerAudio: { noiseSnrDb: 100 },
+      suite: "bright-smile-dental",
+    })
+  );
+  const input = evalExecutionInputSchema.parse({
+    agent: minimalAgent,
+    callerAudio: { seed: 3, voice: "voice-1" },
+    mode: "audio",
+    suite: [{ caller: "Hi", expect: {}, name: "hello" }],
+  });
+  assert.deepEqual(input.callerAudio, { profile: "clean", seed: 3, voice: "voice-1" });
 });
 
 test("eval output round-trips per-stage latency and rejects bad samples", () => {
