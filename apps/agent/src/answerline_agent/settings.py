@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     otel_service_name: str = Field(default="answerline-agent", min_length=1)
     otel_exporter_otlp_timeout: float = Field(default=5.0, gt=0, allow_inf_nan=False)
     eval_judge_model: str | None = None
+    eval_reference_stt: str | None = None
     turn_detection: Literal["local", "cloud", "stt", "vad"] = "local"
     interruption_mode: Literal["vad", "adaptive"] = "vad"
     max_call_duration_seconds: int = Field(default=900, ge=0)

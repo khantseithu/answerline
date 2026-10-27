@@ -2,6 +2,7 @@ import type {
   AgentConfig,
   CostLine,
   EvalExecutionInput,
+  EvalPronunciation,
   EvalRunStageLatency,
   EvalStageLatency,
   ModelUsage,
@@ -493,6 +494,7 @@ export const evalRuns = pgTable(
     id: id(),
     modelOverride: text(),
     passed: integer(),
+    pronunciationScore: doublePrecision(),
     stageLatency: jsonb().$type<EvalRunStageLatency>(),
     startedAt: timestamp({ withTimezone: true }),
     status: evalRunStatus().notNull().default("queued"),
@@ -518,6 +520,7 @@ export const evalResults = pgTable(
     id: id(),
     latencyMs: integer(),
     passed: boolean().notNull(),
+    pronunciation: jsonb().$type<EvalPronunciation>(),
     runId: uuid()
       .notNull()
       .references(() => evalRuns.id, { onDelete: "cascade" }),

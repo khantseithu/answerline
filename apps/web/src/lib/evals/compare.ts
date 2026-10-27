@@ -1,10 +1,15 @@
-import { EVAL_LATENCY_STAGES, type EvalRunStageLatency } from "@answerline/shared";
+import {
+  EVAL_LATENCY_STAGES,
+  type EvalPronunciation,
+  type EvalRunStageLatency,
+} from "@answerline/shared";
 
 export interface EvalCaseOutcome {
   caseName: string;
   costUsd: string | null;
   latencyMs: number | null;
   passed: boolean;
+  pronunciation: EvalPronunciation | null;
   wer: number | null;
 }
 
@@ -13,6 +18,7 @@ export interface EvalRunTotals {
   avgWer: number | null;
   costUsd: string | null;
   passed: number | null;
+  pronunciationScore: number | null;
   total: number | null;
 }
 
@@ -24,6 +30,7 @@ export interface EvalCaseComparison {
   change: EvalCaseChange;
   head: EvalCaseOutcome | null;
   latencyDeltaMs: number | null;
+  pronunciationDelta: number | null;
   werDelta: number | null;
 }
 
@@ -50,6 +57,11 @@ function byCaseName(results: EvalCaseOutcome[]) {
   return map;
 }
 
+function pronunciationRate(outcome: EvalCaseOutcome | null) {
+  const pronunciation = outcome?.pronunciation ?? null;
+  return pronunciation?.checked ? pronunciation.matched / pronunciation.checked : null;
+}
+
 function roundWer(value: number) {
   return Math.round(value * 10_000) / 10_000;
 }
@@ -70,6 +82,8 @@ export function compareEvalCases(
     const afterLatency = after?.latencyMs ?? null;
     const beforeWer = before?.wer ?? null;
     const afterWer = after?.wer ?? null;
+    const beforePronunciation = pronunciationRate(before);
+    const afterPronunciation = pronunciationRate(after);
     return {
       base: before,
       caseName,
@@ -77,6 +91,10 @@ export function compareEvalCases(
       head: after,
       latencyDeltaMs:
         beforeLatency === null || afterLatency === null ? null : afterLatency - beforeLatency,
+      pronunciationDelta:
+        beforePronunciation === null || afterPronunciation === null
+          ? null
+          : roundWer(afterPronunciation - beforePronunciation),
       werDelta: beforeWer === null || afterWer === null ? null : roundWer(afterWer - beforeWer),
     };
   });
@@ -102,6 +120,10 @@ export function compareEvalTotals(base: EvalRunTotals, head: EvalRunTotals) {
         ? null
         : head.avgLatencyMs - base.avgLatencyMs,
     passRateDelta: baseRate === null || headRate === null ? null : headRate - baseRate,
+    pronunciationDelta:
+      base.pronunciationScore === null || head.pronunciationScore === null
+        ? null
+        : roundWer(head.pronunciationScore - base.pronunciationScore),
     werDelta:
       base.avgWer === null || head.avgWer === null ? null : roundWer(head.avgWer - base.avgWer),
   };

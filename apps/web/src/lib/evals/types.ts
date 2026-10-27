@@ -18,6 +18,8 @@ export const evalRunView = z.object({
   mode: z.enum(["text", "audio"]),
   modelOverride: z.string().nullable(),
   passed: z.number().nullable(),
+  pronunciationScore: z.number().nullable(),
+  referenceStt: z.string().nullable(),
   stageLatency: evalRunStageLatencySchema.nullable(),
   startedAt: z.string().nullable(),
   status: evalRunStatus,

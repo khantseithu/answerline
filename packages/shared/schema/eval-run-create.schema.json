@@ -58,6 +58,10 @@
       "type": "string",
       "pattern": "^[a-z0-9-]+\\/(?:[\\w.:-]+\\/)?[\\w.:-]+$"
     },
+    "referenceStt": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+\\/(?:[\\w.:-]+\\/)?[\\w.:-]+$"
+    },
     "sttOverride": {
       "type": "string",
       "pattern": "^[a-z0-9-]+\\/(?:[\\w.:-]+\\/)?[\\w.:-]+$"

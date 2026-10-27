@@ -17,6 +17,8 @@ import {
   displayDate,
   displayLatency,
   displayPassRate,
+  displayPronunciation,
+  displayPronunciationScore,
   displayStageLatency,
   displayWer,
 } from "@/lib/evals/format";
@@ -62,8 +64,16 @@ function CaseResult({ result }: { result: EvalRunDetail["results"][number] }) {
         <span className="numeric text-muted-foreground text-xs">
           {displayLatency(result.latencyMs)} · {displayCost(result.costUsd)}
           {result.wer === null ? "" : ` · WER ${displayWer(result.wer)}`}
+          {result.pronunciation
+            ? ` · Pronunciation ${displayPronunciation(result.pronunciation)}`
+            : ""}
         </span>
       </div>
+      {result.pronunciation?.missed.length ? (
+        <p className="text-muted-foreground text-sm">
+          Not pronounced as written: {result.pronunciation.missed.join(", ")}
+        </p>
+      ) : null}
       {result.failures.length > 0 ? (
         <ul className="flex list-disc flex-col gap-1 pl-5 text-destructive text-sm">
           {result.failures.map((failure) => (
@@ -146,6 +156,9 @@ export default async function EvalRunPage({ params }: PageProps<"/evals/[id]">) 
           <Field label="Avg WER">
             <span className="numeric">{displayWer(run.avgWer)}</span>
           </Field>
+          <Field label="Pronunciation">
+            <span className="numeric">{displayPronunciationScore(run.pronunciationScore)}</span>
+          </Field>
           <Field label="Total cost">
             <span className="numeric">{displayCost(run.costUsd)}</span>
           </Field>
@@ -161,6 +174,11 @@ export default async function EvalRunPage({ params }: PageProps<"/evals/[id]">) 
           <Field label="TTS">
             <span className="font-mono text-xs">{run.ttsOverride ?? "Agent default"}</span>
           </Field>
+          {run.mode === "audio" ? (
+            <Field label="Reference STT">
+              <span className="font-mono text-xs">{run.referenceStt ?? "Env or agent STT"}</span>
+            </Field>
+          ) : null}
           <Field label="Mode">
             <span className="capitalize">{run.mode}</span>
           </Field>

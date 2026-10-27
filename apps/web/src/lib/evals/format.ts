@@ -1,5 +1,6 @@
 import {
   type EvalCallerAudio,
+  type EvalPronunciation,
   type EvalRunStageLatency,
   formatStageLatency,
 } from "@answerline/shared";
@@ -22,6 +23,14 @@ export function displayLatency(latencyMs: number | null) {
 
 export function displayWer(wer: number | null) {
   return wer === null ? "—" : `${(wer * 100).toFixed(1)}%`;
+}
+
+export function displayPronunciationScore(score: number | null) {
+  return score === null ? "—" : `${(score * 100).toFixed(1)}%`;
+}
+
+export function displayPronunciation(pronunciation: EvalPronunciation | null | undefined) {
+  return pronunciation ? `${pronunciation.matched}/${pronunciation.checked}` : "—";
 }
 
 export function displayPassRate(passed: number | null, total: number | null) {

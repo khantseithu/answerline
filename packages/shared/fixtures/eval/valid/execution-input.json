@@ -25,6 +25,7 @@
   "judgeModel": "anthropic/claude-sonnet-4-5",
   "liveTools": true,
   "mode": "audio",
+  "referenceStt": "deepgram/nova-3",
   "sttOverride": "deepgram/nova-3",
   "suite": [
     {

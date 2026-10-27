@@ -44,6 +44,18 @@
           "minimum": 0,
           "maximum": 9007199254740991
         },
+        "pronunciationScore": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "stageLatency": {
           "anyOf": [
             {
@@ -296,6 +308,39 @@
           },
           "passed": {
             "type": "boolean"
+          },
+          "pronunciation": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "checked": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "matched": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "missed": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "checked",
+                  "matched",
+                  "missed"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "stageLatency": {
             "type": "object",

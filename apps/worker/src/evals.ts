@@ -50,6 +50,8 @@ export function normalizeEvalOutput(
   );
   const costs = results.flatMap((result) => (result.costUsd === null ? [] : [result.costUsd]));
   const wers = results.flatMap((result) => (result.wer === null ? [] : [result.wer]));
+  const checked = results.reduce((sum, result) => sum + (result.pronunciation?.checked ?? 0), 0);
+  const matched = results.reduce((sum, result) => sum + (result.pronunciation?.matched ?? 0), 0);
   return {
     aggregate: {
       avgLatencyMs: latencies.length
@@ -63,6 +65,7 @@ export function normalizeEvalOutput(
           ? Math.round(costs.reduce((sum, cost) => sum + cost, 0) * 1_000_000) / 1_000_000
           : null,
       passed: results.filter((result) => result.passed).length,
+      pronunciationScore: checked ? Math.round((matched / checked) * 10_000) / 10_000 : null,
       stageLatency: summarizeStageLatency(results.map((result) => result.stageLatency)),
       total: results.length,
     },
@@ -165,6 +168,7 @@ async function saveEvalOutput(db: Database, job: EvalJob, output: EvalExecutionO
           failures: result.failures,
           latencyMs: result.latencyMs,
           passed: result.passed,
+          pronunciation: result.pronunciation ?? null,
           runId: job.runId,
           stageLatency: result.stageLatency ?? null,
           transcript: result.transcript,
@@ -181,6 +185,7 @@ async function saveEvalOutput(db: Database, job: EvalJob, output: EvalExecutionO
         error: null,
         finishedAt: new Date(),
         passed: output.aggregate.passed,
+        pronunciationScore: output.aggregate.pronunciationScore ?? null,
         stageLatency: output.aggregate.stageLatency ?? null,
         status: "completed",
         total: output.aggregate.total,

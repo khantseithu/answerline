@@ -144,10 +144,13 @@ test("queues a run with an immutable snapshot and a minimal job", { skip }, () =
     const run = await createRun(harness, {
       judgeModel: "anthropic/claude-sonnet-4-5",
       modelOverride: "openai/gpt-4.1-mini",
+      referenceStt: "deepgram/nova-3",
       sttOverride: "deepgram/nova-2",
       ttsOverride: "cartesia/sonic-2",
     });
     assert.equal(run.status, "queued");
+    assert.equal(run.referenceStt, "deepgram/nova-3");
+    assert.equal(run.pronunciationScore, null);
     assert.equal(run.sttOverride, "deepgram/nova-2");
     assert.equal(run.ttsOverride, "cartesia/sonic-2");
     assert.equal(run.avgWer, null);
@@ -172,6 +175,7 @@ test("queues a run with an immutable snapshot and a minimal job", { skip }, () =
     assert.equal(row?.executionInput?.modelOverride, "openai/gpt-4.1-mini");
     assert.equal(row?.executionInput?.sttOverride, "deepgram/nova-2");
     assert.equal(row?.executionInput?.ttsOverride, "cartesia/sonic-2");
+    assert.equal(row?.executionInput?.referenceStt, "deepgram/nova-3");
     assert.equal(row?.executionInput?.judgeModel, "anthropic/claude-sonnet-4-5");
     assert.deepEqual(row?.executionInput?.context, {
       agentSlug: "primary",
@@ -217,12 +221,13 @@ test("rejects unsafe or unknown suites and invalid bodies", { skip }, () =>
         { agentId: harness.agentId, callerAudio: { noiseSnrDb: 61 }, suite: "dental" },
         { agentId: harness.agentId, callerAudio: { profile: "vinyl" }, suite: "dental" },
         { agentId: harness.agentId, callerAudio: { tts: "sonic-3" }, suite: "dental" },
+        { agentId: harness.agentId, referenceStt: "nova-3", suite: "dental" },
         "{",
       ].map((body) => harness.handlers.create(post(body)))
     );
     assert.deepEqual(
       responses.map((response) => response.status),
-      [400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400]
+      [400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400]
     );
     assert.equal(harness.enqueued.length, 0);
     const rows = await harness.deps.db
@@ -286,6 +291,7 @@ test("lists and shows only the current tenant's runs", { skip }, () =>
       failures: ["did not call check_availability"],
       latencyMs: 820,
       passed: false,
+      pronunciation: { checked: 3, matched: 2, missed: ["202-555-0147"] },
       runId: run.id,
       stageLatency: { llmTtftMs: [310, 420] },
       transcript: [
@@ -308,6 +314,7 @@ test("lists and shows only the current tenant's runs", { skip }, () =>
         caseName: string;
         costUsd: string | null;
         failures: string[];
+        pronunciation: { checked: number; matched: number; missed: string[] } | null;
         wer: number | null;
         stageLatency: { llmTtftMs?: number[] } | null;
       }[];
@@ -315,6 +322,11 @@ test("lists and shows only the current tenant's runs", { skip }, () =>
     assert.equal(body.results[0]?.caseName, "books a cleaning");
     assert.equal(body.results[0]?.costUsd, null);
     assert.equal(body.results[0]?.wer, 0.125);
+    assert.deepEqual(body.results[0]?.pronunciation, {
+      checked: 3,
+      matched: 2,
+      missed: ["202-555-0147"],
+    });
     assert.deepEqual(body.results[0]?.failures, ["did not call check_availability"]);
     assert.deepEqual(body.results[0]?.stageLatency, { llmTtftMs: [310, 420] });
 
@@ -335,6 +347,7 @@ test("compares two tenant runs by case name", { skip }, () =>
         avgWer: 0.3,
         costUsd: "0.010000",
         passed: 1,
+        pronunciationScore: 0.5,
         stageLatency: { llmTtftMs: { p50: 400, p95: 700 } },
         status: "completed",
         total: 2,
@@ -347,6 +360,7 @@ test("compares two tenant runs by case name", { skip }, () =>
         avgWer: 0.1,
         costUsd: null,
         passed: 2,
+        pronunciationScore: 0.75,
         stageLatency: { llmTtftMs: { p50: 300, p95: 650 } },
         status: "completed",
         total: 2,
@@ -357,6 +371,7 @@ test("compares two tenant runs by case name", { skip }, () =>
         caseName: "books a cleaning",
         latencyMs: 900,
         passed: false,
+        pronunciation: { checked: 4, matched: 2, missed: [] },
         runId: base.id,
         transcript: [],
         wer: 0.3,
@@ -372,6 +387,7 @@ test("compares two tenant runs by case name", { skip }, () =>
         caseName: "books a cleaning",
         latencyMs: 600,
         passed: true,
+        pronunciation: { checked: 4, matched: 3, missed: [] },
         runId: head.id,
         transcript: [],
         wer: 0.1,
@@ -387,10 +403,11 @@ test("compares two tenant runs by case name", { skip }, () =>
         item.change,
         item.latencyDeltaMs,
         item.werDelta,
+        item.pronunciationDelta,
       ]),
       [
-        ["books a cleaning", "fixed", -300, -0.2],
-        ["shares hours", "unchanged", -100, null],
+        ["books a cleaning", "fixed", -300, -0.2, 0.25],
+        ["shares hours", "unchanged", -100, null, null],
       ]
     );
     assert.deepEqual(comparison.stageLatency, [
@@ -406,6 +423,7 @@ test("compares two tenant runs by case name", { skip }, () =>
       costDeltaUsd: null,
       latencyDeltaMs: -200,
       passRateDelta: 0.5,
+      pronunciationDelta: 0.25,
       werDelta: -0.2,
     });
 
