@@ -23,7 +23,7 @@ from .knowledge_tool import QUERY_DESCRIPTION, TOOL_DESCRIPTION, open_knowledge_
 from .languages import language_instructions, localizes_messages, stt_language
 from .native_booking import open_booking_provider
 from .prompts import compose_instructions
-from .providers import build_llm_chain, build_stt, build_tts
+from .providers import build_llm, build_llm_chain, build_stt, build_tts
 from .publisher import CallEventPublisher
 from .settings import Settings
 from .tool_log import ToolLog
@@ -370,8 +370,10 @@ async def run_case(
     case: dict[str, Any],
     *,
     model_override: str | None = None,
+    judge_model: str | None = None,
     settings: Settings | None = None,
     llm_provider: llm.LLM | None = None,
+    judge_provider: llm.LLM | None = None,
     mode: str = "text",
     live_tools: bool = False,
     context: dict[str, str] | None = None,
@@ -519,8 +521,12 @@ async def run_case(
         failures = speech_failures + _evaluate_assertions(case, transcript, calls)
         usage.extend(model_usage_lines(session.usage.model_usage) or [])
         if case.get("expect", {}).get("judge"):
+            judge_ref = judge_model or runtime_settings.eval_judge_model
+            judge = judge_provider or (
+                build_llm(judge_ref, provider_keys) if judge_ref else provider
+            )
             passed, reason, judge_usage = await _judge(
-                provider,
+                judge,
                 case["expect"]["judge"],
                 transcript,
                 calls,
@@ -568,6 +574,7 @@ async def run_suite(
                 config,
                 case,
                 model_override=payload.get("modelOverride"),
+                judge_model=payload.get("judgeModel"),
                 settings=Settings(),
                 mode=payload.get("mode", "text"),
                 live_tools=payload.get("liveTools", False),

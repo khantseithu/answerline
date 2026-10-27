@@ -80,10 +80,12 @@ export function NewRunDialog({
       event.preventDefault();
       const form = new FormData(event.currentTarget);
       const modelOverride = String(form.get("modelOverride") ?? "").trim();
+      const judgeModel = String(form.get("judgeModel") ?? "").trim();
       setPending(true);
       try {
         const run = await startEvalRun({
           agentId,
+          judgeModel: judgeModel || undefined,
           liveTools,
           mode: form.get("mode") === "audio" ? "audio" : "text",
           modelOverride: modelOverride || undefined,
@@ -165,6 +167,19 @@ export function NewRunDialog({
                   placeholder="openai/gpt-4.1-mini"
                 />
                 <FieldDescription>Optional. Replaces the agent’s primary LLM.</FieldDescription>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="eval-judge-model">Judge model</FieldLabel>
+                <Input
+                  autoComplete="off"
+                  id="eval-judge-model"
+                  name="judgeModel"
+                  placeholder="anthropic/claude-sonnet-4-5"
+                />
+                <FieldDescription>
+                  Optional. Grades judge rubrics instead of the model under test. Defaults to
+                  EVAL_JUDGE_MODEL, then the agent’s LLM.
+                </FieldDescription>
               </Field>
               <Field>
                 <FieldLabel htmlFor="eval-mode">Mode</FieldLabel>

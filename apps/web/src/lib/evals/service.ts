@@ -199,6 +199,7 @@ export async function createEvalRun(deps: EvalDeps, rawInput: unknown) {
   const executionInput = evalExecutionInputSchema.parse({
     agent: agent.config,
     context: { agentSlug: agent.agentSlug, tenantSlug: agent.tenantSlug },
+    judgeModel: input.judgeModel,
     liveTools: input.liveTools,
     mode: input.mode,
     modelOverride: input.modelOverride,

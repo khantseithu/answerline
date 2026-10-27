@@ -119,7 +119,10 @@ async function createRun(harness: Harness, input: Record<string, unknown> = {}) 
 
 test("queues a run with an immutable snapshot and a minimal job", { skip }, () =>
   withHarness(async (harness) => {
-    const run = await createRun(harness, { modelOverride: "openai/gpt-4.1-mini" });
+    const run = await createRun(harness, {
+      judgeModel: "anthropic/claude-sonnet-4-5",
+      modelOverride: "openai/gpt-4.1-mini",
+    });
     assert.equal(run.status, "queued");
     assert.equal(run.suite, "dental");
     assert.equal(run.liveTools, false);
@@ -140,6 +143,7 @@ test("queues a run with an immutable snapshot and a minimal job", { skip }, () =
     assert.equal(row?.executionInput?.liveTools, false);
     assert.equal(row?.executionInput?.mode, "text");
     assert.equal(row?.executionInput?.modelOverride, "openai/gpt-4.1-mini");
+    assert.equal(row?.executionInput?.judgeModel, "anthropic/claude-sonnet-4-5");
     assert.deepEqual(row?.executionInput?.context, {
       agentSlug: "primary",
       tenantSlug: `evals-${harness.deps.tenantId}`,
@@ -178,12 +182,13 @@ test("rejects unsafe or unknown suites and invalid bodies", { skip }, () =>
         { agentId: harness.agentId, suite: "missing" },
         { agentId: "not-a-uuid", suite: "dental" },
         { agentId: harness.agentId, modelOverride: "gpt", suite: "dental" },
+        { agentId: harness.agentId, judgeModel: "claude", suite: "dental" },
         "{",
       ].map((body) => harness.handlers.create(post(body)))
     );
     assert.deepEqual(
       responses.map((response) => response.status),
-      [400, 400, 400, 400, 400, 400]
+      [400, 400, 400, 400, 400, 400, 400]
     );
     assert.equal(harness.enqueued.length, 0);
     const rows = await harness.deps.db

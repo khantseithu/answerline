@@ -206,13 +206,15 @@ Write test calls as scripts, then run them against an agent. Each run stores per
 ```bash
 pnpm db:seed
 pnpm eval agents/bright-smile-dental.yaml
-pnpm eval agents/bright-smile-dental.yaml --model openai/gpt-4.1-mini
+pnpm eval agents/bright-smile-dental.yaml --model openai/gpt-4.1-mini --judge-model anthropic/claude-sonnet-4-5
 pnpm eval agents/bright-smile-dental.yaml --live-tools --audio
 ```
 
 The eval command exits `0` when all cases pass, `1` for failed cases (including model-generation failures), and `2` for setup failures or runner crashes. Runs use the repository's `evals/<agent>.yaml` suite and the seeded `default` tenant agent; options and the parsed inputs are saved with each run.
 
 Audio mode synthesizes caller turns, transcribes each complete audio buffer with batch STT, and evaluates the recognized text through the agent and TTS. Its case latency includes caller synthesis, batch recognition, agent processing, and captured output completion. It excludes RTC transport, VAD, and real-time playback duration. Caller synthesis usage is included in the run cost.
+
+`judge` rubrics are graded by `--judge-model` (or `EVAL_JUDGE_MODEL`), falling back to the agent's LLM. Pin a judge when comparing models with `--model`, so each candidate is not grading its own answers.
 
 To run the same CLI in Docker, put your model provider keys in `.env`, then build the worker and prepare the Compose database:
 

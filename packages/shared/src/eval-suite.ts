@@ -61,6 +61,7 @@ export const evalExecutionInputSchema = z
         tenantSlug: z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/),
       })
       .optional(),
+    judgeModel: modelRefSchema.optional(),
     liveTools: z.boolean().default(false),
     mode: z.enum(["text", "audio"]).default("text"),
     modelOverride: modelRefSchema.optional(),
@@ -79,6 +80,7 @@ export const evalJobSchema = z.object({
 
 export const evalRunCreateSchema = z.object({
   agentId: z.uuid().toLowerCase(),
+  judgeModel: modelRefSchema.optional(),
   liveTools: z.boolean().optional(),
   mode: z.enum(["text", "audio"]).optional(),
   modelOverride: modelRefSchema.optional(),
