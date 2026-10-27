@@ -30,6 +30,7 @@ Legend: `[x]` done · `[ ]` todo · **Done when** = acceptance criteria for the 
   - [x] JS: install, lint, typecheck, test, web build
   - [x] Python: uv sync, ruff, pytest
   - [ ] Turbo remote cache (optional)
+- [x] Per-session PGX database branches for Claude Code (`.pgx.toml`) (#326)
 - [x] Repo hygiene: `CLAUDE.md`/`AGENTS.md` for the root, PR template, issue templates, Renovate or Dependabot
 
 **Done when:** fresh clone → `pnpm install && uv sync && pnpm infra:up && pnpm db:migrate` works and CI is green on `main`.
