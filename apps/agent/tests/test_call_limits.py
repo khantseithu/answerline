@@ -101,6 +101,11 @@ class FakeSession:
         self.log.append("say")
         return FakeHandle(self.hang_speech)
 
+    def generate_reply(self, *, instructions, **kwargs):
+        self.said.append((instructions, kwargs))
+        self.log.append("generate_reply")
+        return FakeHandle(self.hang_speech)
+
     async def aclose(self):
         self.log.append("aclose")
         if self.hang_close:
@@ -133,7 +138,15 @@ class FakeJob:
         self.shutdown_called.set()
 
 
-def _lifecycle(monkeypatch, env=None, *, hang_speech=False, hang_close=False, hang_delete=False):
+def _lifecycle(
+    monkeypatch,
+    env=None,
+    *,
+    hang_speech=False,
+    hang_close=False,
+    hang_delete=False,
+    localize=False,
+):
     log = []
     session = FakeSession(log, hang_speech=hang_speech, hang_close=hang_close)
     job = FakeJob(log, hang_delete=hang_delete)
@@ -142,6 +155,7 @@ def _lifecycle(monkeypatch, env=None, *, hang_speech=False, hang_close=False, ha
         events=FakeEvents(log),
         job=job,
         settings=_settings(monkeypatch, **(env or {})),
+        localize=localize,
     )
     return lifecycle, session, job, log
 
@@ -302,3 +316,25 @@ def test_idle_disabled_ignores_away(monkeypatch):
     session, job = asyncio.run(run())
     assert session.said == []
     assert not job.shutdown_called.is_set()
+
+
+def test_localized_calls_have_the_llm_speak_the_wrap_up(monkeypatch):
+    monkeypatch.setattr(call_limits, "wrap_up_delay", lambda *a, **k: 0.05)
+
+    async def run():
+        lifecycle, session, job, log = _lifecycle(
+            monkeypatch,
+            {"MAX_CALL_DURATION_SECONDS": 20, "IDLE_TIMEOUT_SECONDS": 0},
+            localize=True,
+        )
+        lifecycle.start()
+        await _wait(job)
+        return session, log
+
+    session, log = asyncio.run(run())
+    assert log[0] == "generate_reply"
+    [(instructions, kwargs)] = session.said
+    assert instructions == call_limits.LOCALIZED_MESSAGE.format(
+        text=Settings().call_wrap_up_message
+    )
+    assert kwargs == {"tool_choice": "none", "allow_interruptions": False}

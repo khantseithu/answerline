@@ -47,7 +47,25 @@ class LimitedSession(Protocol):
 
     def say(self, text: str, *, allow_interruptions: bool = ...) -> SpeechHandle: ...
 
+    def generate_reply(
+        self, *, instructions: str, tool_choice: Any = ..., allow_interruptions: bool = ...
+    ) -> SpeechHandle: ...
+
     async def aclose(self) -> None: ...
+
+
+LOCALIZED_MESSAGE = (
+    "Say the following to the caller in the language they are using, keeping the meaning "
+    "and adding nothing else: {text}"
+)
+
+
+def speak(session: LimitedSession, text: str, *, localize: bool, **kwargs: Any) -> SpeechHandle:
+    if localize:
+        return session.generate_reply(
+            instructions=LOCALIZED_MESSAGE.format(text=text), tool_choice="none", **kwargs
+        )
+    return session.say(text, **kwargs)
 
 
 class CallEvents(Protocol):
@@ -68,8 +86,10 @@ class CallLifecycle:
         events: CallEvents,
         job: CallJob,
         settings: Settings,
+        localize: bool = False,
     ) -> None:
         self._session = session
+        self._localize = localize
         self._events = events
         self._job = job
         self._max_seconds = settings.max_call_duration_seconds
@@ -134,7 +154,7 @@ class CallLifecycle:
 
     async def _say(self, text: str, timeout: float, **kwargs: Any) -> None:
         try:
-            handle = self._session.say(text, **kwargs)
+            handle = speak(self._session, text, localize=self._localize, **kwargs)
             await asyncio.wait_for(handle.wait_for_playout(), timeout)
         except TimeoutError:
             logger.warning("timed out waiting for the agent to finish speaking")

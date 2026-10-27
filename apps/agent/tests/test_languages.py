@@ -4,6 +4,7 @@ from answerline_agent.languages import (
     call_language,
     greeting_for,
     language_instructions,
+    localizes_messages,
     match_language,
     stt_language,
 )
@@ -105,3 +106,10 @@ def test_switching_ignores_interim_short_and_unconfigured_speech():
     caller.on_transcribed(transcribed("no language reported", None))
     assert tts.languages == []
     assert caller.current == "en"
+
+
+def test_non_english_and_multilingual_agents_localize_system_messages():
+    assert not localizes_messages(config())
+    assert not localizes_messages(config(language="en-GB"))
+    assert localizes_messages(config(language="es"))
+    assert localizes_messages(MULTI)

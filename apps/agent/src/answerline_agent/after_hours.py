@@ -3,7 +3,7 @@ import logging
 from typing import Literal, Protocol
 
 from .business_hours import Schedule
-from .call_limits import LimitedSession
+from .call_limits import LimitedSession, SpeechHandle, speak
 from .config import Hours
 from .settings import Settings
 
@@ -20,9 +20,12 @@ class Transfer(Protocol):
 
 
 class AfterHours:
-    def __init__(self, hours: Hours | None, name: str, settings: Settings) -> None:
+    def __init__(
+        self, hours: Hours | None, name: str, settings: Settings, *, localize: bool = False
+    ) -> None:
         self._name = name
         self._settings = settings
+        self._localize = localize
         self.mode: Literal["voicemail", "transfer", "answer"] | None = None
         self.holiday: str | None = None
         if hours is None:
@@ -56,6 +59,9 @@ class AfterHours:
             "take_voicemail tool. You may still answer brief questions."
         )
 
+    def _say(self, session: LimitedSession, text: str) -> SpeechHandle:
+        return speak(session, text, localize=self._localize)
+
     def _message(self, template: str) -> str:
         return template.replace("{name}", self._name)
 
@@ -66,7 +72,7 @@ class AfterHours:
             session.say(greeting)
             return
         if self.mode == "transfer" and transfer is not None and transfer.can_transfer:
-            handle = session.say(self._message(self._settings.after_hours_transfer_message))
+            handle = self._say(session, self._message(self._settings.after_hours_transfer_message))
             try:
                 await asyncio.wait_for(handle.wait_for_playout(), PLAYOUT_WAIT)
             except TimeoutError:
@@ -76,6 +82,6 @@ class AfterHours:
                 return
             except Exception:
                 logger.warning("after-hours transfer failed", exc_info=True)
-                session.say(self._settings.after_hours_transfer_failed_message)
+                self._say(session, self._settings.after_hours_transfer_failed_message)
                 return
-        session.say(self._message(self._settings.after_hours_voicemail_message))
+        self._say(session, self._message(self._settings.after_hours_voicemail_message))
