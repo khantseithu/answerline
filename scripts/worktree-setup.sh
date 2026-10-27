@@ -37,7 +37,23 @@ set_env AGENT_NAME "answerline-wt${slot}"
 
 install_dependencies
 
-if docker compose exec -T postgres pg_isready -U answerline >/dev/null 2>&1; then
+if [[ "$(get_env PGX_DB)" == "1" ]]; then
+  if ! command -v pgx >/dev/null; then
+    echo "worktree-setup: PGX_DB=1 but pgx is not on PATH; install it with 'pnpm add -g pgxdb'" >&2
+    exit 1
+  fi
+  pgx run >/dev/null
+  if ! pgx url "$database" >/dev/null 2>&1; then
+    PGX_ADMIN_URL="$(pgx url postgres)" \
+      PGX_CREATE_SQL="create database ${database} template template0 locale_provider builtin builtin_locale 'C.UTF-8'" \
+      pnpm --silent --filter @answerline/db exec node -e \
+      'const sql = require("postgres")(process.env.PGX_ADMIN_URL); sql.unsafe(process.env.PGX_CREATE_SQL).finally(() => sql.end())'
+  fi
+  set_env DATABASE_URL "$(pgx url "$database")"
+  pnpm db:migrate
+  pnpm db:seed
+  pnpm admin:init
+elif docker compose exec -T postgres pg_isready -U answerline >/dev/null 2>&1; then
   exists="$(docker compose exec -T postgres psql -U answerline -d answerline -tAc "select 1 from pg_database where datname = '${database}'")"
   if [[ "$exists" != "1" ]]; then
     docker compose exec -T postgres createdb -U answerline "$database"
