@@ -105,6 +105,7 @@ class KnowledgeHit(BaseModel):
     keyword_score: float | None
     matched_terms: int
     query_terms: int
+    rerank_score: float | None = None
 
 
 def vector_literal(embedding: Sequence[float]) -> str:

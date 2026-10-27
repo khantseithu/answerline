@@ -4,6 +4,8 @@ import httpx
 from answerline_llm import (
     EmbeddingProvider,
     EmbeddingSettings,
+    RerankProvider,
+    RerankSettings,
     create_embedding_provider,
     parse_model_ref,
 )
@@ -101,3 +103,7 @@ def build_embedder(
         client=client,
         input_type="query",
     )
+
+
+def build_reranker(client: httpx.AsyncClient) -> RerankProvider | None:
+    return RerankSettings().create_provider(client=client)

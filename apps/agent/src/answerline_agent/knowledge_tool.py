@@ -8,17 +8,19 @@ from uuid import UUID
 
 import asyncpg
 import httpx
+from answerline_llm import RerankResult
 from livekit.agents import RunContext, llm
 from livekit.agents.llm import function_tool
 from pydantic import Field
 
 from .knowledge import (
+    DEFAULT_CANDIDATES,
     DEFAULT_MIN_KEYWORD_TERMS,
     KnowledgeHit,
     fetch_knowledge_scope,
     hybrid_search,
 )
-from .providers import build_embedder
+from .providers import build_embedder, build_reranker
 from .settings import Settings
 from .tool_log import ToolLog
 from .tool_policy import execute_tool, retry_transient
@@ -30,6 +32,7 @@ POOL_MAX_SIZE = 3
 MAX_RESULT_CHARS = 2400
 MIN_BLOCK_CHARS = 200
 MAX_ERROR_CHARS = 300
+RERANK_CANDIDATES = 20
 
 TOOL_DESCRIPTION = (
     "Look up facts about the business in its knowledge base: opening hours, services, "
@@ -44,6 +47,14 @@ UNAVAILABLE = "I couldn't look that up right now."
 
 class Embedder(Protocol):
     async def embed(self, texts: Sequence[str]) -> list[list[float]]: ...
+
+
+class Reranker(Protocol):
+    model_ref: str
+
+    async def rerank(
+        self, query: str, documents: Sequence[str], top_n: int | None = None
+    ) -> list[RerankResult]: ...
 
 
 def hit_label(hit: KnowledgeHit) -> str:
@@ -77,6 +88,7 @@ def citation(hit: KnowledgeHit) -> dict[str, Any]:
         "page": metadata.get("page"),
         "score": hit.score,
         "similarity": hit.similarity,
+        "rerank_score": hit.rerank_score,
     }
     return {key: value for key, value in fields.items() if value is not None}
 
@@ -92,6 +104,7 @@ class SearchResult:
     outcome: str
     hits: list[KnowledgeHit] = field(default_factory=list)
     error: str | None = None
+    rerank: dict[str, Any] | None = None
 
     def log(self) -> dict[str, Any]:
         logged: dict[str, Any] = {
@@ -101,6 +114,8 @@ class SearchResult:
         }
         if self.error:
             logged["error"] = self.error
+        if self.rerank:
+            logged["rerank"] = self.rerank
         return logged
 
 
@@ -136,8 +151,12 @@ class KnowledgeSearch:
         min_similarity: float | None = None,
         min_keyword_terms: int = DEFAULT_MIN_KEYWORD_TERMS,
         retries: int = 1,
+        reranker: Reranker | None = None,
+        rerank_candidates: int = RERANK_CANDIDATES,
     ) -> None:
         self._retries = retries
+        self._reranker = reranker
+        self._rerank_candidates = max(rerank_candidates, top_k)
         self._pool = pool
         self._embedder = embedder
         self._tenant_id = tenant_id
@@ -154,6 +173,7 @@ class KnowledgeSearch:
             return SearchResult(NO_RESULTS, "no_results")
         timings: dict[str, float] = {}
         started = time.perf_counter()
+        deadline = started + self._timeout
         try:
             async with asyncio.timeout(self._timeout):
                 hits = await retry_transient(lambda: self._lookup(query, timings), self._retries)
@@ -174,6 +194,7 @@ class KnowledgeSearch:
             return SearchResult(
                 UNAVAILABLE, "error", error=f"{type(exc).__name__}: {exc}"[:MAX_ERROR_CHARS]
             )
+        hits, rerank = await self._rerank(query, hits, timings, deadline)
         logger.info(
             "search_knowledge %s total_ms=%.0f hits=%d",
             self._format_timings(timings),
@@ -181,9 +202,51 @@ class KnowledgeSearch:
             len(hits),
         )
         text, used = format_hits(hits, self._max_chars)
-        return SearchResult(text, "ok" if used else "no_results", used)
+        return SearchResult(text, "ok" if used else "no_results", used, rerank=rerank)
+
+    async def _rerank(
+        self,
+        query: str,
+        hits: list[KnowledgeHit],
+        timings: dict[str, float],
+        deadline: float,
+    ) -> tuple[list[KnowledgeHit], dict[str, Any] | None]:
+        fallback = hits[: self._top_k]
+        if self._reranker is None or len(hits) < 2:
+            return fallback, None
+        info: dict[str, Any] = {"model": self._reranker.model_ref}
+        started = time.perf_counter()
+        try:
+            async with asyncio.timeout(max(deadline - started, 0)):
+                ranked = await self._reranker.rerank(
+                    query, [hit.content for hit in hits], self._top_k
+                )
+            reranked = [
+                hits[result.index].model_copy(update={"rerank_score": result.score})
+                for result in ranked[: self._top_k]
+            ]
+            if not reranked:
+                raise ValueError("Rerank returned no results")
+        except TimeoutError:
+            info["fallback"] = "timeout"
+            reranked = fallback
+        except Exception as exc:
+            logger.warning("search_knowledge rerank failed", exc_info=True)
+            info["fallback"] = "error"
+            info["error"] = f"{type(exc).__name__}: {exc}"[:MAX_ERROR_CHARS]
+            reranked = fallback
+        timings["rerank_ms"] = (time.perf_counter() - started) * 1000
+        info["ms"] = round(timings["rerank_ms"])
+        if "fallback" in info:
+            logger.warning(
+                "search_knowledge rerank fell back to RRF order (%s, %s)",
+                info["fallback"],
+                self._format_timings(timings),
+            )
+        return reranked, info
 
     async def _lookup(self, query: str, timings: dict[str, float]) -> list[KnowledgeHit]:
+        limit = self._rerank_candidates if self._reranker else self._top_k
         started = time.perf_counter()
         (embedding,) = await self._embedder.embed([query])
         timings["embed_ms"] = (time.perf_counter() - started) * 1000
@@ -194,7 +257,8 @@ class KnowledgeSearch:
                 tenant_id=self._tenant_id,
                 query=query,
                 embedding=embedding,
-                top_k=self._top_k,
+                top_k=limit,
+                candidates=max(DEFAULT_CANDIDATES, limit),
                 source_ids=self._source_ids,
                 min_similarity=self._min_similarity,
                 min_keyword_terms=self._min_keyword_terms,
@@ -252,6 +316,7 @@ async def open_knowledge_tools(
     pool: asyncpg.Pool | None = None
     client = httpx.AsyncClient()
     search: KnowledgeSearch | None = None
+    reranker = None
     source_count = 0
     try:
         pool = await asyncpg.create_pool(
@@ -263,6 +328,14 @@ async def open_knowledge_tools(
         scope = await fetch_knowledge_scope(pool, tenant_slug=tenant_slug, agent_slug=agent_slug)
         if scope is not None and scope.source_ids:
             source_count = len(scope.source_ids)
+            try:
+                reranker = build_reranker(client)
+            except Exception:
+                logger.warning(
+                    "reranking disabled for agent %s: invalid rerank config",
+                    agent_slug,
+                    exc_info=True,
+                )
             search = KnowledgeSearch(
                 pool=pool,
                 embedder=build_embedder(client, provider_keys),
@@ -273,6 +346,7 @@ async def open_knowledge_tools(
                 min_similarity=settings.knowledge_min_similarity,
                 min_keyword_terms=settings.knowledge_min_keyword_terms,
                 retries=settings.tool_retries,
+                reranker=reranker,
             )
     except Exception:
         logger.warning("search_knowledge unavailable for agent %s", agent_slug, exc_info=True)
@@ -281,7 +355,12 @@ async def open_knowledge_tools(
         if pool is not None:
             await pool.close()
         return None
-    logger.info("search_knowledge enabled for agent %s (%d sources)", agent_slug, source_count)
+    logger.info(
+        "search_knowledge enabled for agent %s (%d sources, rerank=%s)",
+        agent_slug,
+        source_count,
+        reranker.model_ref if reranker else "off",
+    )
     return KnowledgeTools(
         tools=[build_search_knowledge_tool(search, tool_log, settings)], pool=pool, client=client
     )
