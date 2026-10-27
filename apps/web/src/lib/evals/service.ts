@@ -1,5 +1,6 @@
 import { agents, type Database, evalResults, evalRuns, tenants } from "@answerline/db";
 import {
+  type EvalCallerAudio,
   type EvalJob,
   type EvalRunStageLatency,
   evalExecutionInputSchema,
@@ -56,6 +57,7 @@ interface RunRow {
   createdAt: Date;
   error: string | null;
   executionInput: {
+    callerAudio?: EvalCallerAudio;
     liveTools?: boolean;
     mode?: "text" | "audio";
     sttOverride?: string;
@@ -78,6 +80,7 @@ function runView(row: RunRow): EvalRunView {
     agentName: row.agentName,
     avgLatencyMs: row.avgLatencyMs,
     avgWer: row.avgWer,
+    callerAudio: row.executionInput?.callerAudio ?? null,
     costUsd: row.costUsd,
     createdAt: row.createdAt.toISOString(),
     error: row.error,
@@ -219,6 +222,7 @@ export async function createEvalRun(deps: EvalDeps, rawInput: unknown) {
   });
   const executionInput = evalExecutionInputSchema.parse({
     agent: agent.config,
+    callerAudio: input.callerAudio,
     context: { agentSlug: agent.agentSlug, tenantSlug: agent.tenantSlug },
     judgeModel: input.judgeModel,
     liveTools: input.liveTools,

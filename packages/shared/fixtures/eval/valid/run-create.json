@@ -1,4 +1,12 @@
 {
   "agentId": "0b9c1c3e-2f4a-4e8e-9d3a-5f1f2b7c9a10",
+  "callerAudio": {
+    "noiseSnrDb": 20,
+    "profile": "phone",
+    "seed": 7,
+    "tts": "cartesia/sonic-2",
+    "voice": "a0e99841-438c-4a64-b679-ae501e7d6091"
+  },
+  "mode": "audio",
   "suite": "bright-smile-dental"
 }

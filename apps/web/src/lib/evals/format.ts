@@ -1,4 +1,8 @@
-import { type EvalRunStageLatency, formatStageLatency } from "@answerline/shared";
+import {
+  type EvalCallerAudio,
+  type EvalRunStageLatency,
+  formatStageLatency,
+} from "@answerline/shared";
 
 export function displayDate(value: string) {
   return new Intl.DateTimeFormat("en", {
@@ -29,4 +33,18 @@ export function displayPassRate(passed: number | null, total: number | null) {
 
 export function displayStageLatency(summary: EvalRunStageLatency | null) {
   return formatStageLatency(summary) ?? "—";
+}
+
+export function displayCallerAudio(audio: EvalCallerAudio | null) {
+  const parts = [audio?.profile === "phone" ? "Phone (8 kHz, G.711)" : "Clean"];
+  if (audio?.noiseSnrDb !== undefined) {
+    parts.push(`${audio.noiseSnrDb} dB SNR noise`);
+  }
+  parts.push(`seed ${audio?.seed ?? 0}`);
+  return parts.join(", ");
+}
+
+export function displayCallerVoice(audio: EvalCallerAudio | null) {
+  const model = audio?.tts ?? "Agent TTS";
+  return audio?.voice ? `${model} (voice ${audio.voice})` : model;
 }

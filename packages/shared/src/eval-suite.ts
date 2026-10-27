@@ -78,9 +78,18 @@ export const evalExecutionOutputSchema = z.object({
   results: z.array(evalCaseResultSchema),
 });
 
+export const evalCallerAudioSchema = z.object({
+  noiseSnrDb: z.number().min(0).max(60).optional(),
+  profile: z.enum(["clean", "phone"]).default("clean"),
+  seed: z.number().int().nonnegative().default(0),
+  tts: modelRefSchema.optional(),
+  voice: z.string().trim().min(1).max(200).optional(),
+});
+
 export const evalExecutionInputSchema = z
   .object({
     agent: agentConfigSchema,
+    callerAudio: evalCallerAudioSchema.optional(),
     context: z
       .object({
         agentSlug: z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/),
@@ -108,6 +117,7 @@ export const evalJobSchema = z.object({
 
 export const evalRunCreateSchema = z.object({
   agentId: z.uuid().toLowerCase(),
+  callerAudio: evalCallerAudioSchema.optional(),
   judgeModel: modelRefSchema.optional(),
   liveTools: z.boolean().optional(),
   mode: z.enum(["text", "audio"]).optional(),
@@ -117,6 +127,7 @@ export const evalRunCreateSchema = z.object({
   ttsOverride: modelRefSchema.optional(),
 });
 
+export type EvalCallerAudio = z.infer<typeof evalCallerAudioSchema>;
 export type EvalCase = z.infer<typeof evalCaseSchema>;
 export type EvalCaseResult = z.infer<typeof evalCaseResultSchema>;
 export type EvalExecutionInput = z.infer<typeof evalExecutionInputSchema>;

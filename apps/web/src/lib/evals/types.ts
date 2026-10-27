@@ -1,4 +1,4 @@
-import { evalRunStageLatencySchema } from "@answerline/shared";
+import { evalCallerAudioSchema, evalRunStageLatencySchema } from "@answerline/shared";
 import { z } from "zod";
 
 export const evalRunStatus = z.enum(["queued", "running", "completed", "failed"]);
@@ -8,6 +8,7 @@ export const evalRunView = z.object({
   agentName: z.string(),
   avgLatencyMs: z.number().nullable(),
   avgWer: z.number().nullable(),
+  callerAudio: evalCallerAudioSchema.nullable(),
   costUsd: z.string().nullable(),
   createdAt: z.string(),
   error: z.string().nullable(),
