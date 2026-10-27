@@ -122,8 +122,13 @@ test("queues a run with an immutable snapshot and a minimal job", { skip }, () =
     const run = await createRun(harness, {
       judgeModel: "anthropic/claude-sonnet-4-5",
       modelOverride: "openai/gpt-4.1-mini",
+      sttOverride: "deepgram/nova-2",
+      ttsOverride: "cartesia/sonic-2",
     });
     assert.equal(run.status, "queued");
+    assert.equal(run.sttOverride, "deepgram/nova-2");
+    assert.equal(run.ttsOverride, "cartesia/sonic-2");
+    assert.equal(run.avgWer, null);
     assert.equal(run.suite, "dental");
     assert.equal(run.liveTools, false);
     assert.equal(run.mode, "text");
@@ -143,6 +148,8 @@ test("queues a run with an immutable snapshot and a minimal job", { skip }, () =
     assert.equal(row?.executionInput?.liveTools, false);
     assert.equal(row?.executionInput?.mode, "text");
     assert.equal(row?.executionInput?.modelOverride, "openai/gpt-4.1-mini");
+    assert.equal(row?.executionInput?.sttOverride, "deepgram/nova-2");
+    assert.equal(row?.executionInput?.ttsOverride, "cartesia/sonic-2");
     assert.equal(row?.executionInput?.judgeModel, "anthropic/claude-sonnet-4-5");
     assert.deepEqual(row?.executionInput?.context, {
       agentSlug: "primary",
@@ -183,12 +190,14 @@ test("rejects unsafe or unknown suites and invalid bodies", { skip }, () =>
         { agentId: "not-a-uuid", suite: "dental" },
         { agentId: harness.agentId, modelOverride: "gpt", suite: "dental" },
         { agentId: harness.agentId, judgeModel: "claude", suite: "dental" },
+        { agentId: harness.agentId, sttOverride: "nova-3", suite: "dental" },
+        { agentId: harness.agentId, suite: "dental", ttsOverride: "sonic-3" },
         "{",
       ].map((body) => harness.handlers.create(post(body)))
     );
     assert.deepEqual(
       responses.map((response) => response.status),
-      [400, 400, 400, 400, 400, 400, 400]
+      [400, 400, 400, 400, 400, 400, 400, 400, 400]
     );
     assert.equal(harness.enqueued.length, 0);
     const rows = await harness.deps.db
@@ -257,6 +266,7 @@ test("lists and shows only the current tenant's runs", { skip }, () =>
         { role: "caller", text: "Can I book a cleaning?" },
         { role: "agent", text: "Sure." },
       ],
+      wer: 0.125,
     });
 
     const { runs } = (await bodyOf(await harness.handlers.list())) as { runs: EvalRunView[] };
@@ -268,10 +278,16 @@ test("lists and shows only the current tenant's runs", { skip }, () =>
     const detail = await harness.handlers.detail(run.id);
     assert.equal(detail.status, 200);
     const body = (await bodyOf(detail)) as {
-      results: { caseName: string; costUsd: string | null; failures: string[] }[];
+      results: {
+        caseName: string;
+        costUsd: string | null;
+        failures: string[];
+        wer: number | null;
+      }[];
     };
     assert.equal(body.results[0]?.caseName, "books a cleaning");
     assert.equal(body.results[0]?.costUsd, null);
+    assert.equal(body.results[0]?.wer, 0.125);
     assert.deepEqual(body.results[0]?.failures, ["did not call check_availability"]);
 
     assert.equal((await harness.handlers.detail(otherRun.id)).status, 404);
@@ -286,11 +302,25 @@ test("compares two tenant runs by case name", { skip }, () =>
     const head = await createRun(harness);
     await harness.deps.db
       .update(evalRuns)
-      .set({ avgLatencyMs: 900, costUsd: "0.010000", passed: 1, status: "completed", total: 2 })
+      .set({
+        avgLatencyMs: 900,
+        avgWer: 0.3,
+        costUsd: "0.010000",
+        passed: 1,
+        status: "completed",
+        total: 2,
+      })
       .where(eq(evalRuns.id, base.id));
     await harness.deps.db
       .update(evalRuns)
-      .set({ avgLatencyMs: 700, costUsd: null, passed: 2, status: "completed", total: 2 })
+      .set({
+        avgLatencyMs: 700,
+        avgWer: 0.1,
+        costUsd: null,
+        passed: 2,
+        status: "completed",
+        total: 2,
+      })
       .where(eq(evalRuns.id, head.id));
     await harness.deps.db.insert(evalResults).values([
       {
@@ -299,14 +329,22 @@ test("compares two tenant runs by case name", { skip }, () =>
         passed: false,
         runId: base.id,
         transcript: [],
+        wer: 0.3,
       },
-      { caseName: "shares hours", latencyMs: 900, passed: true, runId: base.id, transcript: [] },
+      {
+        caseName: "shares hours",
+        latencyMs: 900,
+        passed: true,
+        runId: base.id,
+        transcript: [],
+      },
       {
         caseName: "books a cleaning",
         latencyMs: 600,
         passed: true,
         runId: head.id,
         transcript: [],
+        wer: 0.1,
       },
       { caseName: "shares hours", latencyMs: 800, passed: true, runId: head.id, transcript: [] },
     ]);
@@ -314,16 +352,22 @@ test("compares two tenant runs by case name", { skip }, () =>
     const comparison = await compareEvalRuns(harness.deps, base.id, head.id);
     assert.ok(comparison);
     assert.deepEqual(
-      comparison.cases.map((item) => [item.caseName, item.change, item.latencyDeltaMs]),
+      comparison.cases.map((item) => [
+        item.caseName,
+        item.change,
+        item.latencyDeltaMs,
+        item.werDelta,
+      ]),
       [
-        ["books a cleaning", "fixed", -300],
-        ["shares hours", "unchanged", -100],
+        ["books a cleaning", "fixed", -300, -0.2],
+        ["shares hours", "unchanged", -100, null],
       ]
     );
     assert.deepEqual(comparison.totals, {
       costDeltaUsd: null,
       latencyDeltaMs: -200,
       passRateDelta: 0.5,
+      werDelta: -0.2,
     });
 
     const [foreign] = await harness.deps.db

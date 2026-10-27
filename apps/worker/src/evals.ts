@@ -48,10 +48,14 @@ export function normalizeEvalOutput(
     result.latencyMs === null ? [] : [result.latencyMs]
   );
   const costs = results.flatMap((result) => (result.costUsd === null ? [] : [result.costUsd]));
+  const wers = results.flatMap((result) => (result.wer === null ? [] : [result.wer]));
   return {
     aggregate: {
       avgLatencyMs: latencies.length
         ? Math.round(latencies.reduce((sum, latency) => sum + latency, 0) / latencies.length)
+        : null,
+      avgWer: wers.length
+        ? Math.round((wers.reduce((sum, wer) => sum + wer, 0) / wers.length) * 10_000) / 10_000
         : null,
       costUsd:
         costs.length === results.length
@@ -161,6 +165,7 @@ async function saveEvalOutput(db: Database, job: EvalJob, output: EvalExecutionO
           passed: result.passed,
           runId: job.runId,
           transcript: result.transcript,
+          wer: result.wer,
         }))
       );
     }
@@ -168,6 +173,7 @@ async function saveEvalOutput(db: Database, job: EvalJob, output: EvalExecutionO
       .update(evalRuns)
       .set({
         avgLatencyMs: output.aggregate.avgLatencyMs,
+        avgWer: output.aggregate.avgWer,
         costUsd: output.aggregate.costUsd?.toFixed(6) ?? null,
         error: null,
         finishedAt: new Date(),

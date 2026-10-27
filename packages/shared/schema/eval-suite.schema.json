@@ -27,6 +27,11 @@
           "judge": {
             "type": "string"
           },
+          "max_wer": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
           "mentions": {
             "type": "array",
             "items": {

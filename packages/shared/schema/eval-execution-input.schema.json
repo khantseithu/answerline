@@ -443,6 +443,10 @@
       "type": "string",
       "pattern": "^[a-z0-9-]+\\/(?:[\\w.:-]+\\/)?[\\w.:-]+$"
     },
+    "sttOverride": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+\\/(?:[\\w.:-]+\\/)?[\\w.:-]+$"
+    },
     "suite": {
       "minItems": 1,
       "type": "array",
@@ -470,6 +474,11 @@
             "properties": {
               "judge": {
                 "type": "string"
+              },
+              "max_wer": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
               },
               "mentions": {
                 "type": "array",
@@ -523,6 +532,10 @@
           "name"
         ]
       }
+    },
+    "ttsOverride": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+\\/(?:[\\w.:-]+\\/)?[\\w.:-]+$"
     }
   },
   "required": [

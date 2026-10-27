@@ -17,11 +17,14 @@
   },
   "judgeModel": "anthropic/claude-sonnet-4-5",
   "liveTools": true,
+  "mode": "audio",
+  "sttOverride": "deepgram/nova-3",
   "suite": [
     {
       "caller": "Hi",
       "expect": {},
       "name": "hello"
     }
-  ]
+  ],
+  "ttsOverride": "cartesia/sonic-3"
 }

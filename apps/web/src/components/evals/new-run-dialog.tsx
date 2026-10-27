@@ -43,6 +43,7 @@ export function NewRunDialog({
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [liveTools, setLiveTools] = useState(false);
+  const [audioMode, setAudioMode] = useState(false);
   const [agentId, setAgentId] = useState(options.agents[0]?.id ?? "");
   const [suite, setSuite] = useState(
     defaultSuiteFor(options.agents[0]?.slug, options.suites) ?? ""
@@ -53,6 +54,7 @@ export function NewRunDialog({
   const openDialog = useCallback(() => {
     const [agent] = options.agents;
     setLiveTools(false);
+    setAudioMode(false);
     setAgentId(agent?.id ?? "");
     setSuite(defaultSuiteFor(agent?.slug, options.suites) ?? "");
     setSuiteChosen(false);
@@ -75,21 +77,30 @@ export function NewRunDialog({
     setSuiteChosen(true);
   }, []);
 
+  const handleModeChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
+    setAudioMode(event.target.value === "audio");
+  }, []);
+
   const handleSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
       const form = new FormData(event.currentTarget);
       const modelOverride = String(form.get("modelOverride") ?? "").trim();
       const judgeModel = String(form.get("judgeModel") ?? "").trim();
+      const audio = form.get("mode") === "audio";
+      const sttOverride = String(form.get("sttOverride") ?? "").trim();
+      const ttsOverride = String(form.get("ttsOverride") ?? "").trim();
       setPending(true);
       try {
         const run = await startEvalRun({
           agentId,
           judgeModel: judgeModel || undefined,
           liveTools,
-          mode: form.get("mode") === "audio" ? "audio" : "text",
+          mode: audio ? "audio" : "text",
           modelOverride: modelOverride || undefined,
+          sttOverride: (audio && sttOverride) || undefined,
           suite,
+          ttsOverride: (audio && ttsOverride) || undefined,
         });
         setOpen(false);
         toast.success("Eval run queued");
@@ -183,7 +194,12 @@ export function NewRunDialog({
               </Field>
               <Field>
                 <FieldLabel htmlFor="eval-mode">Mode</FieldLabel>
-                <NativeSelect defaultValue="text" id="eval-mode" name="mode">
+                <NativeSelect
+                  id="eval-mode"
+                  name="mode"
+                  onChange={handleModeChange}
+                  value={audioMode ? "audio" : "text"}
+                >
                   <NativeSelectOption value="text">Text: scripted caller turns</NativeSelectOption>
                   <NativeSelectOption value="audio">
                     Audio: spoken caller through the full voice pipeline
@@ -194,6 +210,35 @@ export function NewRunDialog({
                   slower and costs more.
                 </FieldDescription>
               </Field>
+              {audioMode ? (
+                <>
+                  <Field>
+                    <FieldLabel htmlFor="eval-stt">STT override</FieldLabel>
+                    <Input
+                      autoComplete="off"
+                      id="eval-stt"
+                      name="sttOverride"
+                      placeholder="deepgram/nova-3"
+                    />
+                    <FieldDescription>
+                      Optional. Replaces the agent’s speech-to-text model.
+                    </FieldDescription>
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="eval-tts">TTS override</FieldLabel>
+                    <Input
+                      autoComplete="off"
+                      id="eval-tts"
+                      name="ttsOverride"
+                      placeholder="cartesia/sonic-3"
+                    />
+                    <FieldDescription>
+                      Optional. Replaces the agent’s text-to-speech model, including the synthesized
+                      caller.
+                    </FieldDescription>
+                  </Field>
+                </>
+              ) : null}
               <Field orientation="horizontal">
                 <Switch checked={liveTools} id="eval-live-tools" onCheckedChange={setLiveTools} />
                 <FieldContent>

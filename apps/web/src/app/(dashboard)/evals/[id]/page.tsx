@@ -10,7 +10,13 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { getEvalDeps } from "@/lib/evals/context";
-import { displayCost, displayDate, displayLatency, displayPassRate } from "@/lib/evals/format";
+import {
+  displayCost,
+  displayDate,
+  displayLatency,
+  displayPassRate,
+  displayWer,
+} from "@/lib/evals/format";
 import { type EvalRunDetail, getEvalRun } from "@/lib/evals/service";
 import { isEvalRunInFlight } from "@/lib/evals/types";
 
@@ -43,6 +49,7 @@ function CaseResult({ result }: { result: EvalRunDetail["results"][number] }) {
         </Badge>
         <span className="numeric text-muted-foreground text-xs">
           {displayLatency(result.latencyMs)} · {displayCost(result.costUsd)}
+          {result.wer === null ? "" : ` · WER ${displayWer(result.wer)}`}
         </span>
       </div>
       {result.failures.length > 0 ? (
@@ -124,11 +131,20 @@ export default async function EvalRunPage({ params }: PageProps<"/evals/[id]">) 
           <Field label="Avg latency">
             <span className="numeric">{displayLatency(run.avgLatencyMs)}</span>
           </Field>
+          <Field label="Avg WER">
+            <span className="numeric">{displayWer(run.avgWer)}</span>
+          </Field>
           <Field label="Total cost">
             <span className="numeric">{displayCost(run.costUsd)}</span>
           </Field>
           <Field label="Model">
             <span className="font-mono text-xs">{run.modelOverride ?? "Agent default"}</span>
+          </Field>
+          <Field label="STT">
+            <span className="font-mono text-xs">{run.sttOverride ?? "Agent default"}</span>
+          </Field>
+          <Field label="TTS">
+            <span className="font-mono text-xs">{run.ttsOverride ?? "Agent default"}</span>
           </Field>
           <Field label="Mode">
             <span className="capitalize">{run.mode}</span>

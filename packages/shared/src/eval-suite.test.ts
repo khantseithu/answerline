@@ -143,7 +143,7 @@ test("run create, queue, and execution results validate nullable metrics", () =>
   );
   assert.deepEqual(
     evalExecutionOutputSchema.parse({
-      aggregate: { avgLatencyMs: null, costUsd: null, passed: 0, total: 1 },
+      aggregate: { avgLatencyMs: null, avgWer: null, costUsd: null, passed: 0, total: 1 },
       results: [
         {
           caseName: "hello",
@@ -152,10 +152,71 @@ test("run create, queue, and execution results validate nullable metrics", () =>
           latencyMs: null,
           passed: false,
           transcript: [{ role: "caller", text: "Hi" }],
+          wer: null,
         },
       ],
     }).aggregate.costUsd,
     null
+  );
+  assert.equal(
+    evalExecutionOutputSchema.parse({
+      aggregate: { avgLatencyMs: null, avgWer: 0.25, costUsd: null, passed: 1, total: 1 },
+      results: [
+        {
+          caseName: "hello",
+          costUsd: null,
+          failures: [],
+          latencyMs: null,
+          passed: true,
+          transcript: [{ role: "caller", text: "Hi" }],
+          wer: 0.25,
+        },
+      ],
+    }).results[0]?.wer,
+    0.25
+  );
+});
+
+test("max_wer is a per-case expectation between 0 and 1", () => {
+  const suite = (maxWer: number) => [{ caller: "Hi", expect: { max_wer: maxWer }, name: "hello" }];
+  assert.equal(evalSuiteSchema.parse(suite(0.2))[0]?.expect.max_wer, 0.2);
+  assert.doesNotThrow(() => evalSuiteSchema.parse(suite(0)));
+  assert.doesNotThrow(() => evalSuiteSchema.parse(suite(1)));
+  assert.throws(() => evalSuiteSchema.parse(suite(-0.1)));
+  assert.throws(() => evalSuiteSchema.parse(suite(1.1)));
+});
+
+test("stt and tts overrides are validated model refs on input and run create", () => {
+  const agentId = "0b9c1c3e-2f4a-4e8e-9d3a-5f1f2b7c9a10";
+  const created = evalRunCreateSchema.parse({
+    agentId,
+    sttOverride: "deepgram/nova-3",
+    suite: "bright-smile-dental",
+    ttsOverride: "cartesia/sonic-3",
+  });
+  assert.equal(created.sttOverride, "deepgram/nova-3");
+  assert.equal(created.ttsOverride, "cartesia/sonic-3");
+  assert.throws(() =>
+    evalRunCreateSchema.parse({ agentId, sttOverride: "nova-3", suite: "bright-smile-dental" })
+  );
+  assert.throws(() =>
+    evalRunCreateSchema.parse({ agentId, suite: "bright-smile-dental", ttsOverride: "sonic-3" })
+  );
+  const input = evalExecutionInputSchema.parse({
+    agent: minimalAgent,
+    mode: "audio",
+    sttOverride: "deepgram/nova-3",
+    suite: [{ caller: "Hi", expect: {}, name: "hello" }],
+    ttsOverride: "cartesia/sonic-3",
+  });
+  assert.equal(input.sttOverride, "deepgram/nova-3");
+  assert.equal(input.ttsOverride, "cartesia/sonic-3");
+  assert.throws(() =>
+    evalExecutionInputSchema.parse({
+      agent: minimalAgent,
+      sttOverride: "nova-3",
+      suite: [{ caller: "Hi", expect: {}, name: "hello" }],
+    })
   );
 });
 

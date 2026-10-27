@@ -25,9 +25,17 @@
       "type": "string",
       "pattern": "^[a-z0-9-]+\\/(?:[\\w.:-]+\\/)?[\\w.:-]+$"
     },
+    "sttOverride": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+\\/(?:[\\w.:-]+\\/)?[\\w.:-]+$"
+    },
     "suite": {
       "type": "string",
       "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "ttsOverride": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+\\/(?:[\\w.:-]+\\/)?[\\w.:-]+$"
     }
   },
   "required": [

@@ -17,6 +17,17 @@
             }
           ]
         },
+        "avgWer": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "costUsd": {
           "anyOf": [
             {
@@ -41,6 +52,7 @@
       },
       "required": [
         "avgLatencyMs",
+        "avgWer",
         "costUsd",
         "passed",
         "total"
@@ -218,6 +230,17 @@
                 "text"
               ]
             }
+          },
+          "wer": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -226,7 +249,8 @@
           "failures",
           "latencyMs",
           "passed",
-          "transcript"
+          "transcript",
+          "wer"
         ]
       }
     }

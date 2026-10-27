@@ -15,7 +15,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { fetchEvalRuns } from "@/lib/evals/client";
-import { displayCost, displayDate, displayLatency, displayPassRate } from "@/lib/evals/format";
+import {
+  displayCost,
+  displayDate,
+  displayLatency,
+  displayPassRate,
+  displayWer,
+} from "@/lib/evals/format";
 import { type EvalRunView, isEvalRunInFlight } from "@/lib/evals/types";
 import { EvalStatusBadge } from "./eval-status-badge";
 import { type EvalRunOptions, NewRunDialog } from "./new-run-dialog";
@@ -135,6 +141,7 @@ export function EvalRuns({
                   <TableHead>Status</TableHead>
                   <TableHead>Passed</TableHead>
                   <TableHead>Avg latency</TableHead>
+                  <TableHead>Avg WER</TableHead>
                   <TableHead className="text-right">Cost</TableHead>
                 </TableRow>
               </TableHeader>
@@ -158,6 +165,7 @@ export function EvalRuns({
                       {displayPassRate(run.passed, run.total)}
                     </TableCell>
                     <TableCell className="numeric">{displayLatency(run.avgLatencyMs)}</TableCell>
+                    <TableCell className="numeric">{displayWer(run.avgWer)}</TableCell>
                     <TableCell className="numeric text-right">{displayCost(run.costUsd)}</TableCell>
                   </TableRow>
                 ))}

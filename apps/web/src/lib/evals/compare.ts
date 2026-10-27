@@ -3,10 +3,12 @@ export interface EvalCaseOutcome {
   costUsd: string | null;
   latencyMs: number | null;
   passed: boolean;
+  wer: number | null;
 }
 
 export interface EvalRunTotals {
   avgLatencyMs: number | null;
+  avgWer: number | null;
   costUsd: string | null;
   passed: number | null;
   total: number | null;
@@ -20,6 +22,7 @@ export interface EvalCaseComparison {
   change: EvalCaseChange;
   head: EvalCaseOutcome | null;
   latencyDeltaMs: number | null;
+  werDelta: number | null;
 }
 
 function caseChange(base: EvalCaseOutcome | null, head: EvalCaseOutcome | null): EvalCaseChange {
@@ -45,6 +48,10 @@ function byCaseName(results: EvalCaseOutcome[]) {
   return map;
 }
 
+function roundWer(value: number) {
+  return Math.round(value * 10_000) / 10_000;
+}
+
 export function compareEvalCases(
   base: EvalCaseOutcome[],
   head: EvalCaseOutcome[]
@@ -59,6 +66,8 @@ export function compareEvalCases(
     const after = headCases.get(caseName) ?? null;
     const beforeLatency = before?.latencyMs ?? null;
     const afterLatency = after?.latencyMs ?? null;
+    const beforeWer = before?.wer ?? null;
+    const afterWer = after?.wer ?? null;
     return {
       base: before,
       caseName,
@@ -66,6 +75,7 @@ export function compareEvalCases(
       head: after,
       latencyDeltaMs:
         beforeLatency === null || afterLatency === null ? null : afterLatency - beforeLatency,
+      werDelta: beforeWer === null || afterWer === null ? null : roundWer(afterWer - beforeWer),
     };
   });
 }
@@ -90,5 +100,7 @@ export function compareEvalTotals(base: EvalRunTotals, head: EvalRunTotals) {
         ? null
         : head.avgLatencyMs - base.avgLatencyMs,
     passRateDelta: baseRate === null || headRate === null ? null : headRate - baseRate,
+    werDelta:
+      base.avgWer === null || head.avgWer === null ? null : roundWer(head.avgWer - base.avgWer),
   };
 }

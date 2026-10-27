@@ -26,6 +26,7 @@ const runColumns = {
   agentId: evalRuns.agentId,
   agentName: agents.name,
   avgLatencyMs: evalRuns.avgLatencyMs,
+  avgWer: evalRuns.avgWer,
   costUsd: evalRuns.costUsd,
   createdAt: evalRuns.createdAt,
   error: evalRuns.error,
@@ -44,10 +45,16 @@ interface RunRow {
   agentId: string;
   agentName: string;
   avgLatencyMs: number | null;
+  avgWer: number | null;
   costUsd: string | null;
   createdAt: Date;
   error: string | null;
-  executionInput: { liveTools?: boolean; mode?: "text" | "audio" } | null;
+  executionInput: {
+    liveTools?: boolean;
+    mode?: "text" | "audio";
+    sttOverride?: string;
+    ttsOverride?: string;
+  } | null;
   finishedAt: Date | null;
   id: string;
   modelOverride: string | null;
@@ -63,6 +70,7 @@ function runView(row: RunRow): EvalRunView {
     agentId: row.agentId,
     agentName: row.agentName,
     avgLatencyMs: row.avgLatencyMs,
+    avgWer: row.avgWer,
     costUsd: row.costUsd,
     createdAt: row.createdAt.toISOString(),
     error: row.error,
@@ -74,8 +82,10 @@ function runView(row: RunRow): EvalRunView {
     passed: row.passed,
     startedAt: row.startedAt?.toISOString() ?? null,
     status: row.status,
+    sttOverride: row.executionInput?.sttOverride ?? null,
     suite: row.suite,
     total: row.total,
+    ttsOverride: row.executionInput?.ttsOverride ?? null,
   };
 }
 
@@ -127,6 +137,7 @@ function resultsFor(deps: EvalDeps, runIds: string[]) {
       passed: evalResults.passed,
       runId: evalResults.runId,
       transcript: evalResults.transcript,
+      wer: evalResults.wer,
     })
     .from(evalResults)
     .innerJoin(evalRuns, eq(evalResults.runId, evalRuns.id))
@@ -203,7 +214,9 @@ export async function createEvalRun(deps: EvalDeps, rawInput: unknown) {
     liveTools: input.liveTools,
     mode: input.mode,
     modelOverride: input.modelOverride,
+    sttOverride: input.sttOverride,
     suite,
+    ttsOverride: input.ttsOverride,
   });
   const [run] = await deps.db
     .insert(evalRuns)
