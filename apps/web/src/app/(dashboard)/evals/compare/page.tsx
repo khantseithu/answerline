@@ -16,7 +16,13 @@ import {
 } from "@/components/ui/table";
 import type { EvalCaseChange, EvalCaseOutcome } from "@/lib/evals/compare";
 import { getEvalDeps } from "@/lib/evals/context";
-import { displayCost, displayDate, displayLatency, displayPassRate } from "@/lib/evals/format";
+import {
+  displayCost,
+  displayDate,
+  displayLatency,
+  displayPassRate,
+  displayWer,
+} from "@/lib/evals/format";
 import { compareEvalRuns, type EvalRunComparison } from "@/lib/evals/service";
 import type { EvalRunView } from "@/lib/evals/types";
 
@@ -60,7 +66,7 @@ function RunSummary({ label, run }: { label: string; run: EvalRunView }) {
       </p>
       <p className="numeric text-sm">
         {displayPassRate(run.passed, run.total)} · {displayLatency(run.avgLatencyMs)} ·{" "}
-        {displayCost(run.costUsd)}
+        {displayWer(run.avgWer)} WER · {displayCost(run.costUsd)}
       </p>
     </div>
   );
@@ -110,14 +116,14 @@ export default async function CompareEvalRunsPage({
         Back to evals
       </Link>
       <PageHeader
-        description="Cases are matched by name. Positive latency and cost deltas mean the candidate is slower or more expensive."
+        description="Cases are matched by name. Positive latency, WER, and cost deltas mean the candidate is slower, less accurate, or more expensive."
         title="Compare eval runs"
       />
       <div className="grid gap-3 md:grid-cols-2">
         <RunSummary label="Baseline" run={base} />
         <RunSummary label="Candidate" run={head} />
       </div>
-      <dl className="grid gap-3 rounded-xl border bg-card p-5 shadow-xs sm:grid-cols-3">
+      <dl className="grid gap-3 rounded-xl border bg-card p-5 shadow-xs sm:grid-cols-4">
         <div className="flex flex-col gap-1">
           <dt className="text-muted-foreground text-xs">Pass rate</dt>
           <dd className="numeric text-sm">
@@ -128,6 +134,12 @@ export default async function CompareEvalRunsPage({
           <dt className="text-muted-foreground text-xs">Avg latency</dt>
           <dd className="numeric text-sm">
             {displayDelta(totals.latencyDeltaMs, (value) => `${Math.round(value)} ms`)}
+          </dd>
+        </div>
+        <div className="flex flex-col gap-1">
+          <dt className="text-muted-foreground text-xs">Avg WER</dt>
+          <dd className="numeric text-sm">
+            {displayDelta(totals.werDelta, (value) => `${(value * 100).toFixed(1)} pts`)}
           </dd>
         </div>
         <div className="flex flex-col gap-1">
@@ -151,6 +163,7 @@ export default async function CompareEvalRunsPage({
                 <TableHead>Baseline</TableHead>
                 <TableHead>Candidate</TableHead>
                 <TableHead className="text-right">Latency delta</TableHead>
+                <TableHead className="text-right">WER delta</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -164,6 +177,9 @@ export default async function CompareEvalRunsPage({
                   <TableCell>{outcome(item.head)}</TableCell>
                   <TableCell className="numeric text-right">
                     {displayDelta(item.latencyDeltaMs, (value) => `${Math.round(value)} ms`)}
+                  </TableCell>
+                  <TableCell className="numeric text-right">
+                    {displayDelta(item.werDelta, (value) => `${(value * 100).toFixed(1)} pts`)}
                   </TableCell>
                 </TableRow>
               ))}

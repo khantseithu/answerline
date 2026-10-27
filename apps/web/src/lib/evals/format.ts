@@ -14,6 +14,10 @@ export function displayLatency(latencyMs: number | null) {
   return latencyMs === null ? "—" : `${Math.round(latencyMs)} ms`;
 }
 
+export function displayWer(wer: number | null) {
+  return wer === null ? "—" : `${(wer * 100).toFixed(1)}%`;
+}
+
 export function displayPassRate(passed: number | null, total: number | null) {
   if (passed === null || !total) {
     return "—";

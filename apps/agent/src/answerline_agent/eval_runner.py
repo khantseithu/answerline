@@ -19,6 +19,7 @@ from .booking import Booking, Slot
 from .call_events import model_usage_lines, parse_tool_args
 from .capture_lead import LeadCaptureContext
 from .config import AgentConfig, BookAppointmentTool, HttpTool, McpTool, TransferCallTool
+from .eval_wer import word_error_rate
 from .knowledge_tool import QUERY_DESCRIPTION, TOOL_DESCRIPTION, open_knowledge_tools
 from .languages import language_instructions, localizes_messages, stt_language
 from .native_booking import open_booking_provider
@@ -223,7 +224,10 @@ async def _build_live_tools(
 
 
 def _evaluate_assertions(
-    case: dict[str, Any], transcript: list[dict[str, str]], calls: list[dict]
+    case: dict[str, Any],
+    transcript: list[dict[str, str]],
+    calls: list[dict],
+    wer: float | None = None,
 ) -> list[str]:
     expect = case.get("expect", {})
     agent_text = "\n".join(turn["text"] for turn in transcript if turn["role"] == "agent")
@@ -248,6 +252,9 @@ def _evaluate_assertions(
             for call in matching
         ):
             failures.append(f"tool {tool_name!r} was not called with expected arguments {fields!r}")
+    max_wer = expect.get("max_wer")
+    if max_wer is not None and wer is not None and wer > max_wer:
+        failures.append(f"word error rate {wer:.4f} is over max_wer {max_wer}")
     return failures
 
 
@@ -371,6 +378,8 @@ async def run_case(
     *,
     model_override: str | None = None,
     judge_model: str | None = None,
+    stt_override: str | None = None,
+    tts_override: str | None = None,
     settings: Settings | None = None,
     llm_provider: llm.LLM | None = None,
     judge_provider: llm.LLM | None = None,
@@ -388,6 +397,10 @@ async def run_case(
     if model_override:
         models.llm.primary = model_override
         models.llm.fallback = []
+    if stt_override:
+        models.stt = stt_override
+    if tts_override:
+        models.tts = tts_override
     provider = llm_provider or (
         build_llm_chain(models, provider_keys)
         if provider_keys is not None
@@ -428,6 +441,7 @@ async def run_case(
     session = None
     responses: list[str] = []
     speech_failures: list[str] = []
+    turn_wers: list[float] = []
 
     def on_item(event) -> None:
         if event.item.type == "message" and event.item.role == "assistant":
@@ -506,6 +520,7 @@ async def run_case(
                 usage.extend(stt_usage)
                 if not recognized:
                     raise ValueError("caller STT returned an empty transcript")
+                turn_wers.append(word_error_rate(turn, recognized))
                 transcript.append({"role": "caller", "text": recognized})
                 handle = session.generate_reply(user_input=recognized, input_modality="audio")
                 await asyncio.wait_for(handle.wait_for_playout(), EVAL_PHASE_TIMEOUT)
@@ -518,7 +533,8 @@ async def run_case(
             response = "\n".join(responses[start:]).strip()
             if response:
                 transcript.append({"role": "agent", "text": response})
-        failures = speech_failures + _evaluate_assertions(case, transcript, calls)
+        wer = round(sum(turn_wers) / len(turn_wers), 4) if turn_wers else None
+        failures = speech_failures + _evaluate_assertions(case, transcript, calls, wer)
         usage.extend(model_usage_lines(session.usage.model_usage) or [])
         if case.get("expect", {}).get("judge"):
             judge_ref = judge_model or runtime_settings.eval_judge_model
@@ -543,6 +559,7 @@ async def run_case(
             "latencyMs": latency,
             "costUsd": None,
             "modelUsage": usage,
+            "wer": wer,
         }
     finally:
         try:
@@ -575,6 +592,8 @@ async def run_suite(
                 case,
                 model_override=payload.get("modelOverride"),
                 judge_model=payload.get("judgeModel"),
+                stt_override=payload.get("sttOverride"),
+                tts_override=payload.get("ttsOverride"),
                 settings=Settings(),
                 mode=payload.get("mode", "text"),
                 live_tools=payload.get("liveTools", False),
@@ -586,6 +605,7 @@ async def run_suite(
         total = len(results)
         latencies = [result["latencyMs"] for result in results if result["latencyMs"] is not None]
         costs = [result["costUsd"] for result in results if result["costUsd"] is not None]
+        wers = [result["wer"] for result in results if result["wer"] is not None]
         passed = sum(result["passed"] for result in results)
         output = {
             "results": results,
@@ -593,6 +613,7 @@ async def run_suite(
                 "passed": passed,
                 "total": total,
                 "avgLatencyMs": round(sum(latencies) / len(latencies)) if latencies else None,
+                "avgWer": round(sum(wers) / len(wers), 4) if wers else None,
                 "costUsd": sum(costs) if len(costs) == total else None,
             },
         }

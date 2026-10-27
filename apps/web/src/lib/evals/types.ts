@@ -6,6 +6,7 @@ export const evalRunView = z.object({
   agentId: z.string(),
   agentName: z.string(),
   avgLatencyMs: z.number().nullable(),
+  avgWer: z.number().nullable(),
   costUsd: z.string().nullable(),
   createdAt: z.string(),
   error: z.string().nullable(),
@@ -17,8 +18,10 @@ export const evalRunView = z.object({
   passed: z.number().nullable(),
   startedAt: z.string().nullable(),
   status: evalRunStatus,
+  sttOverride: z.string().nullable(),
   suite: z.string(),
   total: z.number().nullable(),
+  ttsOverride: z.string().nullable(),
 });
 
 export const evalRunList = z.object({ runs: z.array(evalRunView) });

@@ -93,8 +93,9 @@ class _ToolLLM(llm.LLM):
 
 
 class _FakeSTT(stt.STT):
-    def __init__(self):
+    def __init__(self, transcripts: list[str] | None = None):
         super().__init__(capabilities=stt.STTCapabilities(streaming=False, interim_results=False))
+        self.transcripts = list(transcripts or ["Please save Alex's appointment question."])
 
     async def _recognize_impl(self, buffer, *, language, conn_options):
         assert isinstance(buffer, list)
@@ -102,7 +103,12 @@ class _FakeSTT(stt.STT):
         return stt.SpeechEvent(
             type=stt.SpeechEventType.FINAL_TRANSCRIPT,
             alternatives=[
-                stt.SpeechData(language="en-US", text="Please save Alex's appointment question.")
+                stt.SpeechData(
+                    language="en-US",
+                    text=self.transcripts.pop(0)
+                    if len(self.transcripts) > 1
+                    else self.transcripts[0],
+                )
             ],
         )
 
@@ -356,6 +362,137 @@ def test_audio_eval_runs_stt_tools_llm_and_tts_without_rtc(monkeypatch):
     assert len(stt_usage) == 1
     assert stt_usage[0]["quantity"] > 0
     assert result["latencyMs"] >= 0
+    assert result["wer"] == 0
+
+
+def _stub_audio_providers(monkeypatch, stt_provider, built=None):
+    agent_tts, caller_tts = _FakeTTS(), _FakeTTS()
+    built = built if built is not None else {}
+
+    def record(name, provider):
+        def build(ref, *_args, **_kwargs):
+            built[name] = ref
+            return provider
+
+        return build
+
+    monkeypatch.setattr(eval_runner, "build_tts", record("tts", agent_tts))
+    monkeypatch.setattr(eval_runner, "build_stt", record("stt", stt_provider))
+    monkeypatch.setattr(eval_runner, "_build_caller_tts", record("caller_tts", caller_tts))
+    return built
+
+
+def test_audio_eval_scores_wer_per_turn_and_averages_the_case(monkeypatch):
+    _stub_audio_providers(monkeypatch, _FakeSTT(["my number is 202 555 0147", "book a tuesday"]))
+    result = asyncio.run(
+        run_case(
+            _config(),
+            {
+                "name": "wer",
+                "caller": ["My number is 202-555-0147.", "Book me on Tuesday"],
+                "expect": {},
+            },
+            llm_provider=_TextLLM(),
+            mode="audio",
+        )
+    )
+    assert result["wer"] == 0.25
+    assert result["passed"] is True
+
+
+def test_audio_eval_fails_when_wer_is_over_max_wer(monkeypatch):
+    _stub_audio_providers(monkeypatch, _FakeSTT(["book a tuesday"]))
+    case = {"name": "wer", "caller": "Book me on Tuesday", "expect": {"max_wer": 0.25}}
+    result = asyncio.run(run_case(_config(), case, llm_provider=_TextLLM(), mode="audio"))
+    assert result["wer"] == pytest.approx(0.5)
+    assert result["passed"] is False
+    assert result["failures"] == ["word error rate 0.5000 is over max_wer 0.25"]
+
+
+def test_audio_eval_passes_when_wer_is_within_max_wer(monkeypatch):
+    _stub_audio_providers(monkeypatch, _FakeSTT(["book me on tuesday"]))
+    case = {"name": "wer", "caller": "Book me on Tuesday", "expect": {"max_wer": 0}}
+    result = asyncio.run(run_case(_config(), case, llm_provider=_TextLLM(), mode="audio"))
+    assert result["wer"] == 0
+    assert result["passed"] is True
+
+
+def test_text_mode_has_no_wer_and_ignores_max_wer():
+    case = {"name": "text", "caller": "Hi", "expect": {"max_wer": 0}}
+    result = asyncio.run(run_case(_config(), case, llm_provider=_TextLLM()))
+    assert result["wer"] is None
+    assert result["passed"] is True
+
+
+def test_assertions_ignore_max_wer_without_a_wer():
+    case = {"expect": {"max_wer": 0.1}}
+    assert _evaluate_assertions(case, [], [], None) == []
+    assert _evaluate_assertions(case, [], [], 0.1) == []
+    assert _evaluate_assertions(case, [], [], 0.2) == ["word error rate 0.2000 is over max_wer 0.1"]
+
+
+def test_stt_and_tts_overrides_replace_models_for_pipeline_and_caller(monkeypatch):
+    built = _stub_audio_providers(monkeypatch, _FakeSTT())
+    asyncio.run(
+        run_case(
+            _config(),
+            {"name": "override", "caller": "Hello", "expect": {}},
+            llm_provider=_TextLLM(),
+            mode="audio",
+            stt_override="deepgram/nova-2",
+            tts_override="cartesia/sonic-2",
+        )
+    )
+    assert built == {
+        "stt": "deepgram/nova-2",
+        "tts": "cartesia/sonic-2",
+        "caller_tts": "cartesia/sonic-2",
+    }
+
+
+def test_audio_models_default_to_the_agent_config_without_overrides(monkeypatch):
+    built = _stub_audio_providers(monkeypatch, _FakeSTT())
+    asyncio.run(
+        run_case(
+            _config(),
+            {"name": "defaults", "caller": "Hello", "expect": {}},
+            llm_provider=_TextLLM(),
+            mode="audio",
+        )
+    )
+    assert built == {
+        "stt": "deepgram/nova-3",
+        "tts": "cartesia/sonic-3",
+        "caller_tts": "cartesia/sonic-3",
+    }
+
+
+def test_run_suite_passes_overrides_and_aggregates_wer(monkeypatch):
+    built = _stub_audio_providers(monkeypatch, _FakeSTT(["book a tuesday", "hello"]))
+    monkeypatch.setattr(eval_runner, "build_llm_chain", lambda _models: _TextLLM())
+    payload = {
+        "agent": CONFIG,
+        "mode": "audio",
+        "sttOverride": "deepgram/nova-2",
+        "suite": [
+            {"name": "wrong", "caller": "Book me on Tuesday", "expect": {}},
+            {"name": "right", "caller": "Hello", "expect": {}},
+        ],
+        "ttsOverride": "cartesia/sonic-2",
+    }
+    output = asyncio.run(run_suite(payload))
+    assert built["stt"] == "deepgram/nova-2"
+    assert built["tts"] == built["caller_tts"] == "cartesia/sonic-2"
+    assert [result["wer"] for result in output["results"]] == [0.5, 0]
+    assert output["aggregate"]["avgWer"] == 0.25
+
+
+def test_run_suite_reports_null_wer_in_text_mode(monkeypatch):
+    monkeypatch.setattr(eval_runner, "build_llm_chain", lambda _models: _TextLLM())
+    payload = {"agent": CONFIG, "suite": [{"name": "text", "caller": "Hi", "expect": {}}]}
+    output = asyncio.run(run_suite(payload))
+    assert output["results"][0]["wer"] is None
+    assert output["aggregate"]["avgWer"] is None
 
 
 def test_audio_eval_timeout_closes_session_and_providers(monkeypatch):
@@ -551,6 +688,7 @@ def test_run_suite_opens_http_context_for_provider_execution(monkeypatch):
             "latencyMs": 1,
             "costUsd": None,
             "modelUsage": [],
+            "wer": None,
         }
 
     monkeypatch.setattr(eval_runner, "run_case", run_case_with_http_context)

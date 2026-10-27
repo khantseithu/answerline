@@ -32,6 +32,10 @@ const SIP_USAGE = `usage (all commands accept --tenant <workspace-slug>; default
 
 const repositoryRoot = fileURLToPath(new URL("../../../", import.meta.url));
 
+function formatWer(wer: number | null) {
+  return wer === null ? "n/a" : `${(wer * 100).toFixed(1)}%`;
+}
+
 function fail(message: string): never {
   console.error(message);
   process.exit(1);
@@ -46,13 +50,15 @@ async function runEval(args: string[]) {
       "judge-model": { type: "string" },
       "live-tools": { type: "boolean" },
       model: { type: "string" },
+      stt: { type: "string" },
       tenant: { type: "string" },
+      tts: { type: "string" },
     },
   });
   const [agentPath, ...extra] = positionals;
   if (!agentPath || extra.length) {
     throw new Error(
-      "usage: worker eval <agents/name.yaml> [--model provider/model] [--judge-model provider/model] [--live-tools] [--audio] [--tenant workspace-slug]"
+      "usage: worker eval <agents/name.yaml> [--model provider/model] [--judge-model provider/model] [--live-tools] [--audio] [--stt provider/model] [--tts provider/model] [--tenant workspace-slug]"
     );
   }
 
@@ -80,7 +86,9 @@ async function runEval(args: string[]) {
       liveTools: values["live-tools"],
       mode: values.audio ? "audio" : "text",
       modelOverride: values.model,
+      sttOverride: values.stt,
       suite,
+      ttsOverride: values.tts,
     });
     const suiteName = basename(suiteFile, extname(suiteFile));
     const runId = await createEvalRun(db, {
@@ -106,8 +114,13 @@ async function runEval(args: string[]) {
     console.log(`${agent.name}: ${run.passed}/${run.total} passed (${rate}%)`);
     console.log(`average latency: ${run.avgLatencyMs === null ? "n/a" : `${run.avgLatencyMs} ms`}`);
     console.log(`cost: ${run.costUsd === null ? "n/a" : `$${run.costUsd}`}`);
+    console.log(`average WER: ${formatWer(run.avgWer)}`);
     for (const result of results) {
-      console.log(`${result.passed ? "PASS" : "FAIL"} ${result.caseName}`);
+      console.log(
+        `${result.passed ? "PASS" : "FAIL"} ${result.caseName}${
+          result.wer === null ? "" : ` (WER ${formatWer(result.wer)})`
+        }`
+      );
       for (const failure of result.failures) {
         console.log(`  ${failure}`);
       }

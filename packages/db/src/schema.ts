@@ -17,6 +17,7 @@ import {
   boolean,
   check,
   customType,
+  doublePrecision,
   foreignKey,
   index,
   integer,
@@ -481,6 +482,7 @@ export const evalRuns = pgTable(
   {
     agentId: uuid().notNull(),
     avgLatencyMs: integer(),
+    avgWer: doublePrecision(),
     costUsd: numeric({ precision: 12, scale: 6 }),
     createdAt: createdAt(),
     error: text(),
@@ -517,6 +519,7 @@ export const evalResults = pgTable(
       .notNull()
       .references(() => evalRuns.id, { onDelete: "cascade" }),
     transcript: jsonb().$type<{ role: "caller" | "agent"; text: string }[]>().notNull(),
+    wer: doublePrecision(),
   },
   (t) => [index().on(t.runId)]
 );

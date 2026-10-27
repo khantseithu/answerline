@@ -1,6 +1,7 @@
 {
   "aggregate": {
     "avgLatencyMs": null,
+    "avgWer": 0.125,
     "costUsd": null,
     "passed": 0,
     "total": 1
@@ -21,7 +22,8 @@
         }
       ],
       "passed": false,
-      "transcript": [{ "role": "caller", "text": "Hi" }]
+      "transcript": [{ "role": "caller", "text": "Hi" }],
+      "wer": 0.125
     }
   ]
 }

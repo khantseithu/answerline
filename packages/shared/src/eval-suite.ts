@@ -5,6 +5,7 @@ import { modelUsageSchema } from "./model-usage.ts";
 
 const evalExpectationSchema = z.object({
   judge: z.string().optional(),
+  max_wer: z.number().min(0).max(1).optional(),
   mentions: z.array(z.string()).optional(),
   not_mentions: z.array(z.string()).optional(),
   tool_args: z.record(z.string(), z.record(z.string(), z.json())).optional(),
@@ -38,10 +39,12 @@ export const evalCaseResultSchema = z.object({
   modelUsage: z.array(modelUsageSchema).optional(),
   passed: z.boolean(),
   transcript: z.array(evalTranscriptTurnSchema),
+  wer: z.number().nonnegative().nullable(),
 });
 
 export const evalRunAggregateSchema = z.object({
   avgLatencyMs: z.number().int().nonnegative().nullable(),
+  avgWer: z.number().nonnegative().nullable(),
   costUsd: z.number().nonnegative().nullable(),
   passed: z.number().int().nonnegative(),
   total: z.number().int().nonnegative(),
@@ -65,7 +68,9 @@ export const evalExecutionInputSchema = z
     liveTools: z.boolean().default(false),
     mode: z.enum(["text", "audio"]).default("text"),
     modelOverride: modelRefSchema.optional(),
+    sttOverride: modelRefSchema.optional(),
     suite: evalSuiteSchema,
+    ttsOverride: modelRefSchema.optional(),
   })
   .refine((input) => !input.liveTools || input.context !== undefined, {
     message: "live tools require agent and tenant slugs in context",
@@ -84,7 +89,9 @@ export const evalRunCreateSchema = z.object({
   liveTools: z.boolean().optional(),
   mode: z.enum(["text", "audio"]).optional(),
   modelOverride: modelRefSchema.optional(),
+  sttOverride: modelRefSchema.optional(),
   suite: z.string().regex(/^[a-z0-9][a-z0-9-]*$/, "expected suite basename slug"),
+  ttsOverride: modelRefSchema.optional(),
 });
 
 export type EvalCase = z.infer<typeof evalCaseSchema>;

@@ -50,7 +50,7 @@ const input = evalExecutionInputSchema.parse({
 });
 
 const output = {
-  aggregate: { avgLatencyMs: 12, costUsd: null, passed: 1, total: 1 },
+  aggregate: { avgLatencyMs: 12, avgWer: null, costUsd: null, passed: 1, total: 1 },
   results: [
     {
       caseName: "greeting",
@@ -71,15 +71,42 @@ const output = {
         { role: "caller" as const, text: "Hi" },
         { role: "agent" as const, text: "Hello" },
       ],
+      wer: null,
     },
   ],
 } satisfies EvalExecutionOutput;
+
+const [greetingResult] = output.results;
+assert.ok(greetingResult);
 
 test("normalizes case and aggregate costs from actual model usage", () => {
   const normalized = normalizeEvalOutput(input, output);
   assert.equal(normalized.results[0]?.costUsd, 0.0004);
   assert.equal(normalized.aggregate.costUsd, 0.0004);
   assert.equal(normalized.aggregate.avgLatencyMs, 12);
+  assert.equal(normalized.aggregate.avgWer, null);
+});
+
+test("averages WER over cases that have one", () => {
+  const second = { ...greetingResult, caseName: "second", wer: 0.5 };
+  const third = { ...greetingResult, caseName: "third", wer: null };
+  const suiteInput = {
+    ...input,
+    suite: [
+      ...input.suite,
+      { caller: "Hi", expect: {}, name: "second" },
+      { caller: "Hi", expect: {}, name: "third" },
+    ],
+  };
+  const normalized = normalizeEvalOutput(suiteInput, {
+    ...output,
+    results: [{ ...greetingResult, wer: 0.25 }, second, third],
+  });
+  assert.equal(normalized.aggregate.avgWer, 0.375);
+  assert.deepEqual(
+    normalized.results.map((result) => result.wer),
+    [0.25, 0.5, null]
+  );
 });
 
 test("keeps cost unknown when a case has no model usage", () => {
@@ -145,7 +172,10 @@ test("persists eval runs, retries safely, and executes queue jobs", {
     const options = {
       execute: () => {
         calls += 1;
-        return Promise.resolve(output);
+        return Promise.resolve({
+          ...output,
+          results: [{ ...greetingResult, wer: 0.25 }],
+        });
       },
     };
     await processEvalRun(db, identifiers, options);
@@ -158,6 +188,8 @@ test("persists eval runs, retries safely, and executes queue jobs", {
     assert.equal(savedRun?.costUsd, "0.000400");
     assert.equal(savedResults.length, 1);
     assert.equal(savedResults[0]?.costUsd, "0.000400");
+    assert.equal(savedRun?.avgWer, 0.25);
+    assert.equal(savedResults[0]?.wer, 0.25);
 
     const [failedRun] = await db
       .insert(evalRuns)
