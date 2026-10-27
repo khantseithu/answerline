@@ -76,7 +76,7 @@ Roadmap: *Knowledge base ingestion and hybrid search*
   - [x] Job status and errors visible to the dashboard
 - [ ] Retrieval
   - [x] Hybrid search: pgvector cosine + Postgres full-text, merged with reciprocal rank fusion
-  - [ ] Optional reranker (Cohere, Jina, or local cross-encoder): deferred until live-embedding metrics show a need (#40)
+  - [x] Optional reranker over HTTP (Cohere, Jina, or a self-hosted cross-encoder server) with RRF fallback (#40)
   - [x] Agent tool `search_knowledge` with a strict latency budget (target p95 < 300 ms)
   - [x] Cite source in transcript/tool call log (tool call log, #42)
   - [x] Relevance signal so out-of-scope queries don't return confident hits (#180)
@@ -289,6 +289,7 @@ Roadmap: *Multilingual agents*
 
 ## Decisions
 
+- M2 reranker: optional and env-configured over HTTP, `RERANK_MODEL` as `cohere/<model>` or `jina/<model>` with an optional `RERANK_BASE_URL` for self-hosted servers (Infinity, TEI) and keys from `COHERE_API_KEY` / `JINA_API_KEY`. When set, `search_knowledge` fetches 20 candidates, reranks, keeps `top_k`, and falls back to RRF order on a timeout or error inside the existing latency budget. No in-process torch model (#40).
 - M11 languages: `language` is the primary language. An optional `languages` map keyed by language code holds per-language `greeting` and `instructions`; a non-empty map turns on auto-detection (Deepgram `multi`) and per-call switching of TTS language and instructions. Calls greet in the primary language unless the dispatch selects one. Eval suites cover Spanish and French (#117, #118, #119, #121). For non-English or multilingual agents, after-hours, transfer-failed, wrap-up, and idle messages are spoken by the LLM in the caller's language rather than as fixed English strings (#310).
 - M9 workspace policy: any signed-in user can create workspaces; copyable invite links can provision password accounts while unrestricted signup stays disabled. Owners manage members/settings/API keys, admins manage agents/knowledge/evals/calls, and viewers read only (#106, #107, #284).
 - M9 provider credentials: dashboard-managed keys encrypted at rest with a deployment encryption key, with deployment credentials as an explicit fallback. Usage limits use UTC calendar-month call minutes and optional provider spend; exhaustion blocks new work (#111).

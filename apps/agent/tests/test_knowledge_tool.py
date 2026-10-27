@@ -22,6 +22,7 @@ from answerline_agent.knowledge_tool import (
 )
 from answerline_agent.settings import Settings
 from answerline_agent.tool_log import ToolLog
+from answerline_llm import RerankResult
 from livekit.agents import llm
 from test_knowledge import add_chunk, axis
 
@@ -329,6 +330,7 @@ def test_scope_covers_tenant_wide_and_own_agent_ready_sources_only():
 def embedding_env(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     monkeypatch.setenv("EMBEDDING_MODEL", "openai/text-embedding-3-small")
+    monkeypatch.delenv("RERANK_MODEL", raising=False)
 
 
 @needs_database
@@ -516,5 +518,224 @@ def test_relevance_floor_makes_out_of_scope_queries_return_no_results(monkeypatc
                 }
             finally:
                 await tools.close()
+
+    asyncio.run(scenario())
+
+
+class FakeReranker:
+    model_ref = "cohere/rerank-v3.5"
+
+    def __init__(self, order: list[int] | None = None):
+        self.order = order
+        self.calls: list[tuple[str, list[str], int | None]] = []
+
+    async def rerank(self, query, documents, top_n=None):
+        self.calls.append((query, list(documents), top_n))
+        order = self.order if self.order is not None else list(reversed(range(len(documents))))
+        return [RerankResult(index, 1.0 - rank / 10) for rank, index in enumerate(order)][:top_n]
+
+
+class HangingReranker:
+    model_ref = "jina/jina-reranker-v2-base-multilingual"
+
+    async def rerank(self, query, documents, top_n=None):
+        await asyncio.sleep(30)
+
+
+class FailingReranker:
+    model_ref = "cohere/rerank-v3.5"
+
+    async def rerank(self, query, documents, top_n=None):
+        raise RuntimeError("Rerank request failed (cohere/rerank-v3.5; HTTP 500)")
+
+
+class RecordingPool:
+    def acquire(self):
+        return self
+
+    async def __aenter__(self):
+        return object()
+
+    async def __aexit__(self, *exc):
+        return False
+
+
+def rrf_hits(count: int) -> list[KnowledgeHit]:
+    return [hit(f"chunk {i}", {"title": f"Doc {i}"}) for i in range(count)]
+
+
+def search_with_reranker(monkeypatch, reranker, hits, *, timeout: float = 1.0, top_k: int = 4):
+    requested = {}
+
+    async def fake_hybrid_search(conn, **kwargs):
+        requested.update(kwargs)
+        return hits[: kwargs["top_k"]]
+
+    monkeypatch.setattr(knowledge_tool, "hybrid_search", fake_hybrid_search)
+    search = KnowledgeSearch(
+        pool=RecordingPool(),
+        embedder=FakeEmbedder(),
+        tenant_id=uuid.uuid4(),
+        source_ids=[uuid.uuid4()],
+        top_k=top_k,
+        timeout=timeout,
+        reranker=reranker,
+    )
+    return search, requested
+
+
+def test_rerank_fetches_more_candidates_reorders_and_keeps_top_k(monkeypatch):
+    hits = rrf_hits(10)
+    reranker = FakeReranker(order=[7, 3, 9, 0, 1, 2, 4, 5, 6, 8])
+    search, requested = search_with_reranker(monkeypatch, reranker, hits)
+    result = asyncio.run(search.search("when are you open"))
+    assert requested["top_k"] == 20
+    assert requested["candidates"] == 20
+    assert reranker.calls == [("when are you open", [h.content for h in hits], 4)]
+    assert [h.chunk_id for h in result.hits] == [hits[i].chunk_id for i in (7, 3, 9, 0)]
+    assert result.text.startswith("[1] Doc 7\nchunk 7")
+    logged = result.log()
+    assert logged["rerank"].keys() == {"model", "ms"}
+    assert logged["rerank"]["model"] == "cohere/rerank-v3.5"
+    assert [c["rerank_score"] for c in logged["citations"]] == pytest.approx([1.0, 0.9, 0.8, 0.7])
+
+
+def test_without_a_reranker_search_keeps_fetching_top_k_and_logs_no_rerank(monkeypatch):
+    search, requested = search_with_reranker(monkeypatch, None, rrf_hits(10))
+    result = asyncio.run(search.search("hours"))
+    assert requested["top_k"] == 4
+    assert len(result.hits) == 4
+    assert "rerank" not in result.log()
+    assert all("rerank_score" not in c for c in result.log()["citations"])
+
+
+def test_rerank_is_skipped_for_a_single_candidate(monkeypatch):
+    reranker = FakeReranker()
+    search, _ = search_with_reranker(monkeypatch, reranker, rrf_hits(1))
+    result = asyncio.run(search.search("hours"))
+    assert reranker.calls == []
+    assert len(result.hits) == 1
+    assert "rerank" not in result.log()
+
+
+def test_rerank_error_falls_back_to_rrf_order(monkeypatch, caplog):
+    caplog.set_level(logging.WARNING, logger="answerline.agent")
+    hits = rrf_hits(10)
+    search, _ = search_with_reranker(monkeypatch, FailingReranker(), hits)
+    result = asyncio.run(search.search("hours"))
+    assert result.outcome == "ok"
+    assert [h.chunk_id for h in result.hits] == [h.chunk_id for h in hits[:4]]
+    assert result.text.startswith("[1] Doc 0")
+    rerank = result.log()["rerank"]
+    assert rerank["fallback"] == "error"
+    assert rerank["error"] == "RuntimeError: Rerank request failed (cohere/rerank-v3.5; HTTP 500)"
+    assert rerank["model"] == "cohere/rerank-v3.5"
+    assert "rerank_score" not in result.log()["citations"][0]
+    assert "rerank fell back to RRF order" in caplog.text
+
+
+def test_rerank_timeout_falls_back_to_rrf_order_within_the_budget(monkeypatch):
+    hits = rrf_hits(10)
+    search, _ = search_with_reranker(monkeypatch, HangingReranker(), hits, timeout=0.2)
+
+    async def scenario():
+        started = asyncio.get_running_loop().time()
+        result = await search.search("hours")
+        return result, asyncio.get_running_loop().time() - started
+
+    result, elapsed = asyncio.run(scenario())
+    assert elapsed < 0.5
+    assert result.outcome == "ok"
+    assert [h.chunk_id for h in result.hits] == [h.chunk_id for h in hits[:4]]
+    rerank = result.log()["rerank"]
+    assert rerank["fallback"] == "timeout"
+    assert "error" not in rerank
+
+
+def test_rerank_with_an_empty_response_falls_back_to_rrf_order(monkeypatch):
+    hits = rrf_hits(6)
+    search, _ = search_with_reranker(monkeypatch, FakeReranker(order=[]), hits)
+    result = asyncio.run(search.search("hours"))
+    assert [h.chunk_id for h in result.hits] == [h.chunk_id for h in hits[:4]]
+    assert result.log()["rerank"]["fallback"] == "error"
+
+
+def test_rerank_does_not_run_when_retrieval_returns_nothing(monkeypatch):
+    reranker = FakeReranker()
+    search, _ = search_with_reranker(monkeypatch, reranker, [])
+    result = asyncio.run(search.search("hours"))
+    assert reranker.calls == []
+    assert result.outcome == "no_results"
+    assert "rerank" not in result.log()
+
+
+def rerank_chunks():
+    return [
+        ("Alpha chunk about hours.", axis((1, 1.0))),
+        ("Beta chunk about hours.", axis((1, 1.0), (2, 0.5))),
+        ("Gamma chunk about hours.", axis((1, 1.0), (3, 1.0))),
+    ]
+
+
+async def run_reranked_search(slug_source, reranker, monkeypatch):
+    monkeypatch.setattr(
+        knowledge_tool,
+        "build_embedder",
+        lambda client, provider_keys=None: FakeEmbedder({"opening": axis((1, 1.0))}),
+    )
+    monkeypatch.setattr(knowledge_tool, "build_reranker", lambda client: reranker)
+    async with tenant_with_agents() as (admin, slug, tenant_id, source):
+        shared = await source("Hours")
+        for seq, (content, embedding) in enumerate(rerank_chunks()):
+            await add_chunk(admin, tenant_id, shared, seq, content, embedding, {"title": "Hours"})
+        tool_log = ToolLog()
+        tools = await open_knowledge_tools(settings_for(slug), "alpha", tool_log, tenant_slug=slug)
+        assert tools is not None
+        try:
+            text = await tools.tools[0](context=run_context("call_1"), query="opening")
+        finally:
+            await tools.close()
+        return text, tool_log.take("call_1")
+
+
+@needs_database
+def test_reranker_reorders_database_hits_and_is_logged(monkeypatch, embedding_env):
+    reranker = FakeReranker()
+    text, logged = asyncio.run(run_reranked_search(None, reranker, monkeypatch))
+    assert [line for line in text.splitlines() if line.startswith("[")] == [
+        "[1] Hours",
+        "[2] Hours",
+        "[3] Hours",
+    ]
+    assert text.index("Gamma") < text.index("Beta") < text.index("Alpha")
+    assert reranker.calls[0][0] == "opening"
+    assert reranker.calls[0][2] == 4
+    assert logged["outcome"] == "ok"
+    assert logged["rerank"]["model"] == "cohere/rerank-v3.5"
+    assert logged["citations"][0]["rerank_score"] == pytest.approx(1.0)
+
+
+@needs_database
+def test_failing_reranker_keeps_rrf_order_for_database_hits(monkeypatch, embedding_env):
+    text, logged = asyncio.run(run_reranked_search(None, FailingReranker(), monkeypatch))
+    assert text.index("Alpha") < text.index("Beta") < text.index("Gamma")
+    assert logged["outcome"] == "ok"
+    assert logged["rerank"]["fallback"] == "error"
+
+
+@needs_database
+def test_invalid_rerank_config_disables_reranking_but_keeps_the_tool(monkeypatch, embedding_env):
+    monkeypatch.setenv("RERANK_MODEL", "cohere/rerank-v3.5")
+    monkeypatch.delenv("COHERE_API_KEY", raising=False)
+    monkeypatch.delenv("RERANK_BASE_URL", raising=False)
+
+    async def scenario():
+        async with tenant_with_agents() as (_, slug, _, source):
+            await source("shared")
+            tools = await open_knowledge_tools(
+                settings_for(slug), "alpha", ToolLog(), tenant_slug=slug
+            )
+            assert tools is not None
+            await tools.close()
 
     asyncio.run(scenario())

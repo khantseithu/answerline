@@ -10,6 +10,7 @@ from answerline_agent.providers import (
     build_embedder,
     build_llm,
     build_llm_chain,
+    build_reranker,
     build_stt,
     build_tts,
 )
@@ -143,3 +144,49 @@ def test_stt_and_tts_default_to_english(monkeypatch):
 
     assert build_stt(STT)["language"] == "en"
     assert build_tts(TTS)["language"] == "en"
+
+
+def test_build_reranker_is_off_unless_configured(monkeypatch):
+    monkeypatch.delenv("RERANK_MODEL", raising=False)
+    monkeypatch.setenv("COHERE_API_KEY", "test-key")
+
+    async def scenario():
+        async with httpx.AsyncClient() as client:
+            return build_reranker(client)
+
+    assert asyncio.run(scenario()) is None
+
+
+def test_build_reranker_reuses_the_given_client(monkeypatch):
+    monkeypatch.setenv("RERANK_MODEL", "jina/jina-reranker-v2-base-multilingual")
+    monkeypatch.setenv("JINA_API_KEY", "test-key")
+    monkeypatch.delenv("RERANK_BASE_URL", raising=False)
+    requests = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json={"results": [{"index": 1, "relevance_score": 0.8}]})
+
+    async def scenario():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            reranker = build_reranker(client)
+            return await reranker.rerank("hours", ["a", "b"], 1)
+
+    results = asyncio.run(scenario())
+    assert [(r.index, r.score) for r in results] == [(1, 0.8)]
+    assert str(requests[0].url) == "https://api.jina.ai/v1/rerank"
+
+
+def test_build_reranker_needs_a_key_unless_self_hosted(monkeypatch):
+    monkeypatch.setenv("RERANK_MODEL", "cohere/rerank-v3.5")
+    monkeypatch.delenv("COHERE_API_KEY", raising=False)
+    monkeypatch.delenv("RERANK_BASE_URL", raising=False)
+
+    async def scenario():
+        async with httpx.AsyncClient() as client:
+            return build_reranker(client)
+
+    with pytest.raises(ValueError, match="Missing API key"):
+        asyncio.run(scenario())
+    monkeypatch.setenv("RERANK_BASE_URL", "http://tei:8080")
+    assert asyncio.run(scenario()) is not None

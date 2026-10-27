@@ -11,6 +11,14 @@ from .embeddings import (
     parse_embedding_model_ref,
 )
 from .provider_credentials import decrypt_provider_credential, encrypt_provider_credential
+from .rerank import (
+    RERANK_PROVIDERS,
+    RerankProvider,
+    RerankResult,
+    RerankSettings,
+    create_rerank_provider,
+    parse_rerank_model_ref,
+)
 
 __all__ = [
     "DEFAULT_EMBEDDING_MODEL",
@@ -20,6 +28,12 @@ __all__ = [
     "EmbeddingSettings",
     "create_embedding_provider",
     "parse_embedding_model_ref",
+    "RERANK_PROVIDERS",
+    "RerankProvider",
+    "RerankResult",
+    "RerankSettings",
+    "create_rerank_provider",
+    "parse_rerank_model_ref",
     "decrypt_provider_credential",
     "encrypt_provider_credential",
     "PROVIDERS",
