@@ -182,7 +182,7 @@ Roadmap: *Evals runner*
 - [x] GitHub Action example: run evals on PRs that change `agents/` or `evals/` (#90)
 
 - [x] Package the eval worker for Docker Compose runs (#263)
-- [ ] Eval quality follow-ups
+- [x] Eval quality follow-ups
   - [x] Separate judge model for `judge` assertions (#329)
   - [x] STT word error rate in audio mode, plus `--stt`/`--tts` overrides (#330)
   - [x] Per-stage latency (STT, LLM TTFT, TTS TTFB) in eval results (#331)
