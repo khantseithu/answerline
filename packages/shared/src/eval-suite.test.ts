@@ -224,6 +224,7 @@ test("eval output round-trips per-stage latency and rejects bad samples", () => 
   const output = {
     aggregate: {
       avgLatencyMs: 900,
+      avgWer: 0.1,
       costUsd: null,
       passed: 1,
       stageLatency: { llmTtftMs: { p50: 300, p95: 500 }, sttMs: { p50: 150, p95: 150 } },
@@ -238,6 +239,7 @@ test("eval output round-trips per-stage latency and rejects bad samples", () => 
         passed: true,
         stageLatency: { llmTtftMs: [300, 500], sttMs: [150] },
         transcript: [{ role: "caller", text: "Hi" }],
+        wer: 0.1,
       },
     ],
   };

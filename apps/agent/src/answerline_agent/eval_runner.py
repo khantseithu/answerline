@@ -19,8 +19,8 @@ from .booking import Booking, Slot
 from .call_events import model_usage_lines, parse_tool_args
 from .capture_lead import LeadCaptureContext
 from .config import AgentConfig, BookAppointmentTool, HttpTool, McpTool, TransferCallTool
-from .eval_wer import word_error_rate
 from .eval_latency import agent_turn_stages
+from .eval_wer import word_error_rate
 from .knowledge_tool import QUERY_DESCRIPTION, TOOL_DESCRIPTION, open_knowledge_tools
 from .languages import language_instructions, localizes_messages, stt_language
 from .native_booking import open_booking_provider

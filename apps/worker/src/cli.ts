@@ -46,6 +46,33 @@ function fail(message: string): never {
   process.exit(1);
 }
 
+function printEvalRun(
+  agentName: string,
+  run: typeof evalRuns.$inferSelect,
+  results: (typeof evalResults.$inferSelect)[]
+) {
+  const rate = run.total ? Math.round(((run.passed ?? 0) / run.total) * 100) : 0;
+  console.log(`eval run: ${run.id}`);
+  console.log(`${agentName}: ${run.passed}/${run.total} passed (${rate}%)`);
+  console.log(`average latency: ${run.avgLatencyMs === null ? "n/a" : `${run.avgLatencyMs} ms`}`);
+  const stageLine = formatStageLatency(run.stageLatency);
+  if (stageLine) {
+    console.log(`stage latency: ${stageLine}`);
+  }
+  console.log(`cost: ${run.costUsd === null ? "n/a" : `$${run.costUsd}`}`);
+  console.log(`average WER: ${formatWer(run.avgWer)}`);
+  for (const result of results) {
+    console.log(
+      `${result.passed ? "PASS" : "FAIL"} ${result.caseName}${
+        result.wer === null ? "" : ` (WER ${formatWer(result.wer)})`
+      }`
+    );
+    for (const failure of result.failures) {
+      console.log(`  ${failure}`);
+    }
+  }
+}
+
 async function runEval(args: string[]) {
   const { positionals, values } = parseArgs({
     allowPositionals: true,
@@ -114,26 +141,7 @@ async function runEval(args: string[]) {
       throw new Error(run?.error ?? "eval run did not complete");
     }
 
-    const rate = run.total ? Math.round(((run.passed ?? 0) / run.total) * 100) : 0;
-    console.log(`eval run: ${runId}`);
-    console.log(`${agent.name}: ${run.passed}/${run.total} passed (${rate}%)`);
-    console.log(`average latency: ${run.avgLatencyMs === null ? "n/a" : `${run.avgLatencyMs} ms`}`);
-    const stageLine = formatStageLatency(run.stageLatency);
-    if (stageLine) {
-      console.log(`stage latency: ${stageLine}`);
-    }
-    console.log(`cost: ${run.costUsd === null ? "n/a" : `$${run.costUsd}`}`);
-    console.log(`average WER: ${formatWer(run.avgWer)}`);
-    for (const result of results) {
-      console.log(
-        `${result.passed ? "PASS" : "FAIL"} ${result.caseName}${
-          result.wer === null ? "" : ` (WER ${formatWer(result.wer)})`
-        }`
-      );
-      for (const failure of result.failures) {
-        console.log(`  ${failure}`);
-      }
-    }
+    printEvalRun(agent.name, run, results);
     if (run.passed !== run.total) {
       process.exitCode = 1;
     }
