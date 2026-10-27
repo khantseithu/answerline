@@ -251,7 +251,7 @@ Chunks are at most 1600 characters with 240-character overlap, preferring word b
 
 Every write is an upsert or insert-if-absent, so the handler tolerates retries and events arriving out of order (a turn, tool, or end event before `call.started` still creates the call).
 
-[`src/cli.ts`](../apps/worker/src/cli.ts) implements `pnpm eval agents/<name>.yaml` with `--model`, `--live-tools`, and `--audio` options. It reads the local agent and suite YAML, resolves the seeded agent in the default tenant, saves the execution snapshot, then executes through the shared runner and persistence path. Exit status is 0 when all cases pass, 1 when assertions fail, and 2 for setup or execution errors. `uv run python -m answerline_agent.eval_runner` reads one JSON input from stdin and writes the validated result JSON to stdout; diagnostics go to stderr. Cost stays unknown when actual model usage is unavailable or unpriced.
+[`src/cli.ts`](../apps/worker/src/cli.ts) implements `pnpm eval agents/<name>.yaml` with `--model`, `--judge-model`, `--live-tools`, and `--audio` options. It reads the local agent and suite YAML, resolves the seeded agent in the default tenant, saves the execution snapshot, then executes through the shared runner and persistence path. Exit status is 0 when all cases pass, 1 when assertions fail, and 2 for setup or execution errors. `uv run python -m answerline_agent.eval_runner` reads one JSON input from stdin and writes the validated result JSON to stdout; diagnostics go to stderr. Cost stays unknown when actual model usage is unavailable or unpriced.
 
 ### Shared contracts (`packages/shared`)
 

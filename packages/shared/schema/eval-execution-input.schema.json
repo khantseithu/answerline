@@ -423,6 +423,10 @@
         "tenantSlug"
       ]
     },
+    "judgeModel": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+\\/(?:[\\w.:-]+\\/)?[\\w.:-]+$"
+    },
     "liveTools": {
       "default": false,
       "type": "boolean"

@@ -43,6 +43,7 @@ async function runEval(args: string[]) {
     args,
     options: {
       audio: { type: "boolean" },
+      "judge-model": { type: "string" },
       "live-tools": { type: "boolean" },
       model: { type: "string" },
       tenant: { type: "string" },
@@ -51,7 +52,7 @@ async function runEval(args: string[]) {
   const [agentPath, ...extra] = positionals;
   if (!agentPath || extra.length) {
     throw new Error(
-      "usage: worker eval <agents/name.yaml> [--model provider/model] [--live-tools] [--audio] [--tenant workspace-slug]"
+      "usage: worker eval <agents/name.yaml> [--model provider/model] [--judge-model provider/model] [--live-tools] [--audio] [--tenant workspace-slug]"
     );
   }
 
@@ -75,6 +76,7 @@ async function runEval(args: string[]) {
     const executionInput = evalExecutionInputSchema.parse({
       agent,
       context: { agentSlug: agentRow.agentSlug, tenantSlug: agentRow.tenantSlug },
+      judgeModel: values["judge-model"],
       liveTools: values["live-tools"],
       mode: values.audio ? "audio" : "text",
       modelOverride: values.model,

@@ -15,6 +15,7 @@
     "agentSlug": "bright-smile-dental",
     "tenantSlug": "default"
   },
+  "judgeModel": "anthropic/claude-sonnet-4-5",
   "liveTools": true,
   "suite": [
     {

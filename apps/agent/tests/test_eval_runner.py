@@ -12,6 +12,7 @@ from answerline_agent.eval_runner import (
     run_case,
     run_suite,
 )
+from answerline_agent.settings import Settings
 from livekit import rtc
 from livekit.agents import APIStatusError, llm, stt, tts
 from livekit.agents.metrics import LLMMetrics, TTSMetrics
@@ -599,3 +600,81 @@ def test_live_tools_require_context():
                 live_tools=True,
             )
         )
+
+
+JUDGE_CASE = {"name": "judged", "caller": "Hi", "expect": {"judge": "Greets the caller"}}
+JUDGE_PASS = '{"passed": true, "reason": "Greets the caller"}'
+
+
+def _record_judge_builds(monkeypatch) -> list[str]:
+    refs: list[str] = []
+
+    def build(ref, _provider_keys=None):
+        refs.append(ref)
+        return _JudgeLLM(JUDGE_PASS)
+
+    monkeypatch.setattr(eval_runner, "build_llm", build)
+    return refs
+
+
+def test_judge_model_grades_instead_of_the_model_under_test(monkeypatch):
+    refs = _record_judge_builds(monkeypatch)
+    result = asyncio.run(
+        run_case(
+            _config(),
+            JUDGE_CASE,
+            model_override="openai/gpt-4.1",
+            judge_model="anthropic/claude-sonnet-4-5",
+            llm_provider=_TextLLM(),
+        )
+    )
+    assert refs == ["anthropic/claude-sonnet-4-5"]
+    assert result["passed"] is True
+
+
+def test_judge_model_falls_back_to_eval_judge_model_setting(monkeypatch):
+    refs = _record_judge_builds(monkeypatch)
+    settings = Settings(eval_judge_model="google/gemini-2.5-flash")
+    asyncio.run(run_case(_config(), JUDGE_CASE, settings=settings, llm_provider=_TextLLM()))
+    asyncio.run(
+        run_case(
+            _config(),
+            JUDGE_CASE,
+            judge_model="anthropic/claude-sonnet-4-5",
+            settings=settings,
+            llm_provider=_TextLLM(),
+        )
+    )
+    assert refs == ["google/gemini-2.5-flash", "anthropic/claude-sonnet-4-5"]
+
+
+def test_agent_llm_still_judges_when_no_judge_model_is_set(monkeypatch):
+    refs = _record_judge_builds(monkeypatch)
+    result = asyncio.run(
+        run_case(_config(), JUDGE_CASE, settings=Settings(), llm_provider=_TextLLM())
+    )
+    assert refs == []
+    assert result["failures"] == ["judge failed: judge returned invalid JSON"]
+
+
+def test_run_suite_passes_the_payload_judge_model(monkeypatch):
+    refs = _record_judge_builds(monkeypatch)
+    monkeypatch.setattr(eval_runner, "build_llm_chain", lambda _models: _TextLLM())
+    payload = {"agent": CONFIG, "judgeModel": "anthropic/claude-sonnet-4-5", "suite": [JUDGE_CASE]}
+    output = asyncio.run(run_suite(payload))
+    assert refs == ["anthropic/claude-sonnet-4-5"]
+    assert output["aggregate"]["passed"] == 1
+
+
+def test_judge_model_is_not_built_for_cases_without_a_judge(monkeypatch):
+    refs = _record_judge_builds(monkeypatch)
+    result = asyncio.run(
+        run_case(
+            _config(),
+            {"name": "greeting", "caller": "Hi", "expect": {}},
+            judge_model="anthropic/claude-sonnet-4-5",
+            llm_provider=_TextLLM(),
+        )
+    )
+    assert refs == []
+    assert result["passed"] is True

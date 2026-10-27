@@ -183,7 +183,7 @@ Roadmap: *Evals runner*
 
 - [x] Package the eval worker for Docker Compose runs (#263)
 - [ ] Eval quality follow-ups
-  - [ ] Separate judge model for `judge` assertions (#329)
+  - [x] Separate judge model for `judge` assertions (#329)
   - [ ] STT word error rate in audio mode, plus `--stt`/`--tts` overrides (#330)
   - [ ] Per-stage latency (STT, LLM TTFT, TTS TTFB) in eval results (#331)
   - [ ] Realistic caller audio: telephony band, noise, distinct caller voice (#332)
