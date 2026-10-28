@@ -35,7 +35,7 @@ models:
   llm:
     primary: openai/gpt-4.1-mini
     fallback:
-    - google/gemini-2.5-flash
+    - google/gemini-3.8-flash
   tts: cartesia/sonic-3
 tools:
 - builtin: business_hours
