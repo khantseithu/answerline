@@ -119,3 +119,11 @@ def test_invalid_tool_execution_settings_are_rejected(monkeypatch, name, value):
     monkeypatch.setenv(name, value)
     with pytest.raises(ValidationError):
         Settings()
+
+
+def test_eval_max_completion_tokens_reads_the_environment_and_rejects_zero(monkeypatch):
+    monkeypatch.setenv("EVAL_MAX_COMPLETION_TOKENS", "512")
+    assert Settings().eval_max_completion_tokens == 512
+    monkeypatch.setenv("EVAL_MAX_COMPLETION_TOKENS", "0")
+    with pytest.raises(ValidationError):
+        Settings()
