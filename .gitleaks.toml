@@ -1,0 +1,9 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Fixed test-only values"
+paths = [
+  '''^apps/worker/src/webhooks\.integration\.test\.ts$''',
+  '''^scripts/production-compose\.test\.mjs$''',
+]
