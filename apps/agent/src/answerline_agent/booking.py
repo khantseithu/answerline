@@ -1,16 +1,21 @@
+import logging
 import time as clock
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from itertools import count
 from typing import Annotated, Protocol
+from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from livekit.agents import RunContext, ToolError, llm
 from pydantic import Field
 
-from .call_events import LEAD_WHITESPACE
+from .call_events import LEAD_WHITESPACE, BookingCreated, iso_timestamp
+from .capture_lead import LeadCaptureContext
 from .settings import Settings
 from .tool_policy import execute_tool
+
+logger = logging.getLogger("answerline.agent")
 
 MAX_SEARCH_DAYS = 14
 MAX_SLOTS = 20
@@ -59,7 +64,10 @@ class BookingProvider(Protocol):
 
 
 def build_booking_tools(
-    provider: BookingProvider, timezone: str, settings: Settings | None = None
+    provider: BookingProvider,
+    timezone: str,
+    settings: Settings | None = None,
+    call: LeadCaptureContext | None = None,
 ) -> list[llm.FunctionTool]:
     settings = settings or Settings()
     zone = ZoneInfo(timezone)
@@ -69,6 +77,26 @@ def build_booking_tools(
 
     def local(value: datetime) -> str:
         return value.astimezone(zone).isoformat()
+
+    def announce(booking: Booking, attendee: Attendee) -> None:
+        if call is None:
+            return
+        try:
+            call.publisher.publish(
+                BookingCreated(
+                    tenant=call.tenant,
+                    agent=call.agent,
+                    room_name=call.room_name,
+                    booking_id=UUID(booking.id),
+                    name=attendee.name,
+                    phone=attendee.phone,
+                    starts_at=booking.start.isoformat(),
+                    ends_at=booking.end.isoformat(),
+                    created_at=iso_timestamp(clock.time()),
+                )
+            )
+        except Exception:
+            logger.warning("failed to emit booking.created for %s", booking.id, exc_info=True)
 
     def caller_spoke_since(context: RunContext, since: float) -> bool:
         return any(
@@ -193,6 +221,7 @@ def build_booking_tools(
         )
         pending.pop(confirmation_id, None)
         booked.add(booking.id)
+        announce(booking, request.attendee)
         return {
             "booking_id": booking.id,
             "start": local(booking.start),

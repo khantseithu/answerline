@@ -104,7 +104,7 @@ Roadmap: *Built-in tools: booking, transfer, business hours*
   - [x] Provider interface: availability lookup, create, cancel (#51)
   - [x] Native provider: slots from `hours`, bookings stored in Postgres without double-booking (#205)
   - [x] Confirm details back to caller before booking (#55)
-  - [ ] Emit `booking.created`
+  - [x] Emit `booking.created` (#56)
   - [ ] Cal.com adapter (optional, #53)
   - [ ] Google Calendar adapter (optional, #54)
 - [x] `capture_lead`: name, phone, reason → `leads` table + event (#57)
