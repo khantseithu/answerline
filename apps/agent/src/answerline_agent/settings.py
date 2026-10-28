@@ -50,8 +50,7 @@ class Settings(BaseSettings):
     )
     idle_check_in_message: str = "Are you still there?"
     after_hours_voicemail_message: str = (
-        "Thanks for calling {name}. We're closed right now, but I can take a message and "
-        "someone will get back to you."
+        "Thanks for calling {name}. We're closed right now, but I can take a message for the team."
     )
     after_hours_transfer_message: str = (
         "Thanks for calling {name}. We're closed right now, so I'm transferring you to our "

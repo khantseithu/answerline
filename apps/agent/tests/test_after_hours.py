@@ -99,6 +99,15 @@ def test_closed_voicemail_greets_with_closed_notice(monkeypatch):
     assert said.startswith("Thanks for calling Bright Smile Dental. We're closed right now")
 
 
+def test_default_voicemail_greeting_makes_no_callback_promise():
+    assert SETTINGS.after_hours_voicemail_message == (
+        "Thanks for calling {name}. We're closed right now, but I can take a message for the team."
+    )
+    lowered = SETTINGS.after_hours_voicemail_message.lower()
+    for promise in ("get back to you", "call you back", "call you", "contact you"):
+        assert promise not in lowered
+
+
 def test_closed_holiday_names_the_holiday(monkeypatch):
     at(monkeypatch, CHRISTMAS)
     plan = AfterHours(hours("voicemail"), "Clinic", SETTINGS)
