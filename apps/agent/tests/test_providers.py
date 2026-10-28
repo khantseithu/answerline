@@ -14,7 +14,7 @@ from answerline_agent.providers import (
     build_stt,
     build_tts,
 )
-from livekit.agents import llm
+from livekit.agents import APIConnectionError, llm
 
 STT = "deepgram/nova-3"
 TTS = "cartesia/sonic-3"
@@ -34,19 +34,52 @@ def only_anthropic_key(monkeypatch):
 
 def test_skips_fallbacks_without_credentials(only_anthropic_key, caplog):
     chain = build_llm_chain(
-        models("anthropic/claude-sonnet-4-6", ["openai/gpt-4.1-mini", "google/gemini-2.5-flash"])
+        models("anthropic/claude-sonnet-4-6", ["openai/gpt-4.1-mini", "google/gemini-3.8-flash"])
     )
     assert not isinstance(chain, llm.FallbackAdapter)
     assert "skipping fallback LLM openai/gpt-4.1-mini" in caplog.text
-    assert "skipping fallback LLM google/gemini-2.5-flash" in caplog.text
+    assert "skipping fallback LLM google/gemini-3.8-flash" in caplog.text
 
 
 def test_keeps_available_fallbacks(only_anthropic_key, monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "test")
     chain = build_llm_chain(
-        models("anthropic/claude-sonnet-4-6", ["openai/gpt-4.1-mini", "google/gemini-2.5-flash"])
+        models("anthropic/claude-sonnet-4-6", ["openai/gpt-4.1-mini", "google/gemini-3.8-flash"])
     )
     assert isinstance(chain, llm.FallbackAdapter)
+
+
+def test_google_requests_use_a_supported_deadline_behind_the_fallback_adapter(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test")
+    monkeypatch.setenv("GOOGLE_API_KEY", "test")
+    chain = build_llm_chain(models("google/gemini-3.8-flash", ["openai/gpt-4.1-mini"]))
+    assert isinstance(chain, llm.FallbackAdapter)
+    google_llm, openai_llm = chain._llm_instances
+    google_deadlines = []
+    openai_deadlines = []
+
+    async def generate_content_stream(*, model, contents, config):
+        google_deadlines.append(config.http_options.timeout)
+        raise RuntimeError("stop after capturing the request")
+
+    def openai_chat(**kwargs):
+        openai_deadlines.append(int(kwargs["conn_options"].timeout * 1000))
+        raise RuntimeError("stop after capturing the request")
+
+    monkeypatch.setattr(
+        google_llm._client.aio.models, "generate_content_stream", generate_content_stream
+    )
+    monkeypatch.setattr(openai_llm, "chat", openai_chat)
+
+    async def scenario():
+        async with chain.chat(chat_ctx=llm.ChatContext()) as stream:
+            async for _ in stream:
+                pass
+
+    with pytest.raises(APIConnectionError):
+        asyncio.run(scenario())
+    assert set(google_deadlines) == {10_000}
+    assert set(openai_deadlines) == {5_000}
 
 
 def test_primary_without_credentials_still_fails(only_anthropic_key):

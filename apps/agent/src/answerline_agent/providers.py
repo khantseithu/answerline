@@ -9,6 +9,7 @@ from answerline_llm import (
     create_embedding_provider,
     parse_model_ref,
 )
+from google.genai import types as genai_types
 from livekit.agents import llm, stt, tts
 from livekit.plugins import anthropic, cartesia, deepgram, google, openai
 
@@ -16,6 +17,8 @@ from .config import Models
 from .languages import base_language
 
 logger = logging.getLogger("answerline.agent")
+
+GOOGLE_REQUEST_TIMEOUT_MS = 10_000
 
 
 def build_stt(
@@ -66,7 +69,11 @@ def build_llm(ref: str, provider_keys: dict[str, str] | None = None) -> llm.LLM:
         case "openai":
             return openai.LLM(model=m.model, **_api_key("openai", provider_keys))
         case "google":
-            return google.LLM(model=m.model, **_api_key("google", provider_keys))
+            return google.LLM(
+                model=m.model,
+                http_options=genai_types.HttpOptions(timeout=GOOGLE_REQUEST_TIMEOUT_MS),
+                **_api_key("google", provider_keys),
+            )
         case "deepseek":
             return openai.LLM.with_deepseek(model=m.model, **_api_key("deepseek", provider_keys))
         case "ollama":

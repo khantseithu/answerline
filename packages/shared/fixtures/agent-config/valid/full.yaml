@@ -11,7 +11,7 @@ models:
   stt: deepgram/nova-3
   llm:
     primary: anthropic/claude-sonnet-4-6
-    fallback: [openai/gpt-4.1-mini, google/gemini-2.5-flash]
+    fallback: [openai/gpt-4.1-mini, google/gemini-3.8-flash]
   tts: cartesia/sonic-3
 
 knowledge:
