@@ -54,6 +54,10 @@ def _api_key(provider: str, provider_keys: dict[str, str] | None) -> dict[str, s
     return {"api_key": key}
 
 
+def _ollama_openai_url() -> str:
+    return f"{str(EmbeddingSettings().ollama_base_url).rstrip('/')}/v1"
+
+
 def build_llm(ref: str, provider_keys: dict[str, str] | None = None) -> llm.LLM:
     m = parse_model_ref(ref)
     match m.provider:
@@ -66,7 +70,7 @@ def build_llm(ref: str, provider_keys: dict[str, str] | None = None) -> llm.LLM:
         case "deepseek":
             return openai.LLM.with_deepseek(model=m.model, **_api_key("deepseek", provider_keys))
         case "ollama":
-            return openai.LLM.with_ollama(model=m.model)
+            return openai.LLM.with_ollama(model=m.model, base_url=_ollama_openai_url())
         case "openrouter":
             return openai.LLM.with_openrouter(
                 model=m.model, **_api_key("openrouter", provider_keys)

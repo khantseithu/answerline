@@ -63,6 +63,25 @@ def test_build_llm_uses_the_workspace_key_instead_of_the_deployment_key(monkeypa
     assert llm["api_key"] == "workspace-key"
 
 
+@pytest.mark.parametrize(
+    ("configured", "expected"),
+    [
+        (None, "http://localhost:11434/v1"),
+        ("http://ollama:11434", "http://ollama:11434/v1"),
+        ("http://ollama:11434/", "http://ollama:11434/v1"),
+    ],
+)
+def test_build_llm_forwards_the_ollama_base_url(monkeypatch, configured, expected):
+    if configured is None:
+        monkeypatch.delenv("OLLAMA_BASE_URL", raising=False)
+    else:
+        monkeypatch.setenv("OLLAMA_BASE_URL", configured)
+
+    ollama = build_llm("ollama/llama3.1")
+
+    assert str(ollama._client.base_url) == f"{expected}/"
+
+
 def test_workspace_provider_map_does_not_fall_back_to_ambient_keys(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "deployment-key")
 
