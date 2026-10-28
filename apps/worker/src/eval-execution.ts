@@ -10,6 +10,47 @@ import {
 const repositoryRoot = fileURLToPath(new URL("../../../", import.meta.url));
 const maxOutputChars = 10_000_000;
 const timeoutMs = 10 * 60 * 1000;
+const maxErrorDetailChars = 500;
+
+export function describeRunnerFailure(code: number | null, stderr: string) {
+  const base = `eval runner exited with status ${code ?? "unknown"}`;
+  const detail = extractRunnerError(stderr);
+  return detail ? `${base}: ${detail}` : base;
+}
+
+function extractRunnerError(stderr: string) {
+  const trimmed = stderr.trim();
+  if (!trimmed) {
+    return "";
+  }
+  const message = trimmed
+    .split("\n")
+    .reverse()
+    .map(parseErrorLine)
+    .find((candidate) => candidate);
+  return message ? capDetail(message, "start") : capDetail(trimmed, "end");
+}
+
+function parseErrorLine(line: string) {
+  try {
+    const parsed: unknown = JSON.parse(line);
+    if (typeof parsed === "object" && parsed !== null && "error" in parsed) {
+      return typeof parsed.error === "string" ? parsed.error.trim() : "";
+    }
+  } catch {
+    return "";
+  }
+  return "";
+}
+
+function capDetail(text: string, keep: "start" | "end") {
+  if (text.length <= maxErrorDetailChars) {
+    return text;
+  }
+  return keep === "start"
+    ? `${text.slice(0, maxErrorDetailChars)}...`
+    : `...${text.slice(-maxErrorDetailChars)}`;
+}
 
 export function executeEval(input: EvalExecutionInput, providerKeys?: Record<string, string>) {
   const parsedInput = evalExecutionInputSchema.parse(input);
@@ -20,7 +61,7 @@ export function executeEval(input: EvalExecutionInput, providerKeys?: Record<str
       stdio: ["pipe", "pipe", "pipe"],
     });
     let stdout = "";
-    let stderrChars = 0;
+    let stderr = "";
     let settled = false;
     let exited = false;
     let killTimer: NodeJS.Timeout | undefined;
@@ -73,8 +114,8 @@ export function executeEval(input: EvalExecutionInput, providerKeys?: Record<str
       if (settled) {
         return;
       }
-      stderrChars += chunk.length;
-      if (stderrChars > maxOutputChars) {
+      stderr += chunk;
+      if (stderr.length > maxOutputChars) {
         terminate(new Error("eval runner error output exceeded the size limit"));
       }
     });
@@ -88,7 +129,7 @@ export function executeEval(input: EvalExecutionInput, providerKeys?: Record<str
         return;
       }
       if (code !== 0) {
-        finish(new Error(`eval runner exited with status ${code ?? "unknown"}`));
+        finish(new Error(describeRunnerFailure(code, stderr)));
         return;
       }
       try {
