@@ -116,7 +116,7 @@ export function TechnicalCredibility() {
   return (
     <section aria-labelledby="stack-heading" className="py-16 sm:py-24" id="stack">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-        <div className="grid gap-10 lg:grid-cols-[1fr_420px] lg:items-start">
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-[1fr_420px] lg:items-start">
           <div className="flex flex-col gap-6">
             <div className="flex flex-col gap-2">
               <span className="font-semibold text-primary text-xs uppercase tracking-wider">
@@ -136,8 +136,8 @@ export function TechnicalCredibility() {
 
             <div className="overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm">
               <Tabs defaultValue="agent" onValueChange={setActiveTab}>
-                <div className="flex items-center justify-between border-border/70 border-b bg-muted/40 px-3 py-2 sm:px-4">
-                  <TabsList className="h-8 bg-muted/80 p-0.5">
+                <div className="flex items-center justify-between gap-2 border-border/70 border-b bg-muted/40 px-3 py-2 sm:px-4">
+                  <TabsList className="h-8 min-w-0 justify-start overflow-x-auto bg-muted/80 p-0.5">
                     <TabsTrigger className="gap-1.5 px-3 text-xs" value="agent">
                       <FileCodeIcon className="size-3.5" />
                       agents/bright-smile-dental.yaml

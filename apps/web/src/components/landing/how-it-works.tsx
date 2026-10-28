@@ -72,7 +72,7 @@ export function HowItWorks() {
           </p>
         </div>
 
-        <div className="mt-12 grid gap-8 lg:grid-cols-3">
+        <div className="mt-12 grid grid-cols-1 gap-8 lg:grid-cols-3">
           {STEPS.map((item) => (
             <div
               className="flex flex-col justify-between rounded-xl border border-border/70 bg-card p-6 shadow-xs"
