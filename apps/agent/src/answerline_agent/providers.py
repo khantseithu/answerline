@@ -61,35 +61,78 @@ def _ollama_openai_url() -> str:
     return f"{str(EmbeddingSettings().ollama_base_url).rstrip('/')}/v1"
 
 
-def build_llm(ref: str, provider_keys: dict[str, str] | None = None) -> llm.LLM:
+def _cap(name: str, max_output_tokens: int | None) -> dict[str, int]:
+    return {name: max_output_tokens} if max_output_tokens else {}
+
+
+def _cap_openai_compatible(
+    instance: openai.LLM, max_output_tokens: int | None, *, field: str = "max_completion_tokens"
+) -> openai.LLM:
+    if max_output_tokens is None:
+        return instance
+    if field == "max_completion_tokens":
+        instance._opts.max_completion_tokens = max_output_tokens
+    else:
+        instance._opts.extra_body = {field: max_output_tokens}
+    return instance
+
+
+def build_llm(
+    ref: str,
+    provider_keys: dict[str, str] | None = None,
+    *,
+    max_output_tokens: int | None = None,
+) -> llm.LLM:
     m = parse_model_ref(ref)
     match m.provider:
         case "anthropic":
-            return anthropic.LLM(model=m.model, **_api_key("anthropic", provider_keys))
+            return anthropic.LLM(
+                model=m.model,
+                **_cap("max_tokens", max_output_tokens),
+                **_api_key("anthropic", provider_keys),
+            )
         case "openai":
-            return openai.LLM(model=m.model, **_api_key("openai", provider_keys))
+            return openai.LLM(
+                model=m.model,
+                **_cap("max_completion_tokens", max_output_tokens),
+                **_api_key("openai", provider_keys),
+            )
         case "google":
             return google.LLM(
                 model=m.model,
                 http_options=genai_types.HttpOptions(timeout=GOOGLE_REQUEST_TIMEOUT_MS),
+                **_cap("max_output_tokens", max_output_tokens),
                 **_api_key("google", provider_keys),
             )
         case "deepseek":
-            return openai.LLM.with_deepseek(model=m.model, **_api_key("deepseek", provider_keys))
+            return _cap_openai_compatible(
+                openai.LLM.with_deepseek(model=m.model, **_api_key("deepseek", provider_keys)),
+                max_output_tokens,
+                field="max_tokens",
+            )
         case "ollama":
-            return openai.LLM.with_ollama(model=m.model, base_url=_ollama_openai_url())
+            return _cap_openai_compatible(
+                openai.LLM.with_ollama(model=m.model, base_url=_ollama_openai_url()),
+                max_output_tokens,
+            )
         case "openrouter":
-            return openai.LLM.with_openrouter(
-                model=m.model, **_api_key("openrouter", provider_keys)
+            return _cap_openai_compatible(
+                openai.LLM.with_openrouter(model=m.model, **_api_key("openrouter", provider_keys)),
+                max_output_tokens,
             )
     raise ValueError(f"Unsupported LLM provider: {ref}")
 
 
-def build_llm_chain(models: Models, provider_keys: dict[str, str] | None = None) -> llm.LLM:
-    chain = [build_llm(models.llm.primary, provider_keys)]
+def build_llm_chain(
+    models: Models,
+    provider_keys: dict[str, str] | None = None,
+    *,
+    max_output_tokens: int | None = None,
+) -> llm.LLM:
+    chain = [build_llm(models.llm.primary, provider_keys, max_output_tokens=max_output_tokens)]
     for ref in models.llm.fallback:
         try:
-            chain.append(build_llm(ref, provider_keys))
+            chain.append(build_llm(ref, provider_keys, max_output_tokens=max_output_tokens))
         except Exception as error:
             logger.warning("skipping fallback LLM %s: %s", ref, error)
     if len(chain) == 1:

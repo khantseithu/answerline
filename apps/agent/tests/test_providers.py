@@ -15,6 +15,8 @@ from answerline_agent.providers import (
     build_tts,
 )
 from livekit.agents import APIConnectionError, llm
+from livekit.agents.types import APIConnectOptions
+from livekit.agents.utils import is_given
 
 STT = "deepgram/nova-3"
 TTS = "cartesia/sonic-3"
@@ -250,3 +252,86 @@ def test_build_reranker_needs_a_key_unless_self_hosted(monkeypatch):
         asyncio.run(scenario())
     monkeypatch.setenv("RERANK_BASE_URL", "http://tei:8080")
     assert asyncio.run(scenario()) is not None
+
+
+def _captured_chat_body(instance, base_url: str) -> dict:
+    bodies: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        bodies.append(json.loads(request.content))
+        return httpx.Response(500, json={"error": {"message": "stop"}})
+
+    instance._client = openai.AsyncClient(
+        api_key="key",
+        base_url=base_url,
+        max_retries=0,
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+    )
+
+    async def scenario():
+        stream = instance.chat(
+            chat_ctx=llm.ChatContext(items=[llm.ChatMessage(role="user", content=["Hello"])]),
+            conn_options=APIConnectOptions(max_retry=0, retry_interval=0, timeout=5),
+        )
+        try:
+            async for _ in stream:
+                pass
+        except Exception:
+            pass
+        finally:
+            await stream.aclose()
+
+    asyncio.run(scenario())
+    return bodies[0]
+
+
+KEYS = {"openai": "k", "openrouter": "k", "deepseek": "k"}
+
+
+@pytest.mark.parametrize(
+    ("ref", "field", "base_url"),
+    [
+        ("openai/gpt-4.1-mini", "max_completion_tokens", "https://api.openai.com/v1"),
+        ("openrouter/openai/gpt-4.1-mini", "max_completion_tokens", "https://openrouter.ai/api/v1"),
+        ("ollama/llama3.1", "max_completion_tokens", "http://localhost:11434/v1"),
+        ("deepseek/deepseek-chat", "max_tokens", "https://api.deepseek.com/v1"),
+    ],
+)
+def test_build_llm_sends_the_completion_budget_with_the_provider_field(ref, field, base_url):
+    bounded = _captured_chat_body(build_llm(ref, KEYS, max_output_tokens=777), base_url)
+    assert bounded[field] == 777
+
+    unbounded = _captured_chat_body(build_llm(ref, KEYS), base_url)
+    assert "max_tokens" not in unbounded
+    assert "max_completion_tokens" not in unbounded
+
+
+def test_build_llm_sets_the_native_budget_option_for_anthropic_and_google():
+    anthropic_llm = build_llm(
+        "anthropic/claude-sonnet-4-6", {"anthropic": "k"}, max_output_tokens=777
+    )
+    google_llm = build_llm("google/gemini-2.5-flash", {"google": "k"}, max_output_tokens=777)
+
+    assert anthropic_llm._opts.max_tokens == 777
+    assert google_llm._opts.max_output_tokens == 777
+
+
+def test_build_llm_leaves_provider_defaults_without_a_budget():
+    anthropic_llm = build_llm("anthropic/claude-sonnet-4-6", {"anthropic": "k"})
+    google_llm = build_llm("google/gemini-2.5-flash", {"google": "k"})
+
+    assert not is_given(anthropic_llm._opts.max_tokens)
+    assert not is_given(google_llm._opts.max_output_tokens)
+
+
+def test_build_llm_chain_bounds_every_model_in_the_chain(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
+    monkeypatch.setenv("OPENAI_API_KEY", "test")
+
+    chain = build_llm_chain(
+        models("anthropic/claude-sonnet-4-6", ["openai/gpt-4.1-mini"]), max_output_tokens=777
+    )
+
+    primary, fallback = chain._llm_instances
+    assert primary._opts.max_tokens == 777
+    assert fallback._opts.max_completion_tokens == 777

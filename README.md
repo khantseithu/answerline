@@ -225,7 +225,7 @@ Audio mode also checks how the agent sounds. Every agent turn, including the gre
 
 Each case also records per-turn stage latency (`stageLatency`, milliseconds): LLM time to first token and total LLM time in both modes, plus STT recognition time and TTS time to first byte in audio mode. Caller synthesis is not an agent stage. The CLI prints a `stage latency` line with run-wide p50/p95 per stage (nearest-rank, across all turns of all cases), and the dashboard run page and run comparison show the same numbers next to the existing latency. `latencyMs` and the average latency are unchanged.
 
-`judge` rubrics are graded by `--judge-model` (or `EVAL_JUDGE_MODEL`), falling back to the agent's LLM. Pin a judge when comparing models with `--model`, so each candidate is not grading its own answers.
+`judge` rubrics are graded by `--judge-model` (or `EVAL_JUDGE_MODEL`), falling back to the agent's LLM. Pin a judge when comparing models with `--model`, so each candidate is not grading its own answers. Eval model requests, for both the agent and the judge, carry an explicit completion budget (`EVAL_MAX_COMPLETION_TOKENS`, default 2048) so providers do not reserve a huge default; live calls are unchanged.
 
 To run the same CLI in Docker, put your model provider keys in `.env`, then build the worker and prepare the Compose database:
 

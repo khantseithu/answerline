@@ -596,7 +596,9 @@ def test_caller_audio_is_ignored_in_text_mode(monkeypatch):
 def test_run_suite_passes_caller_audio_to_the_runner(monkeypatch):
     stt_provider = _FakeSTT()
     built = _stub_caller_audio_providers(monkeypatch, stt_provider)
-    monkeypatch.setattr(eval_runner, "build_llm_chain", lambda _models: _TextLLM())
+    monkeypatch.setattr(
+        eval_runner, "build_llm_chain", lambda _models, *_args, **_kwargs: _TextLLM()
+    )
     payload = {
         "agent": CONFIG,
         "callerAudio": {
@@ -633,7 +635,9 @@ def test_audio_models_default_to_the_agent_config_without_overrides(monkeypatch)
 
 def test_run_suite_passes_overrides_and_aggregates_wer(monkeypatch):
     built = _stub_audio_providers(monkeypatch, _FakeSTT(["book a tuesday", "hello"]))
-    monkeypatch.setattr(eval_runner, "build_llm_chain", lambda _models: _TextLLM())
+    monkeypatch.setattr(
+        eval_runner, "build_llm_chain", lambda _models, *_args, **_kwargs: _TextLLM()
+    )
     payload = {
         "agent": CONFIG,
         "mode": "audio",
@@ -652,7 +656,9 @@ def test_run_suite_passes_overrides_and_aggregates_wer(monkeypatch):
 
 
 def test_run_suite_reports_null_wer_in_text_mode(monkeypatch):
-    monkeypatch.setattr(eval_runner, "build_llm_chain", lambda _models: _TextLLM())
+    monkeypatch.setattr(
+        eval_runner, "build_llm_chain", lambda _models, *_args, **_kwargs: _TextLLM()
+    )
     payload = {"agent": CONFIG, "suite": [{"name": "text", "caller": "Hi", "expect": {}}]}
     output = asyncio.run(run_suite(payload))
     assert output["results"][0]["wer"] is None
@@ -695,7 +701,9 @@ def test_audio_eval_records_stt_llm_and_tts_stage_latency(monkeypatch):
 
 
 def test_run_suite_output_with_stage_latency_matches_wire_schema(monkeypatch):
-    monkeypatch.setattr(eval_runner, "build_llm_chain", lambda _models: _MetricsLLM())
+    monkeypatch.setattr(
+        eval_runner, "build_llm_chain", lambda _models, *_args, **_kwargs: _MetricsLLM()
+    )
     output = asyncio.run(
         run_suite(
             {
@@ -864,7 +872,9 @@ def test_run_suite_validates_output_and_keeps_mock_tools_off_database(monkeypatc
 
     monkeypatch.setattr(eval_runner, "open_booking_provider", forbidden)
     monkeypatch.setattr(eval_runner, "open_knowledge_tools", forbidden)
-    monkeypatch.setattr(eval_runner, "build_llm_chain", lambda _models: _TextLLM())
+    monkeypatch.setattr(
+        eval_runner, "build_llm_chain", lambda _models, *_args, **_kwargs: _TextLLM()
+    )
     monkeypatch.setenv("DATABASE_URL", "postgresql://unused")
     agent = {
         **CONFIG,
@@ -961,7 +971,7 @@ JUDGE_PASS = '{"passed": true, "reason": "Greets the caller"}'
 def _record_judge_builds(monkeypatch) -> list[str]:
     refs: list[str] = []
 
-    def build(ref, _provider_keys=None):
+    def build(ref, _provider_keys=None, **_kwargs):
         refs.append(ref)
         return _JudgeLLM(JUDGE_PASS)
 
@@ -1011,7 +1021,9 @@ def test_agent_llm_still_judges_when_no_judge_model_is_set(monkeypatch):
 
 def test_run_suite_passes_the_payload_judge_model(monkeypatch):
     refs = _record_judge_builds(monkeypatch)
-    monkeypatch.setattr(eval_runner, "build_llm_chain", lambda _models: _TextLLM())
+    monkeypatch.setattr(
+        eval_runner, "build_llm_chain", lambda _models, *_args, **_kwargs: _TextLLM()
+    )
     payload = {"agent": CONFIG, "judgeModel": "anthropic/claude-sonnet-4-5", "suite": [JUDGE_CASE]}
     output = asyncio.run(run_suite(payload))
     assert refs == ["anthropic/claude-sonnet-4-5"]
@@ -1205,7 +1217,9 @@ def test_run_suite_aggregates_pronunciation_score_across_cases(monkeypatch):
     reference = _FakeSTT(["hello", "call two oh two five five five zero one four nine"])
     _stub_pronunciation_providers(monkeypatch, _FakeSTT(["number"]), reference)
     monkeypatch.setattr(
-        eval_runner, "build_llm_chain", lambda _models: _AgentSpeechLLM("Call 202-555-0147.")
+        eval_runner,
+        "build_llm_chain",
+        lambda _models, *_args, **_kwargs: _AgentSpeechLLM("Call 202-555-0147."),
     )
     payload = {
         "agent": CONFIG,
@@ -1223,8 +1237,57 @@ def test_run_suite_aggregates_pronunciation_score_across_cases(monkeypatch):
 
 
 def test_run_suite_pronunciation_score_is_null_in_text_mode(monkeypatch):
-    monkeypatch.setattr(eval_runner, "build_llm_chain", lambda _models: _TextLLM())
+    monkeypatch.setattr(
+        eval_runner, "build_llm_chain", lambda _models, *_args, **_kwargs: _TextLLM()
+    )
     payload = {"agent": CONFIG, "suite": [{"name": "text", "caller": "Hi", "expect": {}}]}
     output = asyncio.run(run_suite(payload))
     assert output["aggregate"]["pronunciationScore"] is None
     assert output["results"][0]["pronunciation"] is None
+
+
+def test_eval_models_get_a_bounded_completion_budget_by_default(monkeypatch):
+    monkeypatch.delenv("EVAL_MAX_COMPLETION_TOKENS", raising=False)
+    chain_budgets: list[int | None] = []
+    judge_budgets: list[int | None] = []
+
+    def chain(_models, _provider_keys=None, *, max_output_tokens=None):
+        chain_budgets.append(max_output_tokens)
+        return _TextLLM()
+
+    def judge(_ref, _provider_keys=None, *, max_output_tokens=None):
+        judge_budgets.append(max_output_tokens)
+        return _JudgeLLM(JUDGE_PASS)
+
+    monkeypatch.setattr(eval_runner, "build_llm_chain", chain)
+    monkeypatch.setattr(eval_runner, "build_llm", judge)
+    asyncio.run(run_case(_config(), JUDGE_CASE, judge_model="anthropic/claude-sonnet-4-5"))
+    assert chain_budgets == [2048]
+    assert judge_budgets == [2048]
+
+
+def test_eval_completion_budget_follows_the_setting(monkeypatch):
+    chain_budgets: list[int | None] = []
+    judge_budgets: list[int | None] = []
+
+    def chain(_models, _provider_keys=None, *, max_output_tokens=None):
+        chain_budgets.append(max_output_tokens)
+        return _TextLLM()
+
+    def judge(_ref, _provider_keys=None, *, max_output_tokens=None):
+        judge_budgets.append(max_output_tokens)
+        return _JudgeLLM(JUDGE_PASS)
+
+    monkeypatch.setattr(eval_runner, "build_llm_chain", chain)
+    monkeypatch.setattr(eval_runner, "build_llm", judge)
+    asyncio.run(
+        run_case(
+            _config(),
+            JUDGE_CASE,
+            model_override="openrouter/openai/gpt-4.1-mini",
+            judge_model="anthropic/claude-sonnet-4-5",
+            settings=Settings(eval_max_completion_tokens=300),
+        )
+    )
+    assert chain_budgets == [300]
+    assert judge_budgets == [300]

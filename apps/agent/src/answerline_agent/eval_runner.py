@@ -460,12 +460,11 @@ async def run_case(
         models.stt = stt_override
     if tts_override:
         models.tts = tts_override
-    provider = llm_provider or (
-        build_llm_chain(models, provider_keys)
-        if provider_keys is not None
-        else build_llm_chain(models)
-    )
     runtime_settings = settings or Settings()
+    max_output_tokens = runtime_settings.eval_max_completion_tokens
+    provider = llm_provider or build_llm_chain(
+        models, provider_keys, max_output_tokens=max_output_tokens
+    )
     after_hours = AfterHours(
         config.hours, config.name, runtime_settings, localize=localizes_messages(config)
     )
@@ -658,7 +657,9 @@ async def run_case(
         if case.get("expect", {}).get("judge"):
             judge_ref = judge_model or runtime_settings.eval_judge_model
             judge = judge_provider or (
-                build_llm(judge_ref, provider_keys) if judge_ref else provider
+                build_llm(judge_ref, provider_keys, max_output_tokens=max_output_tokens)
+                if judge_ref
+                else provider
             )
             passed, reason, judge_usage = await _judge(
                 judge,
