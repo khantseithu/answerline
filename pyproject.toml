@@ -2,7 +2,7 @@
 members = ["apps/agent", "packages/llm/python"]
 
 [dependency-groups]
-dev = ["jsonschema>=4.26.0", "pytest>=9.1.1", "ruff>=0.17.1"]
+dev = ["jsonschema>=4.26.0", "pytest>=9.1.1", "ruff>=0.17.2"]
 
 [tool.ruff]
 line-length = 100
