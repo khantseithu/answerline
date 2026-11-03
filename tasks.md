@@ -288,6 +288,7 @@ Roadmap: *Multilingual agents*
 - [ ] 2-minute demo video and `docs/assets/demo-thumbnail.png`
 - [x] 45-second launch preview video in the README, captioned as the v1 vision (#202); inline GitHub video player (#214)
 - [ ] Docs: `architecture.md`, `telephony.md`, deploy guides, configuration reference, tools reference
+- [x] Bring README claims in line with shipped features (#356)
 - [ ] Make repo public, add topics, social preview image
 - [ ] Security: dependency audit, secret scanning, `SECURITY.md`
 
