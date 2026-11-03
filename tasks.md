@@ -203,7 +203,7 @@ Roadmap: *Docker Compose and Coolify deploys*
 - [x] `.env.example` complete and documented (#94)
 - [x] Recording storage: Cloudflare R2 as the primary target, with an adapter for other S3-compatible providers ([#153](https://github.com/khantseithu/answerline/issues/153))
 - [x] Images published to GHCR on tag (multi-arch) (#95)
-- [ ] `docs/deploy/docker.md`
+- [x] `docs/deploy/docker.md` (#96)
 - [ ] Coolify template + `docs/deploy/coolify.md`
 - [x] Backup/restore notes for Postgres and recordings (#98)
 
