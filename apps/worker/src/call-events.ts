@@ -21,7 +21,6 @@ import {
 } from "@answerline/shared";
 import type { Job, Queue } from "bullmq";
 import { and, eq } from "drizzle-orm";
-import { z } from "zod";
 import { calculateCallCost, parseCostPrices } from "./costs.ts";
 import { enqueueWebhookEvent } from "./webhooks.ts";
 
@@ -34,7 +33,6 @@ export interface PersistOptions {
 
 const POST_CALL_DELAY_MS = 5000;
 const TRAILING_SLASH = /\/$/;
-const bookingToolResultSchema = z.object({ booking_id: z.uuid(), status: z.literal("confirmed") });
 
 interface Ref {
   agentId: string;
@@ -231,6 +229,14 @@ async function handleVoicemail(
     .onConflictDoNothing({ target: voicemails.id });
 }
 
+async function handleBooking(
+  db: Database,
+  event: Extract<CallEventJob, { type: "booking.created" }>,
+  ref: Ref
+) {
+  await ensureCallId(db, event, ref, new Date(event.created_at), "booking");
+}
+
 async function handleLead(
   db: Database,
   event: Extract<CallEventJob, { type: "lead.created" }>,
@@ -274,6 +280,9 @@ export async function persistCallEvent(
     case "voicemail.created":
       await handleVoicemail(db, event, ref);
       break;
+    case "booking.created":
+      await handleBooking(db, event, ref);
+      break;
     case "call.ended":
       await handleEnded(db, event, ref, options);
       break;
@@ -291,7 +300,7 @@ export async function persistCallEvent(
     if (call) {
       const webhookEvents = [
         toWebhookEvent(event, call.id, options.webhookBaseUrl),
-        event.type === "call.tool"
+        event.type === "booking.created"
           ? await toBookingWebhookEvent(db, event, call.id, ref)
           : undefined,
       ].filter((webhookEvent): webhookEvent is WebhookEvent => webhookEvent !== undefined);
@@ -364,17 +373,10 @@ export function toWebhookEvent(
 
 async function toBookingWebhookEvent(
   db: Database,
-  event: Extract<CallEventJob, { type: "call.tool" }>,
+  event: Extract<CallEventJob, { type: "booking.created" }>,
   callId: string,
   ref: Ref
 ): Promise<WebhookEvent | undefined> {
-  if (event.name !== "confirm_booking" || event.status !== "ok") {
-    return;
-  }
-  const result = bookingToolResultSchema.safeParse(event.result);
-  if (!result.success) {
-    return;
-  }
   const booking = await db.transaction(async (tx) => {
     const [row] = await tx
       .select({
@@ -387,7 +389,7 @@ async function toBookingWebhookEvent(
       .from(bookings)
       .where(
         and(
-          eq(bookings.id, result.data.booking_id),
+          eq(bookings.id, event.booking_id),
           eq(bookings.agentId, ref.agentId),
           eq(bookings.status, "confirmed"),
           eq(bookings.tenantId, ref.tenantId)
@@ -403,7 +405,7 @@ async function toBookingWebhookEvent(
         .set({ callId })
         .where(
           and(
-            eq(bookings.id, result.data.booking_id),
+            eq(bookings.id, event.booking_id),
             eq(bookings.agentId, ref.agentId),
             eq(bookings.tenantId, ref.tenantId)
           )
@@ -431,7 +433,7 @@ async function toBookingWebhookEvent(
       ...(data.phone ? { phone: data.phone } : {}),
       starts_at: data.starts_at,
     },
-    id: `booking_${result.data.booking_id}_created`,
+    id: `booking_${event.booking_id}_created`,
     type: "booking.created",
   };
 }

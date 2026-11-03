@@ -3,6 +3,7 @@ import time
 from contextlib import nullcontext
 from datetime import datetime, timedelta
 from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -13,6 +14,8 @@ from answerline_agent.booking import (
     SlotUnavailableError,
     build_booking_tools,
 )
+from answerline_agent.call_events import BookingCreated, call_event_job_id, call_event_payload
+from answerline_agent.capture_lead import LeadCaptureContext
 from answerline_agent.settings import Settings
 from answerline_agent.tool_policy import UNAVAILABLE
 from livekit.agents import ToolError, llm
@@ -73,11 +76,28 @@ def frozen_now(monkeypatch):
     monkeypatch.setattr(booking, "datetime", FrozenDatetime)
 
 
-def tools(provider):
+def tools(provider, call=None):
     check, book, confirm, cancel = build_booking_tools(
-        provider, "America/New_York", Settings(tool_timeout_seconds=1, tool_retries=1)
+        provider, "America/New_York", Settings(tool_timeout_seconds=1, tool_retries=1), call
     )
     return check, book, confirm, cancel
+
+
+BOOKING_ID = "5c0e7a38-1d4b-4f62-8a93-6b2d9e4f1c07"
+
+
+class UuidProvider(FakeProvider):
+    async def create(self, start, attendee):
+        await super().create(start, attendee)
+        return Booking(id=BOOKING_ID, start=start, end=start + timedelta(minutes=30))
+
+
+def call_context(publish=None):
+    publisher = SimpleNamespace(publish=publish or MagicMock(), publish_confirmed=AsyncMock())
+    context = LeadCaptureContext(
+        publisher=publisher, tenant="default", agent="bright-smile-dental", room_name="room-1"
+    )
+    return context, publisher
 
 
 def slot(hour, day=24):
@@ -269,3 +289,75 @@ def test_create_is_not_retried_after_transient_failure():
         asyncio.run(book_and_confirm(provider))
     assert str(caught.value) == UNAVAILABLE
     assert len(provider.created) == 1
+
+
+async def book_and_confirm_with(provider, call):
+    _, book, confirm, _ = tools(provider, call)
+    context = FakeContext()
+    prepared = await book(
+        context, "2026-10-24T09:00:00", "\ufeffAlex ", " +15555550123", "Cleaning"
+    )
+    context.says()
+    return await confirm(context, prepared["confirmation_id"])
+
+
+def test_confirmed_booking_emits_booking_created_without_notes():
+    call, publisher = call_context()
+    result = asyncio.run(book_and_confirm_with(UuidProvider(), call))
+    assert result["booking_id"] == BOOKING_ID
+    publisher.publish.assert_called_once()
+    publisher.publish_confirmed.assert_not_called()
+    event = publisher.publish.call_args.args[0]
+    assert isinstance(event, BookingCreated)
+    payload = call_event_payload(event)
+    assert payload.pop("created_at")
+    assert payload == {
+        "type": "booking.created",
+        "tenant": "default",
+        "agent": "bright-smile-dental",
+        "room_name": "room-1",
+        "booking_id": BOOKING_ID,
+        "name": "Alex",
+        "phone": "+15555550123",
+        "starts_at": "2026-10-24T09:00:00-04:00",
+        "ends_at": "2026-10-24T09:30:00-04:00",
+    }
+    assert call_event_job_id(event) == f"room-1_booking.created_{BOOKING_ID}"
+
+
+@pytest.mark.parametrize("error", [SlotUnavailableError(), ConnectionError(), RuntimeError("boom")])
+def test_failed_booking_emits_nothing(error):
+    call, publisher = call_context()
+    with pytest.raises(ToolError):
+        asyncio.run(book_and_confirm_with(UuidProvider(fail_create=error), call))
+    publisher.publish.assert_not_called()
+    publisher.publish_confirmed.assert_not_called()
+
+
+def test_unconfirmed_booking_emits_nothing():
+    async def scenario():
+        call, publisher = call_context()
+        _, book, confirm, _ = tools(UuidProvider(), call)
+        context = FakeContext()
+        prepared = await book(context, "2026-10-24T09:00:00", "Alex", "+15555550123")
+        with pytest.raises(ToolError):
+            await confirm(context, prepared["confirmation_id"])
+        with pytest.raises(ToolError):
+            await confirm(context, "c99")
+        publisher.publish.assert_not_called()
+
+    asyncio.run(scenario())
+
+
+def test_event_failure_does_not_fail_a_stored_booking():
+    call, publisher = call_context(MagicMock(side_effect=RuntimeError("redis down")))
+    result = asyncio.run(book_and_confirm_with(UuidProvider(), call))
+    assert result["status"] == "confirmed"
+    publisher.publish.assert_called_once()
+
+
+def test_non_uuid_booking_id_is_not_emitted_but_still_confirms():
+    call, publisher = call_context()
+    result = asyncio.run(book_and_confirm_with(FakeProvider(), call))
+    assert result["booking_id"] == "b1"
+    publisher.publish.assert_not_called()

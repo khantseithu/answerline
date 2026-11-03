@@ -1,0 +1,12 @@
+{
+  "type": "booking.created",
+  "room_name": "call-0b9c1c3e-2f4a-4e8e-9d3a-5f1f2b7c9a10",
+  "tenant": "default",
+  "agent": "bright-smile-dental",
+  "booking_id": "not-a-uuid",
+  "starts_at": "2026-10-27T14:00:00.000Z",
+  "ends_at": "2026-10-27T14:30:00.000Z",
+  "name": "Alex Morgan",
+  "phone": "+15555550123",
+  "created_at": "2026-10-24T23:05:00.000Z"
+}

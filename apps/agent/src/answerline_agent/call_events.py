@@ -151,7 +151,21 @@ class VoicemailCreated(CallRef):
     created_at: Timestamp
 
 
-CallEventModel = CallStarted | CallTurn | CallTool | CallEnded | LeadCreated | VoicemailCreated
+class BookingCreated(CallRef):
+    type: Literal["booking.created"] = "booking.created"
+    booking_id: UUID
+    name: Annotated[str, StringConstraints(min_length=1, max_length=200, pattern=LEAD_TEXT_PATTERN)]
+    phone: Annotated[
+        str, StringConstraints(min_length=1, max_length=100, pattern=LEAD_TEXT_PATTERN)
+    ]
+    starts_at: Timestamp
+    ends_at: Timestamp
+    created_at: Timestamp
+
+
+CallEventModel = (
+    CallStarted | CallTurn | CallTool | CallEnded | LeadCreated | VoicemailCreated | BookingCreated
+)
 CallEvent = Annotated[CallEventModel, Field(discriminator="type")]
 
 ROLE_MAP: dict[str, Literal["caller", "agent"]] = {"user": "caller", "assistant": "agent"}
@@ -162,6 +176,8 @@ def call_event_job_id(event: CallEventModel) -> str:
         return f"{event.room_name}_{event.type}_{event.lead_id}"
     if isinstance(event, VoicemailCreated):
         return f"{event.room_name}_{event.type}_{event.voicemail_id}"
+    if isinstance(event, BookingCreated):
+        return f"{event.room_name}_{event.type}_{event.booking_id}"
     if isinstance(event, CallTurn | CallTool):
         return f"{event.room_name}_{event.type}_{event.seq}"
     return f"{event.room_name}_{event.type}"

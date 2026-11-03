@@ -53,7 +53,9 @@ def build_configured_tools(
                     spec.provider,
                 )
                 continue
-            tools.extend(build_booking_tools(booking, config.hours.timezone, settings))
+            tools.extend(
+                build_booking_tools(booking, config.hours.timezone, settings, lead_context)
+            )
         elif isinstance(spec, TransferCallTool):
             if any(tool.id == spec.builtin for tool in tools):
                 continue

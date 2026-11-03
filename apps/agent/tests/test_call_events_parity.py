@@ -100,6 +100,21 @@ def test_lead_payload_has_stable_distinct_job_ids():
     jsonschema.validate(payload, JSON_SCHEMA)
 
 
+def test_booking_payload_has_stable_distinct_job_ids():
+    data = json.loads((FIXTURES / "valid/booking-created.json").read_text())
+    event = ADAPTER.validate_python(data)
+    payload = call_event_payload(event)
+    assert payload == data
+    assert call_event_job_id(event) == f"{data['room_name']}_booking.created_{data['booking_id']}"
+    another = ADAPTER.validate_python(
+        {**data, "booking_id": "41e21eda-93ce-4fd6-b161-7b1ed70be4a9"}
+    )
+    assert call_event_job_id(another) != call_event_job_id(event)
+    upper = ADAPTER.validate_python({**data, "booking_id": data["booking_id"].upper()})
+    assert call_event_job_id(upper) == call_event_job_id(event)
+    jsonschema.validate(payload, JSON_SCHEMA)
+
+
 def test_voicemail_payload_has_stable_distinct_job_ids():
     data = json.loads((FIXTURES / "valid/voicemail-created.json").read_text())
     event = ADAPTER.validate_python(data)

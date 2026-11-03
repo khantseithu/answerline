@@ -94,6 +94,25 @@ test("lead ids are canonical across producer languages", async () => {
   assert.equal(callEventJobId(upper), callEventJobId(lead));
 });
 
+test("booking event ids distinguish bookings and stay stable for retries", async () => {
+  const data = JSON.parse(
+    await readFile(new URL("valid/booking-created.json", fixtures), "utf8")
+  ) as unknown;
+  const booking = callEventJob.parse(data);
+  const expected = `${booking.room_name}_booking.created_5c0e7a38-1d4b-4f62-8a93-6b2d9e4f1c07`;
+  assert.equal(callEventJobId(booking), expected);
+  assert.equal(
+    callEventJobId(
+      callEventJob.parse({ ...booking, booking_id: "5C0E7A38-1D4B-4F62-8A93-6B2D9E4F1C07" })
+    ),
+    expected
+  );
+  assert.notEqual(
+    callEventJobId(callEventJob.parse({ ...booking, booking_id: crypto.randomUUID() })),
+    expected
+  );
+});
+
 test("voicemail event ids distinguish voicemails and stay stable for retries", async () => {
   const data = JSON.parse(
     await readFile(new URL("valid/voicemail-created.json", fixtures), "utf8")

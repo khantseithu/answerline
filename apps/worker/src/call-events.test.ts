@@ -200,53 +200,74 @@ test("call.tool stores args, result, status, and latency", { skip }, () =>
   })
 );
 
-test("confirmed booking tool results enqueue one stable booking webhook", { skip }, () =>
-  withTenant(async ({ base, started, tool }, db) => {
+async function seedBookingWebhook(
+  db: ReturnType<typeof createDb>,
+  call: { agentId: string; tenantId: string },
+  status: "confirmed" | "cancelled" = "confirmed"
+) {
+  const bookingId = crypto.randomUUID();
+  const startsAt = new Date("2026-10-27T10:00:00.000Z");
+  await db.insert(bookings).values({
+    agentId: call.agentId,
+    callId: null,
+    endsAt: new Date("2026-10-27T10:30:00.000Z"),
+    id: bookingId,
+    name: "Alex Caller",
+    phone: "+15555550123",
+    provider: "answerline",
+    startsAt,
+    status,
+    tenantId: call.tenantId,
+  });
+  const [endpoint] = await db
+    .insert(webhookEndpoints)
+    .values({
+      encryptedSecret: "encrypted",
+      events: ["booking.created"],
+      name: "Booking CRM",
+      tenantId: call.tenantId,
+      url: "https://hooks.example.test/bookings",
+    })
+    .returning();
+  assert.ok(endpoint);
+  const queued: Array<{ data: WebhookDeliveryJob; options: Record<string, unknown> }> = [];
+  const webhookQueue = {
+    add: (_name: string, data: WebhookDeliveryJob, options: Record<string, unknown>) => {
+      queued.push({ data, options });
+      return Promise.resolve({});
+    },
+  } as unknown as BullQueue<WebhookDeliveryJob>;
+  return { bookingId, endpoint, queued, startsAt, webhookQueue };
+}
+
+function bookingCreated(
+  base: { agent: string; room_name: string; tenant: string },
+  bookingId: string,
+  startsAt: Date
+): EventOf<"booking.created"> {
+  return {
+    ...base,
+    booking_id: bookingId,
+    created_at: "2026-10-24T23:05:00.000Z",
+    ends_at: "2026-10-27T10:30:00.000Z",
+    name: "Alex Caller",
+    phone: "+15555550123",
+    starts_at: startsAt.toISOString(),
+    type: "booking.created",
+  };
+}
+
+test("booking.created enqueues one stable booking webhook and links the call", { skip }, () =>
+  withTenant(async ({ base, started }, db) => {
     await persistCallEvent(db, started);
     const call = await getCall(db, base.room_name);
-    const bookingId = crypto.randomUUID();
-    const startsAt = new Date("2026-10-27T10:00:00.000Z");
-    await db.insert(bookings).values({
-      agentId: call.agentId,
-      callId: null,
-      id: bookingId,
-      name: "Alex Caller",
-      phone: "+15555550123",
-      provider: "answerline",
-      startsAt,
-      tenantId: call.tenantId,
-    });
-    const [endpoint] = await db
-      .insert(webhookEndpoints)
-      .values({
-        encryptedSecret: "encrypted",
-        events: ["booking.created"],
-        name: "Booking CRM",
-        tenantId: call.tenantId,
-        url: "https://hooks.example.test/bookings",
-      })
-      .returning();
-    assert.ok(endpoint);
-
-    const queued: Array<{ data: WebhookDeliveryJob; options: Record<string, unknown> }> = [];
-    const webhookQueue = {
-      add: (_name: string, data: WebhookDeliveryJob, options: Record<string, unknown>) => {
-        queued.push({ data, options });
-        return Promise.resolve({});
-      },
-    } as unknown as BullQueue<WebhookDeliveryJob>;
-    const confirmation = tool(1, {
-      args: { confirmation_id: "c1" },
-      name: "confirm_booking",
-      result: {
-        booking_id: bookingId,
-        end: "2026-10-27T10:30:00.000Z",
-        start: startsAt.toISOString(),
-        status: "confirmed",
-      },
-    });
-    await persistCallEvent(db, confirmation, { webhookQueue });
-    await persistCallEvent(db, confirmation, { webhookQueue });
+    const { bookingId, endpoint, queued, startsAt, webhookQueue } = await seedBookingWebhook(
+      db,
+      call
+    );
+    const event = bookingCreated(base, bookingId, startsAt);
+    await persistCallEvent(db, event, { webhookQueue });
+    await persistCallEvent(db, event, { webhookQueue });
 
     const [delivery] = await db
       .select()
@@ -266,6 +287,67 @@ test("confirmed booking tool results enqueue one stable booking webhook", { skip
     assert.equal(queued[0]?.options.jobId, queued[1]?.options.jobId);
     const [savedBooking] = await db.select().from(bookings).where(eq(bookings.id, bookingId));
     assert.equal(savedBooking?.callId, call.id);
+  })
+);
+
+test("booking.created before call.started creates the call and links the booking", { skip }, () =>
+  withTenant(async ({ base, started }, db) => {
+    await persistCallEvent(db, started);
+    const call = await getCall(db, base.room_name);
+    const { bookingId, startsAt, webhookQueue } = await seedBookingWebhook(db, call);
+    const early = { ...base, room_name: `${base.room_name}-early` };
+    await persistCallEvent(db, bookingCreated(early, bookingId, startsAt), { webhookQueue });
+    const earlyCall = await getCall(db, early.room_name);
+    const [row] = await db.select().from(bookings).where(eq(bookings.id, bookingId));
+    assert.equal(row?.callId, earlyCall.id);
+  })
+);
+
+test("booking.created for a cancelled or unknown booking enqueues no webhook", { skip }, () =>
+  withTenant(async ({ base, started }, db) => {
+    await persistCallEvent(db, started);
+    const call = await getCall(db, base.room_name);
+    const { bookingId, endpoint, startsAt, webhookQueue, queued } = await seedBookingWebhook(
+      db,
+      call,
+      "cancelled"
+    );
+    await persistCallEvent(db, bookingCreated(base, bookingId, startsAt), { webhookQueue });
+    await persistCallEvent(db, bookingCreated(base, crypto.randomUUID(), startsAt), {
+      webhookQueue,
+    });
+    assert.deepEqual(
+      await db
+        .select()
+        .from(webhookDeliveries)
+        .where(eq(webhookDeliveries.endpointId, endpoint.id)),
+      []
+    );
+    assert.equal(queued.length, 0);
+  })
+);
+
+test("a confirm_booking tool result alone does not enqueue a booking webhook", { skip }, () =>
+  withTenant(async ({ base, started, tool }, db) => {
+    await persistCallEvent(db, started);
+    const call = await getCall(db, base.room_name);
+    const { bookingId, endpoint, startsAt, webhookQueue } = await seedBookingWebhook(db, call);
+    await persistCallEvent(
+      db,
+      tool(1, {
+        name: "confirm_booking",
+        result: { booking_id: bookingId, status: "confirmed" },
+      }),
+      { webhookQueue }
+    );
+    assert.equal(startsAt.toISOString(), "2026-10-27T10:00:00.000Z");
+    assert.deepEqual(
+      await db
+        .select()
+        .from(webhookDeliveries)
+        .where(eq(webhookDeliveries.endpointId, endpoint.id)),
+      []
+    );
   })
 );
 

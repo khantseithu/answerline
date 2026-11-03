@@ -54,6 +54,9 @@ def _validate_wire_payload(payload: Any, schema_name: str) -> None:
 
 
 class _MockPublisher:
+    def publish(self, event: object) -> None:
+        return None
+
     async def publish_confirmed(self, event: object) -> None:
         return None
 
@@ -63,7 +66,7 @@ class _MockBooking:
         return []
 
     async def create(self, start, attendee) -> Booking:
-        return Booking(id="eval-booking", start=start, end=start)
+        return Booking(id="00000000-0000-4000-8000-000000000000", start=start, end=start)
 
     async def cancel(self, booking_id: str) -> None:
         return None
