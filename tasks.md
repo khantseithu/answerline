@@ -304,6 +304,8 @@ Roadmap: *Multilingual agents*
 - M10 outbound telephony: use one deployment-configured LiveKit stored outbound trunk ID shared across workspaces; carrier credentials stay in LiveKit (#112).
 
 - Default agent primary LLM: `openrouter/recursive/flint-v1.0:free` through OpenRouter (replaces Google Gemini 3.8 Flash); retain the existing fallback chain (#216, #222)
+- Example agent LLM fallback: `openai/gpt-4.1-mini` then pinned `google/gemini-3.8-flash` (`gemini-2.5-flash` is no longer available to new users). Google LLM requests use a 10s deadline because Gemini rejects shorter ones; other providers keep the 5s fallback attempt timeout (#220, #311)
+- After-hours voicemail greeting makes no callback promise: "Thanks for calling {name}. We're closed right now, but I can take a message for the team." (#268)
 
 - Brand: adopt the Signal “a” identity selected from the logo concepts; keep outlined mark, wordmark, light/dark variants, and app icons in `brand/` (#192)
 - ORM and migrations: Drizzle with postgres.js (#127)
