@@ -1,4 +1,4 @@
-FROM node:24-bookworm-slim AS node
+FROM node:26-bookworm-slim AS node
 
 FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
 
