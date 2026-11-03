@@ -19,14 +19,14 @@
   },
   "dependencies": {
     "@answerline/shared": "workspace:*",
-    "better-auth": "^1.7.12",
+    "better-auth": "^1.7.14",
     "dotenv": "^18.0.9",
     "drizzle-orm": "^0.45.4",
     "postgres": "^3.4.9",
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@better-auth/drizzle-adapter": "^1.7.12",
+    "@better-auth/drizzle-adapter": "^1.7.14",
     "@types/node": "^24",
     "drizzle-kit": "^0.31.11",
     "tsx": "^4.23.15",
