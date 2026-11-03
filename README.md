@@ -7,9 +7,8 @@
 > Answerline is an open alternative to hosted voice-agent platforms. You bring the model providers and the phone number; it handles the real-time voice pipeline, tools, call logs, evals, and deployment.
 
 > [!NOTE]
-> **Status: early development.** In-browser voice calls with a sample agent work today: per-call agent config, turn detection, LLM fallback, call logs and transcripts saved to Postgres, and opt-in recording. Everything marked *(planned)* below is on the [roadmap](tasks.md). See [docs/architecture.md](docs/architecture.md) for what is built.
+> **Status: early development.** Web and SIP calls, knowledge base, booking, the dashboard, evals, and the REST API work today, but expect rough edges and breaking changes before 1.0. Everything marked *(planned)* below is on the [roadmap](tasks.md). See [docs/architecture.md](docs/architecture.md) for what is built.
 
-<!-- TODO: 2-minute demo video (#123) -->
 https://github.com/user-attachments/assets/bfd76f0d-6233-4cc8-86b2-7ab52737ddd0
 
 <p align="center">
@@ -55,20 +54,19 @@ Answerline gives you the same building blocks as open source:
 - LLM routing with automatic fallback across Anthropic, OpenAI, Google Gemini, DeepSeek, OpenRouter, and local models via Ollama
 
 **Operations**
-- Every call and transcript logged to Postgres; dashboard with call list, transcripts, recordings, tool calls, latency, and cost per call *(planned)*
-- Evals: scripted test calls replayed against your agent, scored for accuracy and tool use *(planned)*
-- OpenTelemetry tracing from incoming call to every model and tool call *(planned)*
-- REST API and webhooks (`call.started`, `call.ended`, `booking.created`) for your own systems *(planned)*
-- Multi-tenant: run separate agents for multiple businesses from one deployment *(planned)*
+- Every call and transcript logged to Postgres; dashboard with call list, transcripts, recordings, tool calls, latency, and cost per call
+- Evals: scripted test calls replayed against your agent, scored for accuracy and tool use
+- OpenTelemetry tracing from incoming call to every model and tool call (see [docs/observability.md](docs/observability.md))
+- REST API and webhooks (`call.started`, `call.ended`, `booking.created`) for your own systems (see [docs/webhooks.md](docs/webhooks.md))
+- Multi-tenant: run separate agents for multiple businesses from one deployment
 
 ## Live demo *(planned)*
 
-<!-- TODO: link -->
 Call the demo line or try it in your browser at **demo.answerline.dev**. The demo agent is the receptionist for a fictional dental clinic. Ask about opening hours or services, or book an appointment.
 
 ## Quickstart
 
-Requirements today: Docker, Node 24 with pnpm, Python 3.13 with [uv](https://docs.astral.sh/uv/), and API keys for Deepgram (speech-to-text), Anthropic (LLM), and Cartesia (text-to-speech).
+Requirements today: Docker, Node 24 with pnpm, Python 3.13 with [uv](https://docs.astral.sh/uv/), and API keys for Deepgram (speech-to-text), OpenRouter (the sample agent's LLM), and Cartesia (text-to-speech). Add a Google key for knowledge base embeddings, and OpenAI and Google keys if you want the sample agent's LLM fallbacks to work.
 
 ```bash
 git clone https://github.com/khantseithu/answerline.git
@@ -96,11 +94,10 @@ pnpm agent:dev              # voice agent (separate terminal)
 
 The scripts use the project-local [Dotenvx](https://dotenvx.com/docs/quickstart) CLI to load the root `.env` for web, worker, database tools, and the uv-managed Python agent. No global Dotenvx install is needed. Keep local `.env` plaintext for Docker Compose and worktree setup; never commit it or `.env.keys`. See [environment configuration](docs/environment.md) for encryption and deployment.
 
-Open http://localhost:3000 and click **Talk to agent** to call the sample agent from your browser.
+Open http://localhost:3000, sign in with the administrator account, and click **Talk to agent** to call the sample agent from your browser.
 
 To answer phone calls, [connect a phone number](docs/telephony.md) from Twilio, Telnyx, or any SIP trunk.
 
-The initial administrator is provisioned during bootstrap. Dashboard sign-in is still being implemented.
 
 ## Configure an agent
 
@@ -120,9 +117,9 @@ instructions: |
 models:
   stt: deepgram/nova-3
   llm:
-    primary: anthropic/claude-sonnet
-    fallback: [openai/gpt-mini, google/gemini-flash]
-  tts: cartesia/sonic
+    primary: openrouter/recursive/flint-v1.0:free
+    fallback: [openai/gpt-4.1-mini, google/gemini-3.8-flash]
+  tts: cartesia/sonic-3
 
 knowledge:
   sources:
@@ -137,11 +134,6 @@ tools:
     slot_minutes: 30
   - builtin: transfer_call
     to: "+15555550100"
-  - http:
-      name: check_insurance
-      description: Check whether the clinic accepts an insurance plan
-      method: GET
-      url: https://api.example.com/insurance?plan={plan}
 
 hours:
   timezone: America/New_York
@@ -241,16 +233,16 @@ The worker profile starts Postgres and Redis as needed. Container runs use the C
 To run text evals on pull requests, enable the [opt-in GitHub Action](docs/evals-ci.md).
 
 
-## Deployment *(planned)*
+## Deployment
 
 | Option | Best for | Guide |
 |---|---|---|
 | Docker Compose | A single server or VPS | [docs/deploy/docker.md](docs/deploy/docker.md) |
-| Coolify | One-click deploys on your own server | [docs/deploy/coolify.md](docs/deploy/coolify.md) |
-| Terraform on Azure | Production with separate dev, staging, and prod | [infra/azure](infra/azure) |
-| Terraform on AWS | Production on AWS | [infra/aws](infra/aws) |
+| Coolify | One-click deploys on your own server | *(planned)* |
+| Terraform on Azure | Production with separate dev, staging, and prod | *(planned)* |
+| Terraform on AWS | Production on AWS | *(planned)* |
 
-The Terraform modules provision container apps for each service, managed Postgres and Redis, secrets, autoscaling for workers, and a GitHub Actions pipeline that promotes builds from dev to staging to prod.
+The planned Terraform modules will provision container apps for each service, managed Postgres and Redis, secrets, autoscaling for workers, and a GitHub Actions pipeline that promotes builds from dev to staging to prod.
 
 ## API
 
@@ -299,16 +291,18 @@ answerline/
 ## Roadmap
 
 - [x] Web voice calls with a sample agent
-- [ ] Knowledge base ingestion and hybrid search
-- [ ] Built-in tools: booking, transfer, business hours
-- [ ] Phone calls over SIP
-- [ ] Dashboard: calls, transcripts, cost per call
-- [ ] Evals runner
-- [ ] Docker Compose and Coolify deploys
+- [x] Knowledge base ingestion and hybrid search
+- [x] Built-in booking, cold transfer, business hours, voicemail, and lead capture
+- [ ] HTTP tools, MCP servers, warm transfer, and Cal.com and Google Calendar booking
+- [x] Phone calls over SIP
+- [x] Dashboard: calls, transcripts, cost per call
+- [x] Evals runner
+- [x] Docker Compose deploy
+- [ ] Coolify template
 - [ ] Terraform modules for Azure and AWS
 - [x] Multi-tenant workspaces and API keys
-- [ ] Outbound calls and webhooks
-- [ ] Multilingual agents
+- [x] Outbound calls and webhooks
+- [x] Multilingual agents (eval suites in other languages still *(planned)*)
 
 ## Contributing
 
