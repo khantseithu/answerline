@@ -9,3 +9,6 @@ allowBuilds:
   msgpackr-extract: false
   sharp: false
   unrs-resolver: false
+
+overrides:
+  "body-parser@>=2.0.0 <2.4.0": ^2.4.0

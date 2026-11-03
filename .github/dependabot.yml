@@ -30,14 +30,25 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: monthly
+      interval: weekly
     commit-message:
       prefix: ci
+
+  - package-ecosystem: docker
+    directories:
+      - /apps/web
+      - /apps/worker
+      - /apps/agent
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: build
+      include: scope
 
   - package-ecosystem: docker-compose
     directory: /
     schedule:
-      interval: monthly
+      interval: weekly
     commit-message:
       prefix: build
       include: scope
