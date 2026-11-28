@@ -32,7 +32,7 @@
   },
   "devDependencies": {
     "@types/jsdom": "^30.0.0",
-    "@types/node": "^24",
+    "@types/node": "^25",
     "typescript": "^5.9.3"
   }
 }

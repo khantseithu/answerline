@@ -27,7 +27,7 @@
   },
   "devDependencies": {
     "@better-auth/drizzle-adapter": "^1.7.12",
-    "@types/node": "^24",
+    "@types/node": "^25",
     "drizzle-kit": "^0.31.11",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3"
